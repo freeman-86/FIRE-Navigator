@@ -3,7 +3,7 @@ import os
 import unittest
 
 from core.simulation.projection.projection_engine import run_projection
-from repositories.config_repository import load_portfolio_rules, load_tax_rules
+from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
 from reports.chart_builder import build_networth_chart
 from tests.regression.scenario_sprint4 import build_scenario_plan, build_scenario_portfolios
 
@@ -16,6 +16,7 @@ def _serialize_result(plan, simulation_result) -> dict:
             "year": projection.year,
             "age_self": projection.age_self,
             "gross_income": int(projection.gross_income.amount),
+            "pension_income": int(projection.pension_income.amount),
             "income_tax": int(projection.income_tax.amount),
             "resident_tax": int(projection.resident_tax.amount),
             "social_insurance": int(projection.social_insurance.amount),
@@ -34,7 +35,7 @@ def _serialize_result(plan, simulation_result) -> dict:
         for outcome in simulation_result.milestone_outcomes
     ]
     return {
-        "config_version": "sprint7-tax_2026_portfolio_2026",
+        "config_version": "sprint8-tax_2026_portfolio_2026_pension_2026",
         "yearly_projections": yearly_projections,
         "milestone_outcomes": milestone_outcomes,
         "networth_chart": build_networth_chart(plan, simulation_result),
@@ -47,7 +48,8 @@ class ProjectionRegressionTest(unittest.TestCase):
         portfolios = build_scenario_portfolios()
         tax_rules = load_tax_rules()
         portfolio_rules = load_portfolio_rules()
-        result = run_projection(plan, portfolios, tax_rules, portfolio_rules)
+        pension_rules = load_pension_rules()
+        result = run_projection(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
         actual = _serialize_result(plan, result)
 
         with open(GOLDEN_PATH, encoding="utf-8") as f:

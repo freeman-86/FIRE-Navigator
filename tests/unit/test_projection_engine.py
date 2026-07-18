@@ -15,8 +15,9 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
-from core.simulation.projection.projection_engine import run_projection
-from repositories.config_repository import load_portfolio_rules, load_tax_rules
+from core.simulation.projection.projection_engine import DEFAULT_LIFE_EXPECTANCY_AGE, run_projection
+from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
+from tests.pension_test_fixtures import zero_pension_rules
 from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_contribution_strategy
 from tests.tax_test_fixtures import zero_tax_rules
 
@@ -50,16 +51,20 @@ def _portfolio(balance: int, asset_class: AssetClass = AssetClass.GLOBAL_EQUITY)
     return Portfolio(holdings=[holding])
 
 
+def _run(plan: Plan, portfolios: dict[str, Portfolio] = None):
+    return run_projection(plan, portfolios or {}, zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
+
+
 class ProjectionEngineTest(unittest.TestCase):
     def test_default_horizon_is_30_years_without_retirement_milestone(self) -> None:
         plan = _minimal_plan()
-        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
+        result = _run(plan)
 
         self.assertEqual(len(result.yearly_projections), 30)
         self.assertEqual(result.yearly_projections[0].year, 2026)
         self.assertEqual(result.yearly_projections[-1].year, 2055)
 
-    def test_horizon_stops_at_retirement_milestone_age(self) -> None:
+    def test_horizon_extends_to_life_expectancy_when_retirement_milestone_present(self) -> None:
         plan = _minimal_plan(
             milestones=[
                 Milestone(
@@ -69,11 +74,12 @@ class ProjectionEngineTest(unittest.TestCase):
                 )
             ]
         )
-        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
+        result = _run(plan)
 
-        # 1990年生まれが60歳になるのは2050年
-        self.assertEqual(result.yearly_projections[-1].year, 2050)
-        self.assertEqual(result.yearly_projections[-1].age_self, 60)
+        # 1990年生まれがDEFAULT_LIFE_EXPECTANCY_AGE歳になる年まで、退職後も継続してシミュレーションする
+        expected_last_year = 1990 + DEFAULT_LIFE_EXPECTANCY_AGE
+        self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
+        self.assertEqual(result.yearly_projections[-1].age_self, DEFAULT_LIFE_EXPECTANCY_AGE)
 
     def test_surplus_and_growth_compound_networth(self) -> None:
         account = Account(account_id="acc_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
@@ -98,7 +104,7 @@ class ProjectionEngineTest(unittest.TestCase):
         )
         portfolios = {"acc_001": _portfolio(1_000_000)}
 
-        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
+        result = _run(plan, portfolios)
         first_year = result.yearly_projections[0]
 
         self.assertEqual(first_year.gross_income, Money.of(5_000_000))
@@ -113,7 +119,7 @@ class ProjectionEngineTest(unittest.TestCase):
         account = Account(account_id="acc_no_portfolio", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         plan = _minimal_plan(accounts=[account])
 
-        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
+        result = _run(plan)
 
         self.assertEqual(result.yearly_projections[0].account_balances["acc_no_portfolio"], Money.zero())
 
@@ -126,22 +132,111 @@ class ProjectionEngineTest(unittest.TestCase):
             start_condition=EventCondition.plan_start(),
             end_condition=EventCondition.at_age(60),
         )
-        plan = _minimal_plan(
-            incomes=[income],
-            milestones=[
-                Milestone(
-                    milestone_id="milestone_retire_001",
-                    milestone_type=MilestoneType.RETIREMENT,
-                    trigger=EventCondition.at_age(62),
-                )
-            ],
-        )
-        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
+        plan = _minimal_plan(incomes=[income])
+        result = _run(plan)
 
         by_age = {p.age_self: p.gross_income for p in result.yearly_projections}
         self.assertEqual(by_age[59], Money.of(1_000_000))
         self.assertEqual(by_age[60], Money.zero())
-        self.assertEqual(by_age[62], Money.zero())
+
+
+class PensionAndWithdrawalTest(unittest.TestCase):
+    """Sprint8の終了条件：退職後フェーズを含めた資産推移が、年金受給・取り崩し順序を考慮して計算される。"""
+
+    def test_pension_income_starts_at_claim_age(self) -> None:
+        pension = Pension(
+            national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
+            employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
+            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        )
+        milestone = Milestone(
+            milestone_id="milestone_retire_001",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(65),
+        )
+        plan = _minimal_plan(pension=pension, milestones=[milestone])
+
+        result = _run(plan)
+
+        by_age = {p.age_self: p.pension_income for p in result.yearly_projections}
+        self.assertEqual(by_age[64], Money.zero())
+        self.assertEqual(by_age[65], Money.of(1_980_000))
+
+    def test_early_claim_reduces_pension_income(self) -> None:
+        pension_rules = load_pension_rules()
+        pension = Pension(
+            national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
+            employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
+            claim_timing=ClaimTiming(timing_type=ClaimTimingType.EARLY, age=60),
+        )
+        milestone = Milestone(
+            milestone_id="milestone_retire_001",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(60),
+        )
+        plan = _minimal_plan(pension=pension, milestones=[milestone])
+
+        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules(), pension_rules)
+
+        # 60歳受給(標準65歳より60ヶ月早い) -> 60ヶ月×0.4%=24%減額 -> 1,980,000×0.76=1,504,800
+        by_age = {p.age_self: p.pension_income for p in result.yearly_projections}
+        self.assertEqual(by_age[60], Money.of(1_504_800))
+
+    def test_withdrawal_covers_post_retirement_shortfall_from_account_balance(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        expense = Expense(
+            expense_id="expense_001",
+            category="living",
+            amount=Money.of(3_000_000),
+            growth_rate=Rate.zero(),
+        )
+        milestone = Milestone(
+            milestone_id="milestone_retire_001",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(60),
+        )
+        plan = _minimal_plan(
+            accounts=[account],
+            expenses=[expense],
+            milestones=[milestone],
+            withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
+        )
+        portfolios = {"acc_taxable": _portfolio(10_000_000, AssetClass.CASH)}
+
+        result = _run(plan, portfolios)
+        first_year = result.yearly_projections[0]
+
+        # 収入ゼロ・支出300万円・成長率0%の年、口座から300万円が取り崩される
+        self.assertEqual(first_year.account_balances["acc_taxable"], Money.of(7_000_000))
+        self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.zero())
+
+    def test_unmet_shortfall_after_accounts_exhausted_flows_to_unallocated_surplus(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        expense = Expense(
+            expense_id="expense_001",
+            category="living",
+            amount=Money.of(3_000_000),
+            growth_rate=Rate.zero(),
+        )
+        milestone = Milestone(
+            milestone_id="milestone_retire_001",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(60),
+        )
+        plan = _minimal_plan(
+            accounts=[account],
+            expenses=[expense],
+            milestones=[milestone],
+            withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
+        )
+        portfolios = {"acc_taxable": _portfolio(1_000_000, AssetClass.CASH)}
+
+        result = _run(plan, portfolios)
+        first_year = result.yearly_projections[0]
+
+        # 口座残高100万円しかないのに支出300万円 -> 100万円取り崩して枯渇、残り200万円はunallocated_surplusがマイナスに
+        self.assertEqual(first_year.account_balances["acc_taxable"], Money.zero())
+        self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(-2_000_000))
 
 
 class NisaIdecoComparisonTest(unittest.TestCase):
@@ -182,6 +277,7 @@ class NisaIdecoComparisonTest(unittest.TestCase):
     def test_using_ideco_produces_higher_after_tax_networth_than_not_using_it(self) -> None:
         tax_rules = load_tax_rules()
         portfolio_rules = load_portfolio_rules()
+        pension_rules = load_pension_rules()
 
         accounts_with, portfolios_with = self._accounts_and_portfolios(with_ideco=True)
         accounts_without, portfolios_without = self._accounts_and_portfolios(with_ideco=False)
@@ -201,8 +297,10 @@ class NisaIdecoComparisonTest(unittest.TestCase):
             contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
         )
 
-        result_with_ideco = run_projection(with_ideco, portfolios_with, tax_rules, portfolio_rules)
-        result_without_ideco = run_projection(without_ideco, portfolios_without, tax_rules, portfolio_rules)
+        result_with_ideco = run_projection(with_ideco, portfolios_with, tax_rules, portfolio_rules, pension_rules)
+        result_without_ideco = run_projection(
+            without_ideco, portfolios_without, tax_rules, portfolio_rules, pension_rules
+        )
 
         # iDeCo拠出は所得控除の対象になり手取りが増えるため、同じ収入・支出でもiDeCoを使った方が
         # 税引後ネットワースが大きくなる。

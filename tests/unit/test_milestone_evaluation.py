@@ -41,6 +41,7 @@ def _projection(year: int, age: int, networth: int, total_expense: int = 3_000_0
         year=year,
         age_self=age,
         gross_income=Money.zero(),
+        pension_income=Money.zero(),
         income_tax=Money.zero(),
         resident_tax=Money.zero(),
         social_insurance=Money.zero(),

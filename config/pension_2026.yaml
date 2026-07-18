@@ -1,0 +1,11 @@
+schema_version: 1
+pension_year: 2026
+
+# 公的年金の繰上げ/繰下げ受給による増減率（2022年改正後の実際の率に準拠）。
+# 繰上げ: 60〜64歳、1ヶ月あたり0.4%減額（最大24%減額@60歳）
+# 繰下げ: 66〜75歳、1ヶ月あたり0.7%増額（最大84%増額@75歳）
+standard_claim_age: 65
+earliest_claim_age: 60
+latest_claim_age: 75
+early_reduction_rate_per_month: 0.004
+deferred_increase_rate_per_month: 0.007

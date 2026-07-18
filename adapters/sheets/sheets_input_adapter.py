@@ -204,7 +204,9 @@ def _default_withdrawal_strategy() -> WithdrawalStrategy:
             AccountType.TAXABLE,
             AccountType.NISA_GROWTH,
             AccountType.NISA_TSUMITATE,
+            AccountType.ZAIKEI,
             AccountType.IDECO,
+            AccountType.COMPANY_DC,
         ]
     )
 

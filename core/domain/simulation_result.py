@@ -11,6 +11,7 @@ class YearlyProjection:
     year: int
     age_self: int
     gross_income: Money
+    pension_income: Money
     income_tax: Money
     resident_tax: Money
     social_insurance: Money

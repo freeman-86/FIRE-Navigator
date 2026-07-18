@@ -10,6 +10,7 @@ SCENARIOS_SHEET = "Input_Scenarios"
 OUTPUT_NETWORTH_SHEET = "Output_NetWorth"
 OUTPUT_NETWORTH_BREAKDOWN_SHEET = "Output_NetWorth_Breakdown"
 OUTPUT_SCENARIO_COMPARISON_SHEET = "Output_ScenarioComparison"
+OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "Output_SensitivityAnalysis"
 
 # Input_Plan: A列=キー / B列=値 の縦持ち設定シート。
 # (シート上のキー, Planフィールドパス, 型変換ルール)
@@ -80,3 +81,7 @@ OUTPUT_NETWORTH_BREAKDOWN_FIELD_PATH = "output_json.charts.networth_chart"
 # 列数・列名はInput_Scenariosの行数に応じて可変なため固定のマッピング定義は持たず、
 # reports/scenario_comparison_builder.py の出力からその都度組み立てる。
 OUTPUT_SCENARIO_COMPARISON_FIELD_PATH = "output_json.charts.scenario_comparison_chart"
+
+# Output_SensitivityAnalysis: 成長率(行)×インフレ率(列)の最終年ネットワースをグリッド形式で書き出す。
+# reports/sensitivity_analysis_builder.py の出力からその都度組み立てる。
+OUTPUT_SENSITIVITY_ANALYSIS_FIELD_PATH = "output_json.tables.sensitivity_table"

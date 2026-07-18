@@ -15,6 +15,7 @@ from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import run_projection
 from reports.chart_builder import build_networth_chart
 from reports.output_builder import OUTPUT_SCHEMA_VERSION, build_output_json
+from tests.pension_test_fixtures import zero_pension_rules
 from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_contribution_strategy
 from tests.tax_test_fixtures import zero_tax_rules
 
@@ -70,7 +71,7 @@ def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
 class ChartBuilderTest(unittest.TestCase):
     def test_series_grouped_by_account_type_plus_unallocated_surplus(self) -> None:
         plan, portfolios = _plan_with_two_account_types()
-        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
 
         chart = build_networth_chart(plan, result)
 
@@ -85,7 +86,7 @@ class ChartBuilderTest(unittest.TestCase):
 
     def test_series_values_sum_to_networth(self) -> None:
         plan, portfolios = _plan_with_two_account_types()
-        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
         chart = build_networth_chart(plan, result)
 
         for index, projection in enumerate(result.yearly_projections):
@@ -96,7 +97,7 @@ class ChartBuilderTest(unittest.TestCase):
 class OutputBuilderTest(unittest.TestCase):
     def test_output_json_introduces_charts_field_with_other_fields_empty(self) -> None:
         plan, portfolios = _plan_with_two_account_types()
-        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
 
         output = build_output_json(plan, result)
 

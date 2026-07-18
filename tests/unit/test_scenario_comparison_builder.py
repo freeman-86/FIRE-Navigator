@@ -11,6 +11,7 @@ def _result(networths: list[int], start_year: int = 2026) -> SimulationResult:
             year=start_year + i,
             age_self=36 + i,
             gross_income=Money.zero(),
+            pension_income=Money.zero(),
             income_tax=Money.zero(),
             resident_tax=Money.zero(),
             social_insurance=Money.zero(),

@@ -6,6 +6,7 @@ from typing import Optional, Union
 import yaml
 
 from core.domain.account import AccountType
+from core.domain.pension import PensionRules
 from core.domain.portfolio_rules import AccountRules, PortfolioRules
 from core.domain.tax_config import (
     EmploymentIncomeDeductionBracket,
@@ -19,6 +20,7 @@ from core.domain.value_objects import Money, Rate
 
 DEFAULT_TAX_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "tax_2026.yaml"
 DEFAULT_PORTFOLIO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "portfolio_2026.yaml"
+DEFAULT_PENSION_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "pension_2026.yaml"
 
 
 def load_tax_rules(config_path: Union[str, Path] = DEFAULT_TAX_CONFIG_PATH) -> TaxRules:
@@ -88,6 +90,21 @@ def load_portfolio_rules(config_path: Union[str, Path] = DEFAULT_PORTFOLIO_CONFI
     }
 
     return PortfolioRules(rules_by_account_type=rules_by_account_type)
+
+
+def load_pension_rules(config_path: Union[str, Path] = DEFAULT_PENSION_CONFIG_PATH) -> PensionRules:
+    """pension.yamlを読み込み、繰上げ/繰下げ受給の増減率をPensionRulesとして返す。"""
+
+    with open(config_path, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+
+    return PensionRules(
+        standard_claim_age=int(raw["standard_claim_age"]),
+        earliest_claim_age=int(raw["earliest_claim_age"]),
+        latest_claim_age=int(raw["latest_claim_age"]),
+        early_reduction_rate_per_month=Rate.of(raw["early_reduction_rate_per_month"]),
+        deferred_increase_rate_per_month=Rate.of(raw["deferred_increase_rate_per_month"]),
+    )
 
 
 def _money_or_none(value: Optional[float]) -> Optional[Money]:

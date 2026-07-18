@@ -8,11 +8,13 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
+    OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
 )
 from core.domain.simulation_result import SimulationResult
 
 BREAKDOWN_CHART_TITLE = "ネットワース推移（口座種別内訳）"
 SCENARIO_COMPARISON_CHART_TITLE = "シナリオ比較（ネットワース推移）"
+SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
 
 
 def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: SimulationResult) -> None:
@@ -54,6 +56,27 @@ def write_scenario_comparison(spreadsheet: gspread.Spreadsheet, comparison_chart
         stacked_type=None,
         num_rows=len(comparison_chart["x"]) + 1,
         num_series=len(comparison_chart["series"]),
+    )
+
+
+def write_sensitivity_table(spreadsheet: gspread.Spreadsheet, table: dict) -> None:
+    """成長率×インフレ率の最終年ネットワースをグリッド表として書き込み、
+    色スケール（条件付き書式）で感応度をヒートマップとして可視化する。
+    """
+
+    header = [SENSITIVITY_TABLE_HEADER] + list(table["column_labels"])
+    rows: list[list[object]] = [header]
+    for row_label, cell_row in zip(table["row_labels"], table["cells"]):
+        rows.append([row_label] + list(cell_row))
+
+    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_SENSITIVITY_ANALYSIS_SHEET, rows)
+    worksheet.update(values=rows, range_name="A1")
+
+    _replace_heatmap_conditional_format(
+        spreadsheet,
+        worksheet,
+        num_data_rows=len(table["row_labels"]),
+        num_data_cols=len(table["column_labels"]),
     )
 
 
@@ -176,3 +199,52 @@ def _existing_chart_ids(spreadsheet: gspread.Spreadsheet, sheet_id: int, title: 
             if chart.get("spec", {}).get("title") == title:
                 chart_ids.append(chart["chartId"])
     return chart_ids
+
+
+def _replace_heatmap_conditional_format(
+    spreadsheet: gspread.Spreadsheet,
+    worksheet: gspread.Worksheet,
+    num_data_rows: int,
+    num_data_cols: int,
+) -> None:
+    sheet_id = worksheet.id
+
+    metadata = spreadsheet.fetch_sheet_metadata()
+    existing_rule_count = 0
+    for sheet in metadata.get("sheets", []):
+        if sheet["properties"]["sheetId"] == sheet_id:
+            existing_rule_count = len(sheet.get("conditionalFormats", []))
+            break
+
+    # 削除するたびにindexが詰まるため、常にindex=0を指定すればよい。
+    requests = [{"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}} for _ in range(existing_rule_count)]
+
+    requests.append(
+        {
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [
+                        {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "endRowIndex": 1 + num_data_rows,
+                            "startColumnIndex": 1,
+                            "endColumnIndex": 1 + num_data_cols,
+                        }
+                    ],
+                    "gradientRule": {
+                        "minpoint": {"color": {"red": 0.96, "green": 0.6, "blue": 0.6}, "type": "MIN"},
+                        "midpoint": {
+                            "color": {"red": 1.0, "green": 1.0, "blue": 0.8},
+                            "type": "PERCENTILE",
+                            "value": "50",
+                        },
+                        "maxpoint": {"color": {"red": 0.6, "green": 0.85, "blue": 0.6}, "type": "MAX"},
+                    },
+                },
+                "index": 0,
+            }
+        }
+    )
+
+    spreadsheet.batch_update({"requests": requests})

@@ -85,7 +85,7 @@ class TaxEngineTest(unittest.TestCase):
 
     def test_calculate_tax_matches_component_calculations(self) -> None:
         tax_config = TaxConfig(residence=Prefecture.TOKYO, deduction_settings={"spouse_deduction": True})
-        result = calculate_tax(Money.of(6_000_000), tax_config, has_spouse=True, rules=self.rules)
+        result = calculate_tax(Money.of(6_000_000), Money.zero(), tax_config, has_spouse=True, rules=self.rules)
 
         self.assertEqual(result.income_tax, Money.of(272_500))
         self.assertEqual(result.resident_tax, Money.of(355_000))
@@ -94,18 +94,27 @@ class TaxEngineTest(unittest.TestCase):
 
     def test_spouse_deduction_not_applied_without_flag(self) -> None:
         tax_config = TaxConfig(residence=Prefecture.TOKYO, deduction_settings={})
-        result = calculate_tax(Money.of(6_000_000), tax_config, has_spouse=True, rules=self.rules)
+        result = calculate_tax(Money.of(6_000_000), Money.zero(), tax_config, has_spouse=True, rules=self.rules)
 
         self.assertEqual(result.income_tax, Money.of(348_500))
 
     def test_no_income_results_in_zero_tax_and_zero_net_income(self) -> None:
         tax_config = TaxConfig(residence=Prefecture.TOKYO)
-        result = calculate_tax(Money.zero(), tax_config, has_spouse=False, rules=self.rules)
+        result = calculate_tax(Money.zero(), Money.zero(), tax_config, has_spouse=False, rules=self.rules)
 
         self.assertEqual(result.income_tax, Money.zero())
         self.assertEqual(result.resident_tax, Money.zero())
         self.assertEqual(result.social_insurance, Money.zero())
         self.assertEqual(result.net_income, Money.zero())
+
+    def test_pension_income_is_taxed_but_excluded_from_social_insurance(self) -> None:
+        tax_config = TaxConfig(residence=Prefecture.TOKYO)
+        with_pension = calculate_tax(Money.zero(), Money.of(2_000_000), tax_config, has_spouse=False, rules=self.rules)
+        without_pension = calculate_tax(Money.zero(), Money.zero(), tax_config, has_spouse=False, rules=self.rules)
+
+        self.assertGreater(with_pension.income_tax, without_pension.income_tax)
+        self.assertEqual(with_pension.social_insurance, Money.zero())
+        self.assertEqual(with_pension.social_insurance, without_pension.social_insurance)
 
 
 if __name__ == "__main__":

@@ -18,23 +18,32 @@ class TaxCalculationResult:
 
 
 def calculate_tax(
-    gross_income: Money,
+    employment_income: Money,
+    pension_income: Money,
     tax_config: TaxConfig,
     has_spouse: bool,
     rules: TaxRules,
     additional_deduction: Money = Money.zero(),
 ) -> TaxCalculationResult:
+    """employment_income(給与等)とpension_income(公的年金等)を合算して課税所得を計算する。
+
+    pension_incomeも簡略化のため給与所得控除と同じ計算式を流用する（公的年金等控除の専用
+    テーブルは未実装、Sprint8時点のMVP簡略化）。社会保険料は年金受給者には課さないため、
+    employment_incomeのみを対象に計算する。
+    """
+
+    total_income = employment_income + pension_income
     apply_spouse_deduction = has_spouse and bool(tax_config.deduction_settings.get("spouse_deduction", False))
     taxable_income = calculate_taxable_income(
-        gross_income, rules.income_tax, apply_spouse_deduction, additional_deduction
+        total_income, rules.income_tax, apply_spouse_deduction, additional_deduction
     )
 
     income_tax = calculate_income_tax(taxable_income, rules.income_tax)
     resident_tax = calculate_resident_tax(taxable_income, rules.resident_tax)
-    social_insurance = calculate_social_insurance(gross_income, rules.social_insurance)
+    social_insurance = calculate_social_insurance(employment_income, rules.social_insurance)
 
     total_tax = income_tax + resident_tax + social_insurance
-    net_income = gross_income - total_tax
+    net_income = total_income - total_tax
 
     return TaxCalculationResult(
         income_tax=income_tax,
