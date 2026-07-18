@@ -10,19 +10,26 @@ from core.domain.income import Income
 from core.domain.milestone import MilestoneType
 from core.domain.plan import Plan, StartConditionType
 from core.domain.simulation_result import SimulationResult, YearlyProjection
+from core.domain.tax_config import TaxRules
 from core.domain.value_objects import EventCondition, EventConditionType, Money, Rate
+from core.simulation.tax.tax_engine import calculate_tax
 
 DEFAULT_PROJECTION_YEARS = 30
 UNALLOCATED_SURPLUS_KEY = "unallocated_surplus"
 
 
-def run_projection(plan: Plan) -> SimulationResult:
-    """税抜きの決定論的シミュレーション。収入-支出=余剰、資産×成長率のみを扱う（Sprint3スコープ）。"""
+def run_projection(plan: Plan, tax_rules: TaxRules) -> SimulationResult:
+    """決定論的シミュレーション。収入(手取りベース)-支出=余剰、資産×成長率で年次ネットワース推移を計算する（Sprint5スコープ）。
+
+    tax_rulesはApplication層相当の呼び出し元がrepositories.config_repository.load_tax_rules()等で
+    用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
+    """
 
     start_year = _resolve_start_year(plan)
     end_year = _resolve_end_year(plan, start_year)
     growth_rate = plan.assumptions.investment_growth_rate
     birth_date = plan.user.birth_date
+    has_spouse = plan.user.spouse is not None
 
     account_balances = {account.account_id: _initial_balance(account) for account in plan.accounts}
     surplus_reserve = Money.zero()
@@ -31,7 +38,9 @@ def run_projection(plan: Plan) -> SimulationResult:
     for offset, year in enumerate(range(start_year, end_year + 1)):
         gross_income = _active_income_total(plan.incomes, year, start_year, birth_date, offset)
         total_expense = _expense_total(plan.expenses, offset)
-        net_cashflow = gross_income - total_expense
+
+        tax_result = calculate_tax(gross_income, plan.tax_config, has_spouse, tax_rules)
+        net_cashflow = tax_result.net_income - total_expense
 
         account_balances = {
             account_id: _grow(balance, growth_rate) for account_id, balance in account_balances.items()
@@ -46,10 +55,10 @@ def run_projection(plan: Plan) -> SimulationResult:
                 year=year,
                 age_self=year - birth_date.year,
                 gross_income=gross_income,
-                income_tax=Money.zero(),
-                resident_tax=Money.zero(),
-                social_insurance=Money.zero(),
-                net_income=gross_income,
+                income_tax=tax_result.income_tax,
+                resident_tax=tax_result.resident_tax,
+                social_insurance=tax_result.social_insurance,
+                net_income=tax_result.net_income,
                 total_expense=total_expense,
                 net_cashflow=net_cashflow,
                 account_balances=balances_snapshot,

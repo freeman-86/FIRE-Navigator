@@ -1,0 +1,56 @@
+schema_version: 1
+tax_year: 2026
+
+# 所得税（累進課税、7段階）。2015年分以降の実際の税率表に準拠。
+# upper_bound: null は最終ブラケット（上限なし）
+income_tax:
+  employment_income_deduction:
+    # 給与所得控除（2020年分以降の実際の速算表）。区分ごとに base_amount + 収入金額×rate。
+    # rate=0 の区分は base_amount をそのまま固定額として使う（下限・上限の頭打ち）。
+    - upper_bound: 1625000
+      rate: 0.0
+      base_amount: 550000
+    - upper_bound: 1800000
+      rate: 0.4
+      base_amount: -100000
+    - upper_bound: 3600000
+      rate: 0.3
+      base_amount: 80000
+    - upper_bound: 6600000
+      rate: 0.2
+      base_amount: 440000
+    - upper_bound: 8500000
+      rate: 0.1
+      base_amount: 1100000
+    - upper_bound: null
+      rate: 0.0
+      base_amount: 1950000
+  basic_deduction: 480000
+  spouse_deduction: 380000
+  brackets:
+    - upper_bound: 1950000
+      rate: 0.05
+    - upper_bound: 3300000
+      rate: 0.10
+    - upper_bound: 6950000
+      rate: 0.20
+    - upper_bound: 9000000
+      rate: 0.23
+    - upper_bound: 18000000
+      rate: 0.33
+    - upper_bound: 40000000
+      rate: 0.40
+    - upper_bound: null
+      rate: 0.45
+
+# 住民税。実際の税率(所得割10%)・均等割(標準額)に準拠した簡易版。
+# 課税標準は所得税と同じtaxable_incomeを流用する（住民税独自の基礎控除43万円との差異は無視するMVP簡略化）。
+resident_tax:
+  flat_rate: 0.10
+  per_capita_levy: 5000
+
+# 社会保険料。標準報酬月額表・上限は考慮せず、年収に対する合算料率を掛けるだけのMVP簡略化。
+social_insurance:
+  health_insurance_rate: 0.05
+  pension_insurance_rate: 0.0915
+  employment_insurance_rate: 0.006

@@ -16,6 +16,7 @@ from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import run_projection
+from tests.tax_test_fixtures import zero_tax_rules
 
 
 def _minimal_plan(**overrides) -> Plan:
@@ -43,7 +44,7 @@ def _minimal_plan(**overrides) -> Plan:
 class ProjectionEngineTest(unittest.TestCase):
     def test_default_horizon_is_30_years_without_retirement_milestone(self) -> None:
         plan = _minimal_plan()
-        result = run_projection(plan)
+        result = run_projection(plan, zero_tax_rules())
 
         self.assertEqual(len(result.yearly_projections), 30)
         self.assertEqual(result.yearly_projections[0].year, 2026)
@@ -59,7 +60,7 @@ class ProjectionEngineTest(unittest.TestCase):
                 )
             ]
         )
-        result = run_projection(plan)
+        result = run_projection(plan, zero_tax_rules())
 
         # 1990年生まれが60歳になるのは2050年
         self.assertEqual(result.yearly_projections[-1].year, 2050)
@@ -98,7 +99,7 @@ class ProjectionEngineTest(unittest.TestCase):
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
         )
 
-        result = run_projection(plan)
+        result = run_projection(plan, zero_tax_rules())
         first_year = result.yearly_projections[0]
 
         self.assertEqual(first_year.gross_income, Money.of(5_000_000))
@@ -128,7 +129,7 @@ class ProjectionEngineTest(unittest.TestCase):
                 )
             ],
         )
-        result = run_projection(plan)
+        result = run_projection(plan, zero_tax_rules())
 
         by_age = {p.age_self: p.gross_income for p in result.yearly_projections}
         self.assertEqual(by_age[59], Money.of(1_000_000))

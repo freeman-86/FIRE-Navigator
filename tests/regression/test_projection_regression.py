@@ -3,6 +3,7 @@ import os
 import unittest
 
 from core.simulation.projection.projection_engine import run_projection
+from repositories.config_repository import load_tax_rules
 from reports.chart_builder import build_networth_chart
 from tests.regression.scenario_sprint4 import build_scenario_plan
 
@@ -15,6 +16,10 @@ def _serialize_result(plan, simulation_result) -> dict:
             "year": projection.year,
             "age_self": projection.age_self,
             "gross_income": int(projection.gross_income.amount),
+            "income_tax": int(projection.income_tax.amount),
+            "resident_tax": int(projection.resident_tax.amount),
+            "social_insurance": int(projection.social_insurance.amount),
+            "net_income": int(projection.net_income.amount),
             "total_expense": int(projection.total_expense.amount),
             "net_cashflow": int(projection.net_cashflow.amount),
             "account_balances": {
@@ -25,7 +30,7 @@ def _serialize_result(plan, simulation_result) -> dict:
         for projection in simulation_result.yearly_projections
     ]
     return {
-        "config_version": "sprint4-baseline",
+        "config_version": "sprint5-tax_2026",
         "yearly_projections": yearly_projections,
         "networth_chart": build_networth_chart(plan, simulation_result),
     }
@@ -34,7 +39,8 @@ def _serialize_result(plan, simulation_result) -> dict:
 class ProjectionRegressionTest(unittest.TestCase):
     def test_fixed_scenario_matches_golden_baseline(self) -> None:
         plan = build_scenario_plan()
-        result = run_projection(plan)
+        tax_rules = load_tax_rules()
+        result = run_projection(plan, tax_rules)
         actual = _serialize_result(plan, result)
 
         with open(GOLDEN_PATH, encoding="utf-8") as f:
