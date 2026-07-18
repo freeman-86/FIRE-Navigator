@@ -11,6 +11,7 @@ from adapters.sheets.sheet_mapping import (
     EXPENSES_SHEET,
     INCOMES_SHEET,
     PLAN_SHEET,
+    SCENARIOS_SHEET,
     SPREADSHEET_NAME,
 )
 from core.domain.account import Account, AccountType, OwnerType
@@ -22,6 +23,7 @@ from core.domain.income import Income
 from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
+from core.domain.scenario import Scenario
 from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
@@ -92,23 +94,60 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
     worksheet = spreadsheet.worksheet(ACCOUNTS_SHEET)
     accounts = []
     for record in worksheet.get_all_records():
-        asset = Asset(
-            asset_class=AssetClass(record["asset_class"]),
-            expected_return=Rate.of(record["expected_return"]),
-            volatility=Rate.of(record["volatility"]),
-        )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(record["balance"]))
         monthly_contribution_raw = str(record.get("monthly_contribution", "")).strip()
         accounts.append(
             Account(
                 account_id=str(record["account_id"]),
                 account_type=AccountType(record["account_type"]),
                 owner=OwnerType(record["owner"]),
-                portfolio=Portfolio(holdings=[holding]),
                 monthly_contribution=Money.of(monthly_contribution_raw) if monthly_contribution_raw else None,
             )
         )
     return accounts
+
+
+def _build_portfolios(spreadsheet: gspread.Spreadsheet) -> dict[str, Portfolio]:
+    """Portfolio Aggregate（account_idで参照される独立集約）をInput_Accountsシートから組み立てる。"""
+
+    worksheet = spreadsheet.worksheet(ACCOUNTS_SHEET)
+    portfolios: dict[str, Portfolio] = {}
+    for record in worksheet.get_all_records():
+        asset = Asset(
+            asset_class=AssetClass(record["asset_class"]),
+            expected_return=Rate.of(record["expected_return"]),
+            volatility=Rate.of(record["volatility"]),
+        )
+        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(record["balance"]))
+        portfolios[str(record["account_id"])] = Portfolio(holdings=[holding])
+    return portfolios
+
+
+def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Scenario]:
+    """Scenario Aggregate（plan_idで参照される独立集約）をInput_Scenariosシートから組み立てる。
+
+    Input_Scenariosシートが存在しない場合は空リストを返す（シナリオ比較はオプション機能）。
+    """
+
+    try:
+        worksheet = spreadsheet.worksheet(SCENARIOS_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    scenarios = []
+    for record in worksheet.get_all_records():
+        overrides = {}
+        retirement_age_raw = str(record.get("retirement_age", "")).strip()
+        if retirement_age_raw:
+            overrides["retirement_age"] = int(retirement_age_raw)
+        scenarios.append(
+            Scenario(
+                scenario_id=str(record["scenario_id"]),
+                plan_id=plan_id,
+                name=str(record["name"]),
+                overrides=overrides,
+            )
+        )
+    return scenarios
 
 
 def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
@@ -212,3 +251,22 @@ def load_plan(
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
     return build_plan_from_spreadsheet(spreadsheet)
+
+
+def load_portfolios(
+    spreadsheet_name: str = SPREADSHEET_NAME,
+    credentials_path: str = DEFAULT_CREDENTIALS_PATH,
+) -> dict[str, Portfolio]:
+    client = build_client(credentials_path)
+    spreadsheet = open_spreadsheet(client, spreadsheet_name)
+    return _build_portfolios(spreadsheet)
+
+
+def load_scenarios(
+    plan_id: str,
+    spreadsheet_name: str = SPREADSHEET_NAME,
+    credentials_path: str = DEFAULT_CREDENTIALS_PATH,
+) -> list[Scenario]:
+    client = build_client(credentials_path)
+    spreadsheet = open_spreadsheet(client, spreadsheet_name)
+    return _build_scenarios(spreadsheet, plan_id)

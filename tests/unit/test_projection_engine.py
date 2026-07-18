@@ -1,9 +1,9 @@
 import unittest
 from datetime import date
-from decimal import Decimal
 
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.asset import Asset, AssetClass
+from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -15,7 +15,6 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
-from core.domain.contribution_strategy import ContributionStrategy
 from core.simulation.projection.projection_engine import run_projection
 from repositories.config_repository import load_portfolio_rules, load_tax_rules
 from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_contribution_strategy
@@ -45,10 +44,16 @@ def _minimal_plan(**overrides) -> Plan:
     return Plan(**defaults)
 
 
+def _portfolio(balance: int, asset_class: AssetClass = AssetClass.GLOBAL_EQUITY) -> Portfolio:
+    asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
+    holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
+    return Portfolio(holdings=[holding])
+
+
 class ProjectionEngineTest(unittest.TestCase):
     def test_default_horizon_is_30_years_without_retirement_milestone(self) -> None:
         plan = _minimal_plan()
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
 
         self.assertEqual(len(result.yearly_projections), 30)
         self.assertEqual(result.yearly_projections[0].year, 2026)
@@ -64,25 +69,14 @@ class ProjectionEngineTest(unittest.TestCase):
                 )
             ]
         )
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
 
         # 1990年生まれが60歳になるのは2050年
         self.assertEqual(result.yearly_projections[-1].year, 2050)
         self.assertEqual(result.yearly_projections[-1].age_self, 60)
 
     def test_surplus_and_growth_compound_networth(self) -> None:
-        asset = Asset(
-            asset_class=AssetClass.GLOBAL_EQUITY,
-            expected_return=Rate.from_percent(5),
-            volatility=Rate.from_percent(15),
-        )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(1_000_000))
-        account = Account(
-            account_id="acc_001",
-            account_type=AccountType.TAXABLE,
-            owner=OwnerType.SELF,
-            portfolio=Portfolio(holdings=[holding]),
-        )
+        account = Account(account_id="acc_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         income = Income(
             income_id="income_001",
             source="salary",
@@ -102,8 +96,9 @@ class ProjectionEngineTest(unittest.TestCase):
             expenses=[expense],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
         )
+        portfolios = {"acc_001": _portfolio(1_000_000)}
 
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
         first_year = result.yearly_projections[0]
 
         self.assertEqual(first_year.gross_income, Money.of(5_000_000))
@@ -113,6 +108,14 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(first_year.account_balances["acc_001"], Money.of(1_050_000))
         self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(2_000_000))
         self.assertEqual(first_year.networth, Money.of(3_050_000))
+
+    def test_account_without_portfolio_entry_starts_at_zero_balance(self) -> None:
+        account = Account(account_id="acc_no_portfolio", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        plan = _minimal_plan(accounts=[account])
+
+        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
+
+        self.assertEqual(result.yearly_projections[0].account_balances["acc_no_portfolio"], Money.zero())
 
     def test_income_stops_at_end_condition_age(self) -> None:
         income = Income(
@@ -133,7 +136,7 @@ class ProjectionEngineTest(unittest.TestCase):
                 )
             ],
         )
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules())
 
         by_age = {p.age_self: p.gross_income for p in result.yearly_projections}
         self.assertEqual(by_age[59], Money.of(1_000_000))
@@ -144,34 +147,20 @@ class ProjectionEngineTest(unittest.TestCase):
 class NisaIdecoComparisonTest(unittest.TestCase):
     """Sprint6の終了条件：NISA・iDeCoを使った場合と使わない場合で、税引後資産推移がどれだけ変わるかを比較できる。"""
 
-    def _taxable_account(self) -> Account:
-        asset = Asset(
-            asset_class=AssetClass.GLOBAL_EQUITY,
-            expected_return=Rate.from_percent(5),
-            volatility=Rate.from_percent(15),
-        )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(1_000_000))
-        return Account(
-            account_id="acc_taxable",
-            account_type=AccountType.TAXABLE,
-            owner=OwnerType.SELF,
-            portfolio=Portfolio(holdings=[holding]),
-        )
-
-    def _ideco_account(self) -> Account:
-        asset = Asset(
-            asset_class=AssetClass.DOMESTIC_BOND,
-            expected_return=Rate.from_percent(5),
-            volatility=Rate.from_percent(5),
-        )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.zero())
-        return Account(
-            account_id="acc_ideco",
-            account_type=AccountType.IDECO,
-            owner=OwnerType.SELF,
-            portfolio=Portfolio(holdings=[holding]),
-            monthly_contribution=Money.of(23_000),
-        )
+    def _accounts_and_portfolios(self, with_ideco: bool):
+        taxable = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        portfolios = {"acc_taxable": _portfolio(1_000_000)}
+        accounts = [taxable]
+        if with_ideco:
+            ideco = Account(
+                account_id="acc_ideco",
+                account_type=AccountType.IDECO,
+                owner=OwnerType.SELF,
+                monthly_contribution=Money.of(23_000),
+            )
+            accounts.append(ideco)
+            portfolios["acc_ideco"] = _portfolio(0, AssetClass.DOMESTIC_BOND)
+        return accounts, portfolios
 
     def _income(self) -> Income:
         return Income(
@@ -194,23 +183,26 @@ class NisaIdecoComparisonTest(unittest.TestCase):
         tax_rules = load_tax_rules()
         portfolio_rules = load_portfolio_rules()
 
+        accounts_with, portfolios_with = self._accounts_and_portfolios(with_ideco=True)
+        accounts_without, portfolios_without = self._accounts_and_portfolios(with_ideco=False)
+
         with_ideco = _minimal_plan(
-            accounts=[self._taxable_account(), self._ideco_account()],
+            accounts=accounts_with,
             incomes=[self._income()],
             expenses=[self._expense()],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
             contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
         )
         without_ideco = _minimal_plan(
-            accounts=[self._taxable_account()],
+            accounts=accounts_without,
             incomes=[self._income()],
             expenses=[self._expense()],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
             contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
         )
 
-        result_with_ideco = run_projection(with_ideco, tax_rules, portfolio_rules)
-        result_without_ideco = run_projection(without_ideco, tax_rules, portfolio_rules)
+        result_with_ideco = run_projection(with_ideco, portfolios_with, tax_rules, portfolio_rules)
+        result_without_ideco = run_projection(without_ideco, portfolios_without, tax_rules, portfolio_rules)
 
         # iDeCo拠出は所得控除の対象になり手取りが増えるため、同じ収入・支出でもiDeCoを使った方が
         # 税引後ネットワースが大きくなる。

@@ -5,7 +5,7 @@ import unittest
 from core.simulation.projection.projection_engine import run_projection
 from repositories.config_repository import load_portfolio_rules, load_tax_rules
 from reports.chart_builder import build_networth_chart
-from tests.regression.scenario_sprint4 import build_scenario_plan
+from tests.regression.scenario_sprint4 import build_scenario_plan, build_scenario_portfolios
 
 GOLDEN_PATH = os.path.join(os.path.dirname(__file__), "golden", "projection_sprint4.json")
 
@@ -29,9 +29,14 @@ def _serialize_result(plan, simulation_result) -> dict:
         }
         for projection in simulation_result.yearly_projections
     ]
+    milestone_outcomes = [
+        {"milestone_id": outcome.milestone_id, "achieved": outcome.achieved, "achieved_year": outcome.achieved_year}
+        for outcome in simulation_result.milestone_outcomes
+    ]
     return {
-        "config_version": "sprint6-tax_2026_portfolio_2026",
+        "config_version": "sprint7-tax_2026_portfolio_2026",
         "yearly_projections": yearly_projections,
+        "milestone_outcomes": milestone_outcomes,
         "networth_chart": build_networth_chart(plan, simulation_result),
     }
 
@@ -39,9 +44,10 @@ def _serialize_result(plan, simulation_result) -> dict:
 class ProjectionRegressionTest(unittest.TestCase):
     def test_fixed_scenario_matches_golden_baseline(self) -> None:
         plan = build_scenario_plan()
+        portfolios = build_scenario_portfolios()
         tax_rules = load_tax_rules()
         portfolio_rules = load_portfolio_rules()
-        result = run_projection(plan, tax_rules, portfolio_rules)
+        result = run_projection(plan, portfolios, tax_rules, portfolio_rules)
         actual = _serialize_result(plan, result)
 
         with open(GOLDEN_PATH, encoding="utf-8") as f:

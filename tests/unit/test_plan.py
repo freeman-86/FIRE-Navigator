@@ -19,17 +19,10 @@ from tests.portfolio_test_fixtures import no_allocation_contribution_strategy
 def _build_plan() -> Plan:
     user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
 
-    asset = Asset(
-        asset_class=AssetClass.GLOBAL_EQUITY,
-        expected_return=Rate.from_percent(5),
-        volatility=Rate.from_percent(15),
-    )
-    holding = Holding(asset=asset, quantity=100, cost_basis=Money.of(300_000))
     account = Account(
         account_id="acc_nisa_growth_001",
         account_type=AccountType.NISA_GROWTH,
         owner=OwnerType.SELF,
-        portfolio=Portfolio(holdings=[holding]),
     )
 
     income = Income(
@@ -74,14 +67,28 @@ def _build_plan() -> Plan:
     )
 
 
+def _build_portfolios(plan: Plan) -> dict[str, Portfolio]:
+    asset = Asset(
+        asset_class=AssetClass.GLOBAL_EQUITY,
+        expected_return=Rate.from_percent(5),
+        volatility=Rate.from_percent(15),
+    )
+    holding = Holding(asset=asset, quantity=100, cost_basis=Money.of(300_000))
+    return {account.account_id: Portfolio(holdings=[holding]) for account in plan.accounts}
+
+
 class PlanTest(unittest.TestCase):
     def test_plan_assembles_nested_entities(self) -> None:
         plan = _build_plan()
+        portfolios = _build_portfolios(plan)
 
-        self.assertEqual(plan.accounts[0].portfolio.holdings[0].asset.asset_class, AssetClass.GLOBAL_EQUITY)
         self.assertEqual(plan.incomes[0].amount, Money.of(6_000_000))
         self.assertEqual(plan.milestones[0].trigger.multiple, 25)
         self.assertEqual(plan.withdrawal_strategy.order[0], AccountType.CASH)
+        # PortfolioはPlan Aggregateに埋め込まれず、account_idをキーに独立して参照する
+        self.assertEqual(
+            portfolios[plan.accounts[0].account_id].holdings[0].asset.asset_class, AssetClass.GLOBAL_EQUITY
+        )
 
     def test_user_age_at_plan_start(self) -> None:
         plan = _build_plan()

@@ -4,28 +4,37 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from core.domain.account import Account
 from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.milestone import MilestoneType
 from core.domain.plan import Plan, StartConditionType
+from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import PortfolioRules
 from core.domain.simulation_result import SimulationResult, YearlyProjection
 from core.domain.tax_config import TaxRules
-from core.domain.value_objects import EventCondition, EventConditionType, Money, Rate
+from core.domain.value_objects import EventCondition, Money, Rate
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
+from core.simulation.projection.event_conditions import resolve_condition_year
+from core.simulation.projection.milestone_evaluation import evaluate_milestones
 from core.simulation.tax.tax_engine import calculate_tax
 
 DEFAULT_PROJECTION_YEARS = 30
 UNALLOCATED_SURPLUS_KEY = "unallocated_surplus"
 
 
-def run_projection(plan: Plan, tax_rules: TaxRules, portfolio_rules: PortfolioRules) -> SimulationResult:
+def run_projection(
+    plan: Plan,
+    portfolios: dict[str, Portfolio],
+    tax_rules: TaxRules,
+    portfolio_rules: PortfolioRules,
+) -> SimulationResult:
     """決定論的シミュレーション。手取り収入から確定拠出(iDeCo/DC等)と生活費を差し引いた裁量的余剰を、
-    contribution_strategyの優先順位で口座へ自動配分しながら年次ネットワース推移を計算する（Sprint6スコープ）。
+    contribution_strategyの優先順位で口座へ自動配分しながら年次ネットワース推移を計算する。
 
-    tax_rules/portfolio_rulesはApplication層相当の呼び出し元がrepositories.config_repository経由で
-    用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
+    portfolios/tax_rules/portfolio_rulesはApplication層相当の呼び出し元が用意して渡す。
+    Portfolio AggregateはPlan Aggregateから独立しており、account_idをキーに参照する
+    （設計書v1.1 ② Aggregateの見直し）。Simulation Engineはyaml等のI/Oを直接扱わない
+    （設計書3.2 依存方向の原則）。
     """
 
     start_year = _resolve_start_year(plan)
@@ -34,7 +43,9 @@ def run_projection(plan: Plan, tax_rules: TaxRules, portfolio_rules: PortfolioRu
     birth_date = plan.user.birth_date
     has_spouse = plan.user.spouse is not None
 
-    account_balances = {account.account_id: _initial_balance(account) for account in plan.accounts}
+    account_balances = {
+        account.account_id: _initial_balance(portfolios.get(account.account_id)) for account in plan.accounts
+    }
     lifetime_contributions = {account.account_id: Money.zero() for account in plan.accounts}
     surplus_reserve = Money.zero()
 
@@ -95,12 +106,16 @@ def run_projection(plan: Plan, tax_rules: TaxRules, portfolio_rules: PortfolioRu
             )
         )
 
-    return SimulationResult(yearly_projections=yearly_projections)
+    milestone_outcomes = evaluate_milestones(plan, yearly_projections)
+
+    return SimulationResult(yearly_projections=yearly_projections, milestone_outcomes=milestone_outcomes)
 
 
-def _initial_balance(account: Account) -> Money:
+def _initial_balance(portfolio: Optional[Portfolio]) -> Money:
+    if portfolio is None:
+        return Money.zero()
     total = Money.zero()
-    for holding in account.portfolio.holdings:
+    for holding in portfolio.holdings:
         total = total + holding.cost_basis
     return total
 
@@ -145,18 +160,7 @@ def _resolve_end_year(plan: Plan, start_year: int) -> int:
 def _retirement_year(plan: Plan, start_year: int) -> Optional[int]:
     for milestone in plan.milestones:
         if milestone.milestone_type == MilestoneType.RETIREMENT:
-            return _condition_year(milestone.trigger, start_year, plan.user.birth_date)
-    return None
-
-
-def _condition_year(condition: EventCondition, start_year: int, birth_date: date) -> Optional[int]:
-    if condition.condition_type in (EventConditionType.TODAY, EventConditionType.PLAN_START):
-        return start_year
-    if condition.condition_type in (EventConditionType.DATE, EventConditionType.FIXED_DATE):
-        return condition.date.year
-    if condition.condition_type == EventConditionType.AGE:
-        return birth_date.year + condition.age
-    # networth_multiple_of_expense等、年次カレンダーだけでは解決できない条件はSprint3では未対応
+            return resolve_condition_year(milestone.trigger, start_year, plan.user.birth_date)
     return None
 
 
@@ -167,11 +171,11 @@ def _is_active(
     start_year: int,
     birth_date: date,
 ) -> bool:
-    start_year_resolved = _condition_year(start_condition, start_year, birth_date)
+    start_year_resolved = resolve_condition_year(start_condition, start_year, birth_date)
     if start_year_resolved is not None and year < start_year_resolved:
         return False
     if end_condition is not None:
-        end_year_resolved = _condition_year(end_condition, start_year, birth_date)
+        end_year_resolved = resolve_condition_year(end_condition, start_year, birth_date)
         if end_year_resolved is not None and year >= end_year_resolved:
             return False
     return True

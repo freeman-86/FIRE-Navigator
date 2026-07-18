@@ -16,7 +16,14 @@ from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
-CONFIG_VERSION_LABEL = "sprint6-baseline"
+CONFIG_VERSION_LABEL = "sprint7-baseline"
+
+_ACCOUNT_SPECS: tuple[tuple[str, AccountType, int, AssetClass, Optional[int]], ...] = (
+    ("acc_cash_001", AccountType.CASH, 1_000_000, AssetClass.CASH, None),
+    ("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, AssetClass.GLOBAL_EQUITY, 50_000),
+    ("acc_ideco_001", AccountType.IDECO, 1_500_000, AssetClass.DOMESTIC_BOND, 23_000),
+    ("acc_taxable_001", AccountType.TAXABLE, 500_000, AssetClass.GLOBAL_EQUITY, None),
+)
 
 
 def build_scenario_plan() -> Plan:
@@ -26,32 +33,14 @@ def build_scenario_plan() -> Plan:
 
     user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
 
-    def _account(
-        account_id: str,
-        account_type: AccountType,
-        balance: int,
-        asset_class: AssetClass,
-        monthly_contribution: Optional[int] = None,
-    ) -> Account:
-        asset = Asset(
-            asset_class=asset_class,
-            expected_return=Rate.from_percent(5),
-            volatility=Rate.from_percent(15),
-        )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
-        return Account(
+    accounts = [
+        Account(
             account_id=account_id,
             account_type=account_type,
             owner=OwnerType.SELF,
-            portfolio=Portfolio(holdings=[holding]),
             monthly_contribution=Money.of(monthly_contribution) if monthly_contribution is not None else None,
         )
-
-    accounts = [
-        _account("acc_cash_001", AccountType.CASH, 1_000_000, AssetClass.CASH),
-        _account("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, AssetClass.GLOBAL_EQUITY, 50_000),
-        _account("acc_ideco_001", AccountType.IDECO, 1_500_000, AssetClass.DOMESTIC_BOND, 23_000),
-        _account("acc_taxable_001", AccountType.TAXABLE, 500_000, AssetClass.GLOBAL_EQUITY),
+        for account_id, account_type, _balance, _asset_class, monthly_contribution in _ACCOUNT_SPECS
     ]
 
     incomes = [
@@ -109,3 +98,13 @@ def build_scenario_plan() -> Plan:
         incomes=incomes,
         expenses=expenses,
     )
+
+
+def build_scenario_portfolios() -> dict[str, Portfolio]:
+    """固定シナリオのPortfolio Aggregate（account_idで参照する独立集約）。"""
+
+    portfolios = {}
+    for account_id, _account_type, balance, asset_class, _monthly_contribution in _ACCOUNT_SPECS:
+        asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
+        portfolios[account_id] = Portfolio(holdings=[Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))])
+    return portfolios

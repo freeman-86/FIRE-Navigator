@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from core.domain.portfolio import Portfolio
 from core.domain.value_objects import Money
 
 
@@ -26,8 +25,11 @@ class OwnerType(str, Enum):
 
 @dataclass
 class Account:
+    """Plan Aggregateに属する口座の識別情報。保有資産(Portfolio)は独立したAggregateであり、
+    account_idを共通キーとして参照する（オブジェクトとして直接埋め込まない）。
+    """
+
     account_id: str
     account_type: AccountType
     owner: OwnerType
-    portfolio: Portfolio
     monthly_contribution: Optional[Money] = None

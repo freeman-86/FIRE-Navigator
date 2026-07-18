@@ -1,5 +1,5 @@
 {
-  "config_version": "sprint6-tax_2026_portfolio_2026",
+  "config_version": "sprint7-tax_2026_portfolio_2026",
   "yearly_projections": [
     {
       "year": 2026,
@@ -570,6 +570,13 @@
         "unallocated_surplus": -64913662
       },
       "networth": 11671693
+    }
+  ],
+  "milestone_outcomes": [
+    {
+      "milestone_id": "milestone_retire_001",
+      "achieved": true,
+      "achieved_year": 2055
     }
   ],
   "networth_chart": {

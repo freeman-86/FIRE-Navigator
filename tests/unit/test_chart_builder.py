@@ -19,22 +19,16 @@ from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_c
 from tests.tax_test_fixtures import zero_tax_rules
 
 
-def _plan_with_two_account_types() -> Plan:
+def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
     user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
 
-    def _account(account_id: str, account_type: AccountType, balance: int) -> Account:
+    def _portfolio(balance: int) -> Portfolio:
         asset = Asset(
             asset_class=AssetClass.GLOBAL_EQUITY,
             expected_return=Rate.from_percent(5),
             volatility=Rate.from_percent(15),
         )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
-        return Account(
-            account_id=account_id,
-            account_type=account_type,
-            owner=OwnerType.SELF,
-            portfolio=Portfolio(holdings=[holding]),
-        )
+        return Portfolio(holdings=[Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))])
 
     income = Income(
         income_id="income_001",
@@ -50,15 +44,15 @@ def _plan_with_two_account_types() -> Plan:
         claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
     )
 
-    return Plan(
+    plan = Plan(
         plan_id="plan_test",
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
         accounts=[
-            _account("acc_taxable_001", AccountType.TAXABLE, 1_000_000),
-            _account("acc_nisa_001", AccountType.NISA_GROWTH, 500_000),
+            Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF),
+            Account(account_id="acc_nisa_001", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF),
         ],
         tax_config=TaxConfig(residence=Prefecture.TOKYO),
         pension=pension,
@@ -66,12 +60,17 @@ def _plan_with_two_account_types() -> Plan:
         contribution_strategy=no_allocation_contribution_strategy(),
         incomes=[income],
     )
+    portfolios = {
+        "acc_taxable_001": _portfolio(1_000_000),
+        "acc_nisa_001": _portfolio(500_000),
+    }
+    return plan, portfolios
 
 
 class ChartBuilderTest(unittest.TestCase):
     def test_series_grouped_by_account_type_plus_unallocated_surplus(self) -> None:
-        plan = _plan_with_two_account_types()
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        plan, portfolios = _plan_with_two_account_types()
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
 
         chart = build_networth_chart(plan, result)
 
@@ -85,8 +84,8 @@ class ChartBuilderTest(unittest.TestCase):
         self.assertEqual(first_year_totals["unallocated_surplus"], 1_000_000)
 
     def test_series_values_sum_to_networth(self) -> None:
-        plan = _plan_with_two_account_types()
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        plan, portfolios = _plan_with_two_account_types()
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
         chart = build_networth_chart(plan, result)
 
         for index, projection in enumerate(result.yearly_projections):
@@ -96,8 +95,8 @@ class ChartBuilderTest(unittest.TestCase):
 
 class OutputBuilderTest(unittest.TestCase):
     def test_output_json_introduces_charts_field_with_other_fields_empty(self) -> None:
-        plan = _plan_with_two_account_types()
-        result = run_projection(plan, zero_tax_rules(), empty_portfolio_rules())
+        plan, portfolios = _plan_with_two_account_types()
+        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules())
 
         output = build_output_json(plan, result)
 

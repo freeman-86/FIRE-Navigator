@@ -1,28 +1,18 @@
 import unittest
 
 from core.domain.account import Account, AccountType, OwnerType
-from core.domain.asset import Asset, AssetClass
 from core.domain.contribution_strategy import ContributionStrategy
-from core.domain.holding import Holding
-from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import AccountRules, PortfolioRules
-from core.domain.value_objects import Money, Rate
+from core.domain.value_objects import Money
 from core.simulation.portfolio.account_rules import cap_contribution
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
 
 
-def _account(account_id: str, account_type: AccountType, balance: int, monthly_contribution=None) -> Account:
-    asset = Asset(
-        asset_class=AssetClass.GLOBAL_EQUITY,
-        expected_return=Rate.from_percent(5),
-        volatility=Rate.from_percent(15),
-    )
-    holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
+def _account(account_id: str, account_type: AccountType, monthly_contribution=None) -> Account:
     return Account(
         account_id=account_id,
         account_type=account_type,
         owner=OwnerType.SELF,
-        portfolio=Portfolio(holdings=[holding]),
         monthly_contribution=Money.of(monthly_contribution) if monthly_contribution is not None else None,
     )
 
@@ -53,8 +43,8 @@ class CapContributionTest(unittest.TestCase):
 class PlanFixedContributionsTest(unittest.TestCase):
     def test_ideco_contribution_is_tax_deductible(self) -> None:
         accounts = [
-            _account("acc_ideco", AccountType.IDECO, 0, monthly_contribution=23_000),
-            _account("acc_nisa", AccountType.NISA_GROWTH, 0, monthly_contribution=50_000),
+            _account("acc_ideco", AccountType.IDECO, monthly_contribution=23_000),
+            _account("acc_nisa", AccountType.NISA_GROWTH, monthly_contribution=50_000),
         ]
         portfolio_rules = PortfolioRules(
             rules_by_account_type={
@@ -74,7 +64,7 @@ class PlanFixedContributionsTest(unittest.TestCase):
         self.assertEqual(plan.tax_deductible_amount, Money.of(276_000))
 
     def test_no_contribution_when_monthly_contribution_is_none(self) -> None:
-        accounts = [_account("acc_taxable", AccountType.TAXABLE, 0)]
+        accounts = [_account("acc_taxable", AccountType.TAXABLE)]
         plan = plan_fixed_contributions(accounts, {"acc_taxable": Money.zero()}, PortfolioRules())
         self.assertEqual(plan.contributions, {})
         self.assertEqual(plan.tax_deductible_amount, Money.zero())
@@ -83,9 +73,9 @@ class PlanFixedContributionsTest(unittest.TestCase):
 class AllocateDiscretionarySurplusTest(unittest.TestCase):
     def test_priority_order_fills_cash_target_then_nisa_then_taxable(self) -> None:
         accounts = [
-            _account("acc_cash", AccountType.CASH, 500_000),
-            _account("acc_nisa", AccountType.NISA_GROWTH, 0),
-            _account("acc_taxable", AccountType.TAXABLE, 0),
+            _account("acc_cash", AccountType.CASH),
+            _account("acc_nisa", AccountType.NISA_GROWTH),
+            _account("acc_taxable", AccountType.TAXABLE),
         ]
         account_balances = {"acc_cash": Money.of(500_000), "acc_nisa": Money.zero(), "acc_taxable": Money.zero()}
         portfolio_rules = PortfolioRules(
@@ -114,7 +104,7 @@ class AllocateDiscretionarySurplusTest(unittest.TestCase):
         self.assertEqual(leftover, Money.zero())
 
     def test_negative_surplus_allocates_nothing(self) -> None:
-        accounts = [_account("acc_cash", AccountType.CASH, 0)]
+        accounts = [_account("acc_cash", AccountType.CASH)]
         strategy = ContributionStrategy(order=[AccountType.CASH], emergency_fund_target=Money.of(1_000_000))
 
         contributions, leftover = allocate_discretionary_surplus(
@@ -125,7 +115,7 @@ class AllocateDiscretionarySurplusTest(unittest.TestCase):
         self.assertEqual(leftover, Money.zero())
 
     def test_leftover_when_order_has_no_room(self) -> None:
-        accounts = [_account("acc_nisa", AccountType.NISA_GROWTH, 0)]
+        accounts = [_account("acc_nisa", AccountType.NISA_GROWTH)]
         portfolio_rules = PortfolioRules(
             rules_by_account_type={
                 AccountType.NISA_GROWTH: AccountRules(
