@@ -1,0 +1,97 @@
+from datetime import date
+
+from core.domain.account import Account, AccountType, OwnerType
+from core.domain.asset import Asset, AssetClass
+from core.domain.expense import Expense
+from core.domain.holding import Holding
+from core.domain.income import Income
+from core.domain.milestone import Milestone, MilestoneType
+from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
+from core.domain.portfolio import Portfolio
+from core.domain.tax_config import TaxConfig
+from core.domain.user import Prefecture, User
+from core.domain.value_objects import EventCondition, Money, Rate
+from core.domain.withdrawal_strategy import WithdrawalStrategy
+
+CONFIG_VERSION_LABEL = "sprint4-baseline"
+
+
+def build_scenario_plan() -> Plan:
+    """回帰テスト用の固定シナリオ。この関数の内容を変更すると golden file との比較が意図的に崩れるため、
+    変更する場合は tests/regression/golden/ を再生成しレビューを経ること。
+    """
+
+    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+
+    def _account(account_id: str, account_type: AccountType, balance: int, asset_class: AssetClass) -> Account:
+        asset = Asset(
+            asset_class=asset_class,
+            expected_return=Rate.from_percent(5),
+            volatility=Rate.from_percent(15),
+        )
+        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
+        return Account(
+            account_id=account_id,
+            account_type=account_type,
+            owner=OwnerType.SELF,
+            portfolio=Portfolio(holdings=[holding]),
+        )
+
+    accounts = [
+        _account("acc_cash_001", AccountType.CASH, 1_000_000, AssetClass.CASH),
+        _account("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, AssetClass.GLOBAL_EQUITY),
+        _account("acc_ideco_001", AccountType.IDECO, 1_500_000, AssetClass.DOMESTIC_BOND),
+    ]
+
+    incomes = [
+        Income(
+            income_id="income_salary_001",
+            source="salary",
+            amount=Money.of(6_000_000),
+            growth_rate=Rate.from_percent(1),
+            start_condition=EventCondition.plan_start(),
+            end_condition=EventCondition.at_age(60),
+        )
+    ]
+
+    expenses = [
+        Expense(
+            expense_id="expense_living_001",
+            category="living",
+            amount=Money.of(3_600_000),
+            growth_rate=Rate.from_percent(2),
+            is_flexible=False,
+        )
+    ]
+
+    milestones = [
+        Milestone(
+            milestone_id="milestone_retire_001",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(65),
+        )
+    ]
+
+    pension = Pension(
+        national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
+        employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
+        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+    )
+
+    return Plan(
+        plan_id="plan_regression_sprint4",
+        name="回帰テスト用ベースプラン",
+        user=user,
+        start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
+        assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(5)),
+        accounts=accounts,
+        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        pension=pension,
+        withdrawal_strategy=WithdrawalStrategy(
+            order=[AccountType.CASH, AccountType.TAXABLE, AccountType.NISA_GROWTH, AccountType.IDECO]
+        ),
+        milestones=milestones,
+        incomes=incomes,
+        expenses=expenses,
+    )

@@ -7,6 +7,7 @@ ACCOUNTS_SHEET = "Input_Accounts"
 INCOMES_SHEET = "Input_Incomes"
 EXPENSES_SHEET = "Input_Expenses"
 OUTPUT_NETWORTH_SHEET = "Output_NetWorth"
+OUTPUT_NETWORTH_BREAKDOWN_SHEET = "Output_NetWorth_Breakdown"
 
 # Input_Plan: A列=キー / B列=値 の縦持ち設定シート。
 # (シート上のキー, Planフィールドパス, 型変換ルール)
@@ -57,3 +58,8 @@ OUTPUT_NETWORTH_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     ("year", "simulation_result.yearly_projections[].year", "int"),
     ("networth", "simulation_result.yearly_projections[].networth", "money"),
 )
+
+# Output_NetWorth_Breakdown: ヘッダー行付きテーブル。1列目=year、以降は口座種別（+unallocated_surplus）ごとの残高。
+# 列数・列名はPlanのaccount構成によって可変なため固定のマッピング定義は持たず、
+# reports/chart_builder.py の出力（charts.networth_chartのseries）からその都度組み立てる。
+OUTPUT_NETWORTH_BREAKDOWN_FIELD_PATH = "output_json.charts.networth_chart"

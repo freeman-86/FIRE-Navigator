@@ -1,0 +1,602 @@
+{
+  "config_version": "sprint4-baseline",
+  "yearly_projections": [
+    {
+      "year": 2026,
+      "age_self": 36,
+      "gross_income": 6000000,
+      "total_expense": 3600000,
+      "net_cashflow": 2400000,
+      "account_balances": {
+        "acc_cash_001": 1050000,
+        "acc_nisa_growth_001": 3150000,
+        "acc_ideco_001": 1575000,
+        "unallocated_surplus": 2400000
+      },
+      "networth": 8175000
+    },
+    {
+      "year": 2027,
+      "age_self": 37,
+      "gross_income": 6060000,
+      "total_expense": 3672000,
+      "net_cashflow": 2388000,
+      "account_balances": {
+        "acc_cash_001": 1102500,
+        "acc_nisa_growth_001": 3307500,
+        "acc_ideco_001": 1653750,
+        "unallocated_surplus": 4908000
+      },
+      "networth": 10971750
+    },
+    {
+      "year": 2028,
+      "age_self": 38,
+      "gross_income": 6120600,
+      "total_expense": 3745440,
+      "net_cashflow": 2375160,
+      "account_balances": {
+        "acc_cash_001": 1157625,
+        "acc_nisa_growth_001": 3472875,
+        "acc_ideco_001": 1736438,
+        "unallocated_surplus": 7528560
+      },
+      "networth": 13895498
+    },
+    {
+      "year": 2029,
+      "age_self": 39,
+      "gross_income": 6181806,
+      "total_expense": 3820349,
+      "net_cashflow": 2361457,
+      "account_balances": {
+        "acc_cash_001": 1215506,
+        "acc_nisa_growth_001": 3646519,
+        "acc_ideco_001": 1823260,
+        "unallocated_surplus": 10266445
+      },
+      "networth": 16951730
+    },
+    {
+      "year": 2030,
+      "age_self": 40,
+      "gross_income": 6243624,
+      "total_expense": 3896756,
+      "net_cashflow": 2346868,
+      "account_balances": {
+        "acc_cash_001": 1276281,
+        "acc_nisa_growth_001": 3828845,
+        "acc_ideco_001": 1914423,
+        "unallocated_surplus": 13126635
+      },
+      "networth": 20146184
+    },
+    {
+      "year": 2031,
+      "age_self": 41,
+      "gross_income": 6306060,
+      "total_expense": 3974691,
+      "net_cashflow": 2331369,
+      "account_balances": {
+        "acc_cash_001": 1340095,
+        "acc_nisa_growth_001": 4020287,
+        "acc_ideco_001": 2010144,
+        "unallocated_surplus": 16114336
+      },
+      "networth": 23484862
+    },
+    {
+      "year": 2032,
+      "age_self": 42,
+      "gross_income": 6369121,
+      "total_expense": 4054185,
+      "net_cashflow": 2314936,
+      "account_balances": {
+        "acc_cash_001": 1407100,
+        "acc_nisa_growth_001": 4221301,
+        "acc_ideco_001": 2110651,
+        "unallocated_surplus": 19234989
+      },
+      "networth": 26974041
+    },
+    {
+      "year": 2033,
+      "age_self": 43,
+      "gross_income": 6432812,
+      "total_expense": 4135268,
+      "net_cashflow": 2297544,
+      "account_balances": {
+        "acc_cash_001": 1477455,
+        "acc_nisa_growth_001": 4432366,
+        "acc_ideco_001": 2216184,
+        "unallocated_surplus": 22494282
+      },
+      "networth": 30620287
+    },
+    {
+      "year": 2034,
+      "age_self": 44,
+      "gross_income": 6497140,
+      "total_expense": 4217974,
+      "net_cashflow": 2279166,
+      "account_balances": {
+        "acc_cash_001": 1551328,
+        "acc_nisa_growth_001": 4653984,
+        "acc_ideco_001": 2326993,
+        "unallocated_surplus": 25898162
+      },
+      "networth": 34430467
+    },
+    {
+      "year": 2035,
+      "age_self": 45,
+      "gross_income": 6562112,
+      "total_expense": 4302333,
+      "net_cashflow": 2259779,
+      "account_balances": {
+        "acc_cash_001": 1628894,
+        "acc_nisa_growth_001": 4886683,
+        "acc_ideco_001": 2443343,
+        "unallocated_surplus": 29452849
+      },
+      "networth": 38411769
+    },
+    {
+      "year": 2036,
+      "age_self": 46,
+      "gross_income": 6627733,
+      "total_expense": 4388380,
+      "net_cashflow": 2239353,
+      "account_balances": {
+        "acc_cash_001": 1710339,
+        "acc_nisa_growth_001": 5131017,
+        "acc_ideco_001": 2565510,
+        "unallocated_surplus": 33164844
+      },
+      "networth": 42571710
+    },
+    {
+      "year": 2037,
+      "age_self": 47,
+      "gross_income": 6694010,
+      "total_expense": 4476148,
+      "net_cashflow": 2217862,
+      "account_balances": {
+        "acc_cash_001": 1795856,
+        "acc_nisa_growth_001": 5387568,
+        "acc_ideco_001": 2693786,
+        "unallocated_surplus": 37040948
+      },
+      "networth": 46918158
+    },
+    {
+      "year": 2038,
+      "age_self": 48,
+      "gross_income": 6760950,
+      "total_expense": 4565670,
+      "net_cashflow": 2195280,
+      "account_balances": {
+        "acc_cash_001": 1885649,
+        "acc_nisa_growth_001": 5656946,
+        "acc_ideco_001": 2828475,
+        "unallocated_surplus": 41088275
+      },
+      "networth": 51459345
+    },
+    {
+      "year": 2039,
+      "age_self": 49,
+      "gross_income": 6828560,
+      "total_expense": 4656984,
+      "net_cashflow": 2171576,
+      "account_balances": {
+        "acc_cash_001": 1979931,
+        "acc_nisa_growth_001": 5939793,
+        "acc_ideco_001": 2969899,
+        "unallocated_surplus": 45314265
+      },
+      "networth": 56203888
+    },
+    {
+      "year": 2040,
+      "age_self": 50,
+      "gross_income": 6896845,
+      "total_expense": 4750124,
+      "net_cashflow": 2146721,
+      "account_balances": {
+        "acc_cash_001": 2078928,
+        "acc_nisa_growth_001": 6236783,
+        "acc_ideco_001": 3118394,
+        "unallocated_surplus": 49726699
+      },
+      "networth": 61160804
+    },
+    {
+      "year": 2041,
+      "age_self": 51,
+      "gross_income": 6965814,
+      "total_expense": 4845126,
+      "net_cashflow": 2120688,
+      "account_balances": {
+        "acc_cash_001": 2182874,
+        "acc_nisa_growth_001": 6548622,
+        "acc_ideco_001": 3274314,
+        "unallocated_surplus": 54333722
+      },
+      "networth": 66339532
+    },
+    {
+      "year": 2042,
+      "age_self": 52,
+      "gross_income": 7035472,
+      "total_expense": 4942029,
+      "net_cashflow": 2093443,
+      "account_balances": {
+        "acc_cash_001": 2292018,
+        "acc_nisa_growth_001": 6876053,
+        "acc_ideco_001": 3438030,
+        "unallocated_surplus": 59143851
+      },
+      "networth": 71749952
+    },
+    {
+      "year": 2043,
+      "age_self": 53,
+      "gross_income": 7105827,
+      "total_expense": 5040869,
+      "net_cashflow": 2064958,
+      "account_balances": {
+        "acc_cash_001": 2406619,
+        "acc_nisa_growth_001": 7219856,
+        "acc_ideco_001": 3609932,
+        "unallocated_surplus": 64166002
+      },
+      "networth": 77402409
+    },
+    {
+      "year": 2044,
+      "age_self": 54,
+      "gross_income": 7176885,
+      "total_expense": 5141686,
+      "net_cashflow": 2035199,
+      "account_balances": {
+        "acc_cash_001": 2526950,
+        "acc_nisa_growth_001": 7580849,
+        "acc_ideco_001": 3790429,
+        "unallocated_surplus": 69409501
+      },
+      "networth": 83307729
+    },
+    {
+      "year": 2045,
+      "age_self": 55,
+      "gross_income": 7248654,
+      "total_expense": 5244520,
+      "net_cashflow": 2004134,
+      "account_balances": {
+        "acc_cash_001": 2653298,
+        "acc_nisa_growth_001": 7959891,
+        "acc_ideco_001": 3979950,
+        "unallocated_surplus": 74884110
+      },
+      "networth": 89477249
+    },
+    {
+      "year": 2046,
+      "age_self": 56,
+      "gross_income": 7321140,
+      "total_expense": 5349411,
+      "net_cashflow": 1971729,
+      "account_balances": {
+        "acc_cash_001": 2785963,
+        "acc_nisa_growth_001": 8357886,
+        "acc_ideco_001": 4178948,
+        "unallocated_surplus": 80600045
+      },
+      "networth": 95922842
+    },
+    {
+      "year": 2047,
+      "age_self": 57,
+      "gross_income": 7394352,
+      "total_expense": 5456399,
+      "net_cashflow": 1937953,
+      "account_balances": {
+        "acc_cash_001": 2925261,
+        "acc_nisa_growth_001": 8775780,
+        "acc_ideco_001": 4387895,
+        "unallocated_surplus": 86568000
+      },
+      "networth": 102656936
+    },
+    {
+      "year": 2048,
+      "age_self": 58,
+      "gross_income": 7468295,
+      "total_expense": 5565527,
+      "net_cashflow": 1902768,
+      "account_balances": {
+        "acc_cash_001": 3071524,
+        "acc_nisa_growth_001": 9214569,
+        "acc_ideco_001": 4607290,
+        "unallocated_surplus": 92799168
+      },
+      "networth": 109692551
+    },
+    {
+      "year": 2049,
+      "age_self": 59,
+      "gross_income": 7542978,
+      "total_expense": 5676837,
+      "net_cashflow": 1866141,
+      "account_balances": {
+        "acc_cash_001": 3225100,
+        "acc_nisa_growth_001": 9675297,
+        "acc_ideco_001": 4837655,
+        "unallocated_surplus": 99305267
+      },
+      "networth": 117043319
+    },
+    {
+      "year": 2050,
+      "age_self": 60,
+      "gross_income": 0,
+      "total_expense": 5790374,
+      "net_cashflow": -5790374,
+      "account_balances": {
+        "acc_cash_001": 3386355,
+        "acc_nisa_growth_001": 10159062,
+        "acc_ideco_001": 5079538,
+        "unallocated_surplus": 98480156
+      },
+      "networth": 117105111
+    },
+    {
+      "year": 2051,
+      "age_self": 61,
+      "gross_income": 0,
+      "total_expense": 5906182,
+      "net_cashflow": -5906182,
+      "account_balances": {
+        "acc_cash_001": 3555673,
+        "acc_nisa_growth_001": 10667015,
+        "acc_ideco_001": 5333515,
+        "unallocated_surplus": 97497982
+      },
+      "networth": 117054185
+    },
+    {
+      "year": 2052,
+      "age_self": 62,
+      "gross_income": 0,
+      "total_expense": 6024305,
+      "net_cashflow": -6024305,
+      "account_balances": {
+        "acc_cash_001": 3733457,
+        "acc_nisa_growth_001": 11200366,
+        "acc_ideco_001": 5600191,
+        "unallocated_surplus": 96348576
+      },
+      "networth": 116882590
+    },
+    {
+      "year": 2053,
+      "age_self": 63,
+      "gross_income": 0,
+      "total_expense": 6144791,
+      "net_cashflow": -6144791,
+      "account_balances": {
+        "acc_cash_001": 3920130,
+        "acc_nisa_growth_001": 11760384,
+        "acc_ideco_001": 5880201,
+        "unallocated_surplus": 95021214
+      },
+      "networth": 116581929
+    },
+    {
+      "year": 2054,
+      "age_self": 64,
+      "gross_income": 0,
+      "total_expense": 6267687,
+      "net_cashflow": -6267687,
+      "account_balances": {
+        "acc_cash_001": 4116137,
+        "acc_nisa_growth_001": 12348403,
+        "acc_ideco_001": 6174211,
+        "unallocated_surplus": 93504588
+      },
+      "networth": 116143339
+    },
+    {
+      "year": 2055,
+      "age_self": 65,
+      "gross_income": 0,
+      "total_expense": 6393041,
+      "net_cashflow": -6393041,
+      "account_balances": {
+        "acc_cash_001": 4321944,
+        "acc_nisa_growth_001": 12965823,
+        "acc_ideco_001": 6482922,
+        "unallocated_surplus": 91786776
+      },
+      "networth": 115557465
+    }
+  ],
+  "networth_chart": {
+    "type": "stacked_area",
+    "x": [
+      2026,
+      2027,
+      2028,
+      2029,
+      2030,
+      2031,
+      2032,
+      2033,
+      2034,
+      2035,
+      2036,
+      2037,
+      2038,
+      2039,
+      2040,
+      2041,
+      2042,
+      2043,
+      2044,
+      2045,
+      2046,
+      2047,
+      2048,
+      2049,
+      2050,
+      2051,
+      2052,
+      2053,
+      2054,
+      2055
+    ],
+    "series": [
+      {
+        "name": "cash",
+        "values": [
+          1050000,
+          1102500,
+          1157625,
+          1215506,
+          1276281,
+          1340095,
+          1407100,
+          1477455,
+          1551328,
+          1628894,
+          1710339,
+          1795856,
+          1885649,
+          1979931,
+          2078928,
+          2182874,
+          2292018,
+          2406619,
+          2526950,
+          2653298,
+          2785963,
+          2925261,
+          3071524,
+          3225100,
+          3386355,
+          3555673,
+          3733457,
+          3920130,
+          4116137,
+          4321944
+        ]
+      },
+      {
+        "name": "nisa_growth",
+        "values": [
+          3150000,
+          3307500,
+          3472875,
+          3646519,
+          3828845,
+          4020287,
+          4221301,
+          4432366,
+          4653984,
+          4886683,
+          5131017,
+          5387568,
+          5656946,
+          5939793,
+          6236783,
+          6548622,
+          6876053,
+          7219856,
+          7580849,
+          7959891,
+          8357886,
+          8775780,
+          9214569,
+          9675297,
+          10159062,
+          10667015,
+          11200366,
+          11760384,
+          12348403,
+          12965823
+        ]
+      },
+      {
+        "name": "ideco",
+        "values": [
+          1575000,
+          1653750,
+          1736438,
+          1823260,
+          1914423,
+          2010144,
+          2110651,
+          2216184,
+          2326993,
+          2443343,
+          2565510,
+          2693786,
+          2828475,
+          2969899,
+          3118394,
+          3274314,
+          3438030,
+          3609932,
+          3790429,
+          3979950,
+          4178948,
+          4387895,
+          4607290,
+          4837655,
+          5079538,
+          5333515,
+          5600191,
+          5880201,
+          6174211,
+          6482922
+        ]
+      },
+      {
+        "name": "unallocated_surplus",
+        "values": [
+          2400000,
+          4908000,
+          7528560,
+          10266445,
+          13126635,
+          16114336,
+          19234989,
+          22494282,
+          25898162,
+          29452849,
+          33164844,
+          37040948,
+          41088275,
+          45314265,
+          49726699,
+          54333722,
+          59143851,
+          64166002,
+          69409501,
+          74884110,
+          80600045,
+          86568000,
+          92799168,
+          99305267,
+          98480156,
+          97497982,
+          96348576,
+          95021214,
+          93504588,
+          91786776
+        ]
+      }
+    ]
+  }
+}
