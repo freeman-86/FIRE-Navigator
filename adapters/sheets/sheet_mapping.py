@@ -6,6 +6,7 @@ PLAN_SHEET = "Input_Plan"
 ACCOUNTS_SHEET = "Input_Accounts"
 INCOMES_SHEET = "Input_Incomes"
 EXPENSES_SHEET = "Input_Expenses"
+OUTPUT_NETWORTH_SHEET = "Output_NetWorth"
 
 # Input_Plan: A列=キー / B列=値 の縦持ち設定シート。
 # (シート上のキー, Planフィールドパス, 型変換ルール)
@@ -49,4 +50,10 @@ EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     ("amount_annual", "plan.expenses[].amount", "money"),
     ("growth_rate", "plan.expenses[].growth_rate", "rate"),
     ("is_flexible", "plan.expenses[].is_flexible", "bool"),
+)
+
+# Output_NetWorth: ヘッダー行付きテーブル。西暦年別のネットワース数値のみを書き戻す最小版。
+OUTPUT_NETWORTH_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    ("year", "simulation_result.yearly_projections[].year", "int"),
+    ("networth", "simulation_result.yearly_projections[].networth", "money"),
 )
