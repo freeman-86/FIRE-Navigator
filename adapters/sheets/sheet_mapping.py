@@ -2,97 +2,160 @@ from __future__ import annotations
 
 SPREADSHEET_NAME = "FIRE-Navigator-test"
 
-PLAN_SHEET = "Input_Plan"
-ACCOUNTS_SHEET = "Input_Accounts"
-INCOMES_SHEET = "Input_Incomes"
-EXPENSES_SHEET = "Input_Expenses"
-SCENARIOS_SHEET = "Input_Scenarios"
-PROGRESS_SHEET = "Input_Progress"
-OUTPUT_NETWORTH_SHEET = "Output_NetWorth"
-OUTPUT_NETWORTH_BREAKDOWN_SHEET = "Output_NetWorth_Breakdown"
-OUTPUT_SCENARIO_COMPARISON_SHEET = "Output_ScenarioComparison"
-OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "Output_SensitivityAnalysis"
-OUTPUT_MONTECARLO_SHEET = "Output_MonteCarlo"
-OUTPUT_HISTORICAL_BACKTEST_SHEET = "Output_HistoricalBacktest"
-OUTPUT_PROGRESS_COMPARISON_SHEET = "Output_ProgressComparison"
-OUTPUT_ERRORS_SHEET = "Output_Errors"
+# シートのタブ名。すべてこのファイルの定数を経由し、他ファイルに生文字列を持たせない
+# （読み書きで表記が食い違うのを防ぐため）。
+PLAN_SHEET = "入力_プラン設定"
+ACCOUNTS_SHEET = "入力_口座"
+INCOMES_SHEET = "入力_収入"
+EXPENSES_SHEET = "入力_支出"
+SCENARIOS_SHEET = "入力_シナリオ"
+PROGRESS_SHEET = "入力_実績"
+OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
+OUTPUT_NETWORTH_BREAKDOWN_SHEET = "出力_純資産内訳"
+OUTPUT_SCENARIO_COMPARISON_SHEET = "出力_シナリオ比較"
+OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "出力_感応度分析"
+OUTPUT_MONTECARLO_SHEET = "出力_モンテカルロ"
+OUTPUT_HISTORICAL_BACKTEST_SHEET = "出力_ヒストリカルバックテスト"
+OUTPUT_PROGRESS_COMPARISON_SHEET = "出力_計画実績比較"
+OUTPUT_ERRORS_SHEET = "出力_エラー"
 
-# Input_Plan: A列=キー / B列=値 の縦持ち設定シート。
+# --- 列名（ヘッダー行）。account_type/asset_class等の「値」は内部識別子として英語のまま維持し、
+# 列名（ヘッダーテキスト）のみ日本語化する。NISA/iDeCoは制度の正式名称のため英語表記を維持する。 ---
+
+# Input_プラン設定: A列=キー / B列=値 の縦持ち設定シート。
+PLAN_ID_HEADER = "プランID"
+PLAN_NAME_HEADER = "プラン名"
+BIRTH_DATE_HEADER = "生年月日"
+RESIDENCE_HEADER = "居住都道府県"
+INFLATION_RATE_HEADER = "インフレ率"
+INVESTMENT_GROWTH_RATE_HEADER = "投資成長率"
+
+# Input_口座
+ACCOUNT_ID_HEADER = "口座ID"
+ACCOUNT_TYPE_HEADER = "口座タイプ"
+OWNER_HEADER = "名義"
+BALANCE_HEADER = "残高"
+ASSET_CLASS_HEADER = "資産クラス"
+EXPECTED_RETURN_HEADER = "期待リターン"
+VOLATILITY_HEADER = "ボラティリティ"
+MONTHLY_CONTRIBUTION_HEADER = "月次拠出額"
+
+# Input_収入 / Input_支出で共通の列名
+AMOUNT_ANNUAL_HEADER = "年間金額"
+GROWTH_RATE_HEADER = "成長率"
+
+# Input_収入
+INCOME_ID_HEADER = "収入ID"
+SOURCE_HEADER = "収入源"
+START_TYPE_HEADER = "開始条件タイプ"
+START_VALUE_HEADER = "開始条件値"
+END_TYPE_HEADER = "終了条件タイプ"
+END_VALUE_HEADER = "終了条件値"
+
+# Input_支出
+EXPENSE_ID_HEADER = "支出ID"
+CATEGORY_HEADER = "カテゴリ"
+IS_FLEXIBLE_HEADER = "柔軟支出フラグ"
+
+# Input_シナリオ
+SCENARIO_ID_HEADER = "シナリオID"
+SCENARIO_NAME_HEADER = "シナリオ名"
+RETIREMENT_AGE_HEADER = "退職年齢"
+
+# Input_実績 / Output_純資産推移等で共通
+YEAR_HEADER = "西暦年"
+ACTUAL_NETWORTH_HEADER = "実績純資産"
+NETWORTH_HEADER = "純資産"
+
+# Output_モンテカルロ / Output_ヒストリカルバックテスト
+P10_HEADER = "下位10%値"
+P50_HEADER = "中央値"
+P90_HEADER = "上位10%値"
+
+SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
+
+# Output_エラー
+FIELD_PATH_HEADER = "エラー箇所"
+MESSAGE_HEADER = "エラー内容"
+
+# --- シート・セル・JSONフィールドパスの対応表（設計書7.3）。programmatic には未使用だが、
+# レイアウト変更時の一元的な参照ドキュメントとして維持する。 ---
+
 # (シート上のキー, Planフィールドパス, 型変換ルール)
 PLAN_FIELD_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("plan_id", "plan.plan_id", "str"),
-    ("name", "plan.name", "str"),
-    ("birth_date", "plan.user.birth_date", "date"),
-    ("residence", "plan.user.residence", "prefecture"),
-    ("inflation_rate", "plan.assumptions.inflation_rate", "rate"),
-    ("investment_growth_rate", "plan.assumptions.investment_growth_rate", "rate"),
+    (PLAN_ID_HEADER, "plan.plan_id", "str"),
+    (PLAN_NAME_HEADER, "plan.name", "str"),
+    (BIRTH_DATE_HEADER, "plan.user.birth_date", "date"),
+    (RESIDENCE_HEADER, "plan.user.residence", "prefecture"),
+    (INFLATION_RATE_HEADER, "plan.assumptions.inflation_rate", "rate"),
+    (INVESTMENT_GROWTH_RATE_HEADER, "plan.assumptions.investment_growth_rate", "rate"),
 )
 
-# Input_Accounts: ヘッダー行付きテーブル。1行=1口座（保有資産は1件のみのシンプル構成）。
+# Input_口座: ヘッダー行付きテーブル。1行=1口座（保有資産は1件のみのシンプル構成）。
 # Account(Plan Aggregate)とPortfolio(独立したAggregate、account_idで参照)を同じシート行から組み立てる。
 # (シート上の列名, フィールドパス, 型変換ルール)
 ACCOUNTS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("account_id", "plan.accounts[].account_id", "str"),
-    ("account_type", "plan.accounts[].account_type", "account_type"),
-    ("owner", "plan.accounts[].owner", "owner_type"),
-    ("balance", "portfolios[account_id].holdings[].cost_basis", "money"),
-    ("asset_class", "portfolios[account_id].holdings[].asset.asset_class", "asset_class"),
-    ("expected_return", "portfolios[account_id].holdings[].asset.expected_return", "rate"),
-    ("volatility", "portfolios[account_id].holdings[].asset.volatility", "rate"),
-    ("monthly_contribution", "plan.accounts[].monthly_contribution", "money_optional"),
+    (ACCOUNT_ID_HEADER, "plan.accounts[].account_id", "str"),
+    (ACCOUNT_TYPE_HEADER, "plan.accounts[].account_type", "account_type"),
+    (OWNER_HEADER, "plan.accounts[].owner", "owner_type"),
+    (BALANCE_HEADER, "portfolios[account_id].holdings[].cost_basis", "money"),
+    (ASSET_CLASS_HEADER, "portfolios[account_id].holdings[].asset.asset_class", "asset_class"),
+    (EXPECTED_RETURN_HEADER, "portfolios[account_id].holdings[].asset.expected_return", "rate"),
+    (VOLATILITY_HEADER, "portfolios[account_id].holdings[].asset.volatility", "rate"),
+    (MONTHLY_CONTRIBUTION_HEADER, "plan.accounts[].monthly_contribution", "money_optional"),
 )
 
-# Input_Scenarios: ヘッダー行付きテーブル。1行=1シナリオ（Scenario Aggregate）。
+# Input_シナリオ: ヘッダー行付きテーブル。1行=1シナリオ（Scenario Aggregate）。
 # 現時点でサポートするoverrideキーはretirement_ageのみ。
 SCENARIOS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("scenario_id", "scenario.scenario_id", "str"),
-    ("name", "scenario.name", "str"),
-    ("retirement_age", "scenario.overrides.retirement_age", "int"),
+    (SCENARIO_ID_HEADER, "scenario.scenario_id", "str"),
+    (SCENARIO_NAME_HEADER, "scenario.name", "str"),
+    (RETIREMENT_AGE_HEADER, "scenario.overrides.retirement_age", "int"),
 )
 
-# Input_Progress: ヘッダー行付きテーブル。1行=1年分の実績ネットワース。
+# Input_実績: ヘッダー行付きテーブル。1行=1年分の実績ネットワース。
 PROGRESS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("year", "progress_record.year", "int"),
-    ("actual_networth", "progress_record.actual_networth", "money"),
+    (YEAR_HEADER, "progress_record.year", "int"),
+    (ACTUAL_NETWORTH_HEADER, "progress_record.actual_networth", "money"),
 )
 
-# Input_Incomes: ヘッダー行付きテーブル。
+# Input_収入: ヘッダー行付きテーブル。
 INCOMES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("income_id", "plan.incomes[].income_id", "str"),
-    ("source", "plan.incomes[].source", "str"),
-    ("amount_annual", "plan.incomes[].amount", "money"),
-    ("growth_rate", "plan.incomes[].growth_rate", "rate"),
-    ("start_type", "plan.incomes[].start_condition.type", "condition_type"),
-    ("start_value", "plan.incomes[].start_condition.value", "condition_value"),
-    ("end_type", "plan.incomes[].end_condition.type", "condition_type"),
-    ("end_value", "plan.incomes[].end_condition.value", "condition_value"),
+    (INCOME_ID_HEADER, "plan.incomes[].income_id", "str"),
+    (SOURCE_HEADER, "plan.incomes[].source", "str"),
+    (AMOUNT_ANNUAL_HEADER, "plan.incomes[].amount", "money"),
+    (GROWTH_RATE_HEADER, "plan.incomes[].growth_rate", "rate"),
+    (START_TYPE_HEADER, "plan.incomes[].start_condition.type", "condition_type"),
+    (START_VALUE_HEADER, "plan.incomes[].start_condition.value", "condition_value"),
+    (END_TYPE_HEADER, "plan.incomes[].end_condition.type", "condition_type"),
+    (END_VALUE_HEADER, "plan.incomes[].end_condition.value", "condition_value"),
 )
 
-# Input_Expenses: ヘッダー行付きテーブル。
+# Input_支出: ヘッダー行付きテーブル。
 EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("expense_id", "plan.expenses[].expense_id", "str"),
-    ("category", "plan.expenses[].category", "str"),
-    ("amount_annual", "plan.expenses[].amount", "money"),
-    ("growth_rate", "plan.expenses[].growth_rate", "rate"),
-    ("is_flexible", "plan.expenses[].is_flexible", "bool"),
+    (EXPENSE_ID_HEADER, "plan.expenses[].expense_id", "str"),
+    (CATEGORY_HEADER, "plan.expenses[].category", "str"),
+    (AMOUNT_ANNUAL_HEADER, "plan.expenses[].amount", "money"),
+    (GROWTH_RATE_HEADER, "plan.expenses[].growth_rate", "rate"),
+    (IS_FLEXIBLE_HEADER, "plan.expenses[].is_flexible", "bool"),
 )
 
-# Output_NetWorth: ヘッダー行付きテーブル。西暦年別のネットワース数値のみを書き戻す最小版。
+# Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース数値のみを書き戻す最小版。
 OUTPUT_NETWORTH_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    ("year", "simulation_result.yearly_projections[].year", "int"),
-    ("networth", "simulation_result.yearly_projections[].networth", "money"),
+    (YEAR_HEADER, "simulation_result.yearly_projections[].year", "int"),
+    (NETWORTH_HEADER, "simulation_result.yearly_projections[].networth", "money"),
 )
 
-# Output_NetWorth_Breakdown: ヘッダー行付きテーブル。1列目=year、以降は口座種別（+unallocated_surplus）ごとの残高。
+# Output_純資産内訳: ヘッダー行付きテーブル。1列目=year、以降は口座種別（+unallocated_surplus）ごとの残高。
 # 列数・列名はPlanのaccount構成によって可変なため固定のマッピング定義は持たず、
 # reports/chart_builder.py の出力（charts.networth_chartのseries）からその都度組み立てる。
 OUTPUT_NETWORTH_BREAKDOWN_FIELD_PATH = "output_json.charts.networth_chart"
 
-# Output_ScenarioComparison: ヘッダー行付きテーブル。1列目=year、以降はシナリオ名ごとのネットワース推移。
-# 列数・列名はInput_Scenariosの行数に応じて可変なため固定のマッピング定義は持たず、
+# Output_シナリオ比較: ヘッダー行付きテーブル。1列目=year、以降はシナリオ名ごとのネットワース推移。
+# 列数・列名はInput_シナリオの行数に応じて可変なため固定のマッピング定義は持たず、
 # reports/scenario_comparison_builder.py の出力からその都度組み立てる。
 OUTPUT_SCENARIO_COMPARISON_FIELD_PATH = "output_json.charts.scenario_comparison_chart"
 
-# Output_SensitivityAnalysis: 成長率(行)×インフレ率(列)の最終年ネットワースをグリッド形式で書き出す。
+# Output_感応度分析: 成長率(行)×インフレ率(列)の最終年ネットワースをグリッド形式で書き出す。
 # reports/sensitivity_analysis_builder.py の出力からその都度組み立てる。
 OUTPUT_SENSITIVITY_ANALYSIS_FIELD_PATH = "output_json.tables.sensitivity_table"

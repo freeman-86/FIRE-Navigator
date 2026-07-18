@@ -68,15 +68,19 @@ write_networth_breakdown_chart(spreadsheet, build_networth_chart(plan, result))
 
 | シート名 | 内容 | 必須 |
 |---|---|---|
-| `Input_Plan` | 基本設定（生年月日・居住地・前提条件） | ✓ |
-| `Input_Accounts` | 口座一覧（NISA/iDeCo等） | ✓ |
-| `Input_Incomes` | 収入 | ✓ |
-| `Input_Expenses` | 支出 | ✓ |
-| `Input_Scenarios` | シナリオ比較用（退職年齢違い等） | 任意 |
-| `Input_Progress` | 実績ネットワース（計画との比較用） | 任意 |
+| `入力_プラン設定` | 基本設定（生年月日・居住地・前提条件） | ✓ |
+| `入力_口座` | 口座一覧（NISA/iDeCo等） | ✓ |
+| `入力_収入` | 収入 | ✓ |
+| `入力_支出` | 支出 | ✓ |
+| `入力_シナリオ` | シナリオ比較用（退職年齢違い等） | 任意 |
+| `入力_実績` | 実績純資産（計画との比較用） | 任意 |
+
+タブ名・列名（ヘッダー行）は日本語だが、`account_type`・`asset_class`等の値は内部識別子として
+英語のまま扱う（`adapters/sheets/sheet_mapping.py` に集約）。NISA/iDeCoは制度の正式名称のため
+英語表記を維持する。
 
 入力に不備があると `StructuralInputError` が送出される（`core/domain/errors.py`）。
-`adapters/sheets/sheets_error_writer.py` の `write_errors()` で `Output_Errors` シートへ
+`adapters/sheets/sheets_error_writer.py` の `write_errors()` で `出力_エラー` シートへ
 「どのフィールドで・何が」の形式で一覧を書き戻せる。
 
 ## テスト
@@ -119,7 +123,7 @@ docs/                 設計書・ロードマップ
 
 - `domestic_bond`・`global_bond` の過去リターン系列（`config/market_data/`）は実際の指数値を
   検証しきれておらず、一般的な資産クラスの特性に基づく参考値（詳細はファイル内コメント参照）。
-- `inflation_rate`（`Input_Plan`）は現時点でシミュレーション結果に反映されない
+- `inflation_rate`（`入力_プラン設定`）は現時点でシミュレーション結果に反映されない
   （Income/Expenseが個別の`growth_rate`を持つ設計のため）。
 - 投資の含み益・実現益に対する課税、住宅ローン（`core/domain/loan.py`）は未実装（MVPスコープ外）。
 - 「カスタムプロット」（MoSCoWのShould項目）は未着手。

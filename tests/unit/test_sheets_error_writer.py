@@ -2,7 +2,7 @@ import unittest
 
 import gspread
 
-from adapters.sheets.sheet_mapping import OUTPUT_ERRORS_SHEET
+from adapters.sheets.sheet_mapping import FIELD_PATH_HEADER, MESSAGE_HEADER, OUTPUT_ERRORS_SHEET, PLAN_SHEET
 from adapters.sheets.sheets_error_writer import write_errors
 from core.domain.errors import SemanticValidationError, StructuralInputError
 
@@ -45,7 +45,7 @@ class WriteErrorsTest(unittest.TestCase):
         worksheet = _FakeWorksheet()
         spreadsheet = _FakeSpreadsheetExisting(worksheet)
         errors = [
-            StructuralInputError("必須項目が未入力です", "Input_Plan!birth_date"),
+            StructuralInputError("必須項目が未入力です", f"{PLAN_SHEET}!生年月日"),
             SemanticValidationError("退職年齢が若すぎます", "milestones[m1].trigger.age"),
         ]
 
@@ -55,8 +55,8 @@ class WriteErrorsTest(unittest.TestCase):
         self.assertEqual(
             worksheet.updated_values,
             [
-                ["field_path", "message"],
-                ["Input_Plan!birth_date", "必須項目が未入力です"],
+                [FIELD_PATH_HEADER, MESSAGE_HEADER],
+                [f"{PLAN_SHEET}!生年月日", "必須項目が未入力です"],
                 ["milestones[m1].trigger.age", "退職年齢が若すぎます"],
             ],
         )
@@ -67,7 +67,7 @@ class WriteErrorsTest(unittest.TestCase):
         write_errors(spreadsheet, [])
 
         self.assertIsNotNone(spreadsheet.added_worksheet)
-        self.assertEqual(spreadsheet.added_worksheet.updated_values, [["field_path", "message"]])
+        self.assertEqual(spreadsheet.added_worksheet.updated_values, [[FIELD_PATH_HEADER, MESSAGE_HEADER]])
 
 
 if __name__ == "__main__":

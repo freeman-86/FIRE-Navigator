@@ -5,6 +5,7 @@ from typing import Optional
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    NETWORTH_HEADER,
     OUTPUT_HISTORICAL_BACKTEST_SHEET,
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
@@ -12,20 +13,24 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_PROGRESS_COMPARISON_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
+    P10_HEADER,
+    P50_HEADER,
+    P90_HEADER,
+    SENSITIVITY_TABLE_HEADER,
+    YEAR_HEADER,
 )
 from core.domain.montecarlo_result import MonteCarloResult
 from core.domain.simulation_result import SimulationResult
 
-BREAKDOWN_CHART_TITLE = "ネットワース推移（口座種別内訳）"
-SCENARIO_COMPARISON_CHART_TITLE = "シナリオ比較（ネットワース推移）"
-SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
+BREAKDOWN_CHART_TITLE = "純資産推移（口座種別内訳）"
+SCENARIO_COMPARISON_CHART_TITLE = "シナリオ比較（純資産推移）"
 PROGRESS_COMPARISON_CHART_TITLE = "計画 vs 実績"
 MONTECARLO_CHART_TITLE = "モンテカルロ・シミュレーション（p10/p50/p90）"
 HISTORICAL_BACKTEST_CHART_TITLE = "ヒストリカル・バックテスト（p10/p50/p90）"
 
 
 def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: SimulationResult) -> None:
-    rows: list[list[object]] = [["year", "networth"]]
+    rows: list[list[object]] = [[YEAR_HEADER, NETWORTH_HEADER]]
     rows += [
         [projection.year, int(projection.networth.amount)]
         for projection in simulation_result.yearly_projections
@@ -103,7 +108,7 @@ def write_progress_comparison(spreadsheet: gspread.Spreadsheet, comparison_chart
 
 
 def write_montecarlo_result(spreadsheet: gspread.Spreadsheet, result: MonteCarloResult, percentile_chart: dict) -> None:
-    """Monte Carlo Engineの結果（成功確率＋年次パーセンタイル分布）をOutput_MonteCarloシートへ書き込む。"""
+    """Monte Carlo Engineの結果（成功確率＋年次パーセンタイル分布）を出力_モンテカルロシートへ書き込む。"""
 
     _write_percentile_result(spreadsheet, OUTPUT_MONTECARLO_SHEET, MONTECARLO_CHART_TITLE, result, percentile_chart)
 
@@ -111,7 +116,7 @@ def write_montecarlo_result(spreadsheet: gspread.Spreadsheet, result: MonteCarlo
 def write_historical_backtest_result(
     spreadsheet: gspread.Spreadsheet, result: MonteCarloResult, percentile_chart: dict
 ) -> None:
-    """Historical Engineの結果（成功確率＋窓ごとの年次パーセンタイル分布）をOutput_HistoricalBacktestシートへ書き込む。"""
+    """Historical Engineの結果（成功確率＋窓ごとの年次パーセンタイル分布）を出力_ヒストリカルバックテストシートへ書き込む。"""
 
     _write_percentile_result(
         spreadsheet, OUTPUT_HISTORICAL_BACKTEST_SHEET, HISTORICAL_BACKTEST_CHART_TITLE, result, percentile_chart
@@ -125,7 +130,7 @@ def _write_percentile_result(
     result: MonteCarloResult,
     percentile_chart: dict,
 ) -> None:
-    header = ["year", "p10", "p50", "p90"]
+    header = [YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER]
     rows: list[list[object]] = [header]
     for index, year in enumerate(percentile_chart["x"]):
         rows.append(
@@ -152,7 +157,7 @@ def _write_percentile_result(
 
 
 def _write_chart_table(spreadsheet: gspread.Spreadsheet, sheet_name: str, chart: dict) -> gspread.Worksheet:
-    header = ["year"] + [series["name"] for series in chart["series"]]
+    header = [YEAR_HEADER] + [series["name"] for series in chart["series"]]
     rows: list[list[object]] = [header]
     for row_index, year in enumerate(chart["x"]):
         rows.append(
@@ -225,7 +230,7 @@ def _replace_native_chart(
         "legendPosition": "BOTTOM_LEGEND",
         "axis": [
             {"position": "BOTTOM_AXIS", "title": "年"},
-            {"position": "LEFT_AXIS", "title": "ネットワース(円)"},
+            {"position": "LEFT_AXIS", "title": "純資産(円)"},
         ],
         "domains": [{"domain": {"sourceRange": _column_range(0, 1)}}],
         "series": series_requests,

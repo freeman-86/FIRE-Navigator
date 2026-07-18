@@ -4,11 +4,16 @@ import gspread
 
 from adapters.sheets import sheets_output_adapter as output_adapter
 from adapters.sheets.sheet_mapping import (
+    NETWORTH_HEADER,
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
+    P10_HEADER,
+    P50_HEADER,
+    P90_HEADER,
+    YEAR_HEADER,
 )
 from core.domain.montecarlo_result import MonteCarloResult, PercentileBand
 from core.domain.simulation_result import SimulationResult, YearlyProjection
@@ -126,7 +131,7 @@ class WriteNetworthTableTest(unittest.TestCase):
 
         worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_SHEET)
         self.assertEqual(
-            worksheet.last_values, [["year", "networth"], [2026, 1_000_000], [2027, 2_000_000]]
+            worksheet.last_values, [[YEAR_HEADER, NETWORTH_HEADER], [2026, 1_000_000], [2027, 2_000_000]]
         )
 
 
@@ -148,7 +153,7 @@ class WriteChartsTest(unittest.TestCase):
         worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_BREAKDOWN_SHEET)
         self.assertEqual(
             worksheet.last_values,
-            [["year", "taxable", "nisa_growth"], [2026, 1_000_000, 500_000], [2027, 1_100_000, ""]],
+            [[YEAR_HEADER, "taxable", "nisa_growth"], [2026, 1_000_000, 500_000], [2027, 1_100_000, ""]],
         )
         charts = spreadsheet.charts_by_sheet_id[worksheet.id]
         self.assertEqual(len(charts), 1)
@@ -225,7 +230,10 @@ class WritePercentileResultTest(unittest.TestCase):
 
         worksheet = spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
         table_values, summary_values = worksheet.updates[0][0], worksheet.updates[1][0]
-        self.assertEqual(table_values, [["year", "p10", "p50", "p90"], [2026, 1_000_000, 2_000_000, 3_000_000]])
+        self.assertEqual(
+            table_values,
+            [[YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER], [2026, 1_000_000, 2_000_000, 3_000_000]],
+        )
         self.assertIn("87.0%", summary_values[0][0])
         self.assertIn("87/100", summary_values[0][0])
         charts = spreadsheet.charts_by_sheet_id[worksheet.id]

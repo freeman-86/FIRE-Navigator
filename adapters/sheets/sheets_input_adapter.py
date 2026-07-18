@@ -8,13 +8,43 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from adapters.sheets.sheet_mapping import (
+    ACCOUNT_ID_HEADER,
+    ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
+    ACTUAL_NETWORTH_HEADER,
+    AMOUNT_ANNUAL_HEADER,
+    ASSET_CLASS_HEADER,
+    BALANCE_HEADER,
+    BIRTH_DATE_HEADER,
+    CATEGORY_HEADER,
+    END_TYPE_HEADER,
+    END_VALUE_HEADER,
+    EXPECTED_RETURN_HEADER,
+    EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
+    GROWTH_RATE_HEADER,
+    INCOME_ID_HEADER,
     INCOMES_SHEET,
+    INFLATION_RATE_HEADER,
+    INVESTMENT_GROWTH_RATE_HEADER,
+    IS_FLEXIBLE_HEADER,
+    MONTHLY_CONTRIBUTION_HEADER,
+    OWNER_HEADER,
+    PLAN_ID_HEADER,
+    PLAN_NAME_HEADER,
     PLAN_SHEET,
     PROGRESS_SHEET,
+    RESIDENCE_HEADER,
+    RETIREMENT_AGE_HEADER,
+    SCENARIO_ID_HEADER,
+    SCENARIO_NAME_HEADER,
     SCENARIOS_SHEET,
+    SOURCE_HEADER,
     SPREADSHEET_NAME,
+    START_TYPE_HEADER,
+    START_VALUE_HEADER,
+    VOLATILITY_HEADER,
+    YEAR_HEADER,
 )
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.asset import Asset, AssetClass
@@ -133,22 +163,29 @@ def _read_plan_settings(spreadsheet: gspread.Spreadsheet) -> dict[str, str]:
 def _require_setting(settings: dict[str, str], key: str) -> str:
     value = settings.get(key, "").strip()
     if not value:
-        raise StructuralInputError(f"必須項目が未入力です（{PLAN_SHEET}のA列に'{key}'の行がないか、B列が空です）", f"{PLAN_SHEET}!{key}")
+        raise StructuralInputError(
+            f"必須項目が未入力です（{PLAN_SHEET}のA列に'{key}'の行がないか、B列が空です）", f"{PLAN_SHEET}!{key}"
+        )
     return value
 
 
 def _build_user(settings: dict[str, str]) -> User:
     return User(
-        birth_date=_parse_date_field(_require_setting(settings, "birth_date"), f"{PLAN_SHEET}!birth_date"),
-        residence=_parse_enum(Prefecture, _require_setting(settings, "residence"), f"{PLAN_SHEET}!residence"),
+        birth_date=_parse_date_field(_require_setting(settings, BIRTH_DATE_HEADER), f"{PLAN_SHEET}!{BIRTH_DATE_HEADER}"),
+        residence=_parse_enum(
+            Prefecture, _require_setting(settings, RESIDENCE_HEADER), f"{PLAN_SHEET}!{RESIDENCE_HEADER}"
+        ),
     )
 
 
 def _build_assumptions(settings: dict[str, str]) -> Assumptions:
     return Assumptions(
-        inflation_rate=_parse_rate(_require_setting(settings, "inflation_rate"), f"{PLAN_SHEET}!inflation_rate"),
+        inflation_rate=_parse_rate(
+            _require_setting(settings, INFLATION_RATE_HEADER), f"{PLAN_SHEET}!{INFLATION_RATE_HEADER}"
+        ),
         investment_growth_rate=_parse_rate(
-            _require_setting(settings, "investment_growth_rate"), f"{PLAN_SHEET}!investment_growth_rate"
+            _require_setting(settings, INVESTMENT_GROWTH_RATE_HEADER),
+            f"{PLAN_SHEET}!{INVESTMENT_GROWTH_RATE_HEADER}",
         ),
     )
 
@@ -158,17 +195,21 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
     accounts = []
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{ACCOUNTS_SHEET}!row{row_number}"
-        account_id = str(_require(record, "account_id", f"{row_prefix}.account_id"))
-        monthly_contribution_raw = str(record.get("monthly_contribution", "")).strip()
+        account_id = str(_require(record, ACCOUNT_ID_HEADER, f"{row_prefix}.{ACCOUNT_ID_HEADER}"))
+        monthly_contribution_raw = str(record.get(MONTHLY_CONTRIBUTION_HEADER, "")).strip()
         accounts.append(
             Account(
                 account_id=account_id,
                 account_type=_parse_enum(
-                    AccountType, _require(record, "account_type", f"{row_prefix}.account_type"), f"{row_prefix}.account_type"
+                    AccountType,
+                    _require(record, ACCOUNT_TYPE_HEADER, f"{row_prefix}.{ACCOUNT_TYPE_HEADER}"),
+                    f"{row_prefix}.{ACCOUNT_TYPE_HEADER}",
                 ),
-                owner=_parse_enum(OwnerType, _require(record, "owner", f"{row_prefix}.owner"), f"{row_prefix}.owner"),
+                owner=_parse_enum(
+                    OwnerType, _require(record, OWNER_HEADER, f"{row_prefix}.{OWNER_HEADER}"), f"{row_prefix}.{OWNER_HEADER}"
+                ),
                 monthly_contribution=(
-                    _parse_money(monthly_contribution_raw, f"{row_prefix}.monthly_contribution")
+                    _parse_money(monthly_contribution_raw, f"{row_prefix}.{MONTHLY_CONTRIBUTION_HEADER}")
                     if monthly_contribution_raw
                     else None
                 ),
@@ -178,37 +219,43 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
 
 
 def _build_portfolios(spreadsheet: gspread.Spreadsheet) -> dict[str, Portfolio]:
-    """Portfolio Aggregate（account_idで参照される独立集約）をInput_Accountsシートから組み立てる。"""
+    """Portfolio Aggregate（account_idで参照される独立集約）を入力_口座シートから組み立てる。"""
 
     worksheet = spreadsheet.worksheet(ACCOUNTS_SHEET)
     portfolios: dict[str, Portfolio] = {}
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{ACCOUNTS_SHEET}!row{row_number}"
-        account_id = str(_require(record, "account_id", f"{row_prefix}.account_id"))
+        account_id = str(_require(record, ACCOUNT_ID_HEADER, f"{row_prefix}.{ACCOUNT_ID_HEADER}"))
         asset = Asset(
             asset_class=_parse_enum(
-                AssetClass, _require(record, "asset_class", f"{row_prefix}.asset_class"), f"{row_prefix}.asset_class"
+                AssetClass,
+                _require(record, ASSET_CLASS_HEADER, f"{row_prefix}.{ASSET_CLASS_HEADER}"),
+                f"{row_prefix}.{ASSET_CLASS_HEADER}",
             ),
             expected_return=_parse_rate(
-                _require(record, "expected_return", f"{row_prefix}.expected_return"), f"{row_prefix}.expected_return"
+                _require(record, EXPECTED_RETURN_HEADER, f"{row_prefix}.{EXPECTED_RETURN_HEADER}"),
+                f"{row_prefix}.{EXPECTED_RETURN_HEADER}",
             ),
             volatility=_parse_rate(
-                _require(record, "volatility", f"{row_prefix}.volatility"), f"{row_prefix}.volatility"
+                _require(record, VOLATILITY_HEADER, f"{row_prefix}.{VOLATILITY_HEADER}"),
+                f"{row_prefix}.{VOLATILITY_HEADER}",
             ),
         )
         holding = Holding(
             asset=asset,
             quantity=1,
-            cost_basis=_parse_money(_require(record, "balance", f"{row_prefix}.balance"), f"{row_prefix}.balance"),
+            cost_basis=_parse_money(
+                _require(record, BALANCE_HEADER, f"{row_prefix}.{BALANCE_HEADER}"), f"{row_prefix}.{BALANCE_HEADER}"
+            ),
         )
         portfolios[account_id] = Portfolio(holdings=[holding])
     return portfolios
 
 
 def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Scenario]:
-    """Scenario Aggregate（plan_idで参照される独立集約）をInput_Scenariosシートから組み立てる。
+    """Scenario Aggregate（plan_idで参照される独立集約）を入力_シナリオシートから組み立てる。
 
-    Input_Scenariosシートが存在しない場合は空リストを返す（シナリオ比較はオプション機能）。
+    入力_シナリオシートが存在しない場合は空リストを返す（シナリオ比較はオプション機能）。
     """
 
     try:
@@ -220,14 +267,14 @@ def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Sce
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{SCENARIOS_SHEET}!row{row_number}"
         overrides = {}
-        retirement_age_raw = str(record.get("retirement_age", "")).strip()
+        retirement_age_raw = str(record.get(RETIREMENT_AGE_HEADER, "")).strip()
         if retirement_age_raw:
-            overrides["retirement_age"] = _parse_int(retirement_age_raw, f"{row_prefix}.retirement_age")
+            overrides["retirement_age"] = _parse_int(retirement_age_raw, f"{row_prefix}.{RETIREMENT_AGE_HEADER}")
         scenarios.append(
             Scenario(
-                scenario_id=str(_require(record, "scenario_id", f"{row_prefix}.scenario_id")),
+                scenario_id=str(_require(record, SCENARIO_ID_HEADER, f"{row_prefix}.{SCENARIO_ID_HEADER}")),
                 plan_id=plan_id,
-                name=str(_require(record, "name", f"{row_prefix}.name")),
+                name=str(_require(record, SCENARIO_NAME_HEADER, f"{row_prefix}.{SCENARIO_NAME_HEADER}")),
                 overrides=overrides,
             )
         )
@@ -235,9 +282,9 @@ def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Sce
 
 
 def _build_progress_records(spreadsheet: gspread.Spreadsheet) -> list[ProgressRecord]:
-    """実績ネットワースをInput_Progressシートから読み込む。
+    """実績ネットワースを入力_実績シートから読み込む。
 
-    Input_Progressシートが存在しない場合は空リストを返す（Progress比較はオプション機能）。
+    入力_実績シートが存在しない場合は空リストを返す（Progress比較はオプション機能）。
     """
 
     try:
@@ -250,9 +297,10 @@ def _build_progress_records(spreadsheet: gspread.Spreadsheet) -> list[ProgressRe
         row_prefix = f"{PROGRESS_SHEET}!row{row_number}"
         records.append(
             ProgressRecord(
-                year=_parse_int(_require(record, "year", f"{row_prefix}.year"), f"{row_prefix}.year"),
+                year=_parse_int(_require(record, YEAR_HEADER, f"{row_prefix}.{YEAR_HEADER}"), f"{row_prefix}.{YEAR_HEADER}"),
                 actual_networth=_parse_money(
-                    _require(record, "actual_networth", f"{row_prefix}.actual_networth"), f"{row_prefix}.actual_networth"
+                    _require(record, ACTUAL_NETWORTH_HEADER, f"{row_prefix}.{ACTUAL_NETWORTH_HEADER}"),
+                    f"{row_prefix}.{ACTUAL_NETWORTH_HEADER}",
                 ),
             )
         )
@@ -265,20 +313,24 @@ def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{INCOMES_SHEET}!row{row_number}"
         start_condition = _build_event_condition(
-            record.get("start_type"), record.get("start_value"), f"{row_prefix}.start_type"
+            record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
         )
         if start_condition is None:
-            raise StructuralInputError("start_typeが必須です", f"{row_prefix}.start_type")
-        end_condition = _build_event_condition(record.get("end_type"), record.get("end_value"), f"{row_prefix}.end_type")
+            raise StructuralInputError(f"{START_TYPE_HEADER}が必須です", f"{row_prefix}.{START_TYPE_HEADER}")
+        end_condition = _build_event_condition(
+            record.get(END_TYPE_HEADER), record.get(END_VALUE_HEADER), f"{row_prefix}.{END_TYPE_HEADER}"
+        )
         incomes.append(
             Income(
-                income_id=str(_require(record, "income_id", f"{row_prefix}.income_id")),
-                source=str(_require(record, "source", f"{row_prefix}.source")),
+                income_id=str(_require(record, INCOME_ID_HEADER, f"{row_prefix}.{INCOME_ID_HEADER}")),
+                source=str(_require(record, SOURCE_HEADER, f"{row_prefix}.{SOURCE_HEADER}")),
                 amount=_parse_money(
-                    _require(record, "amount_annual", f"{row_prefix}.amount_annual"), f"{row_prefix}.amount_annual"
+                    _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
+                    f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
                 ),
                 growth_rate=_parse_rate(
-                    _require(record, "growth_rate", f"{row_prefix}.growth_rate"), f"{row_prefix}.growth_rate"
+                    _require(record, GROWTH_RATE_HEADER, f"{row_prefix}.{GROWTH_RATE_HEADER}"),
+                    f"{row_prefix}.{GROWTH_RATE_HEADER}",
                 ),
                 start_condition=start_condition,
                 end_condition=end_condition,
@@ -294,15 +346,17 @@ def _build_expenses(spreadsheet: gspread.Spreadsheet) -> list[Expense]:
         row_prefix = f"{EXPENSES_SHEET}!row{row_number}"
         expenses.append(
             Expense(
-                expense_id=str(_require(record, "expense_id", f"{row_prefix}.expense_id")),
-                category=str(_require(record, "category", f"{row_prefix}.category")),
+                expense_id=str(_require(record, EXPENSE_ID_HEADER, f"{row_prefix}.{EXPENSE_ID_HEADER}")),
+                category=str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}")),
                 amount=_parse_money(
-                    _require(record, "amount_annual", f"{row_prefix}.amount_annual"), f"{row_prefix}.amount_annual"
+                    _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
+                    f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
                 ),
                 growth_rate=_parse_rate(
-                    _require(record, "growth_rate", f"{row_prefix}.growth_rate"), f"{row_prefix}.growth_rate"
+                    _require(record, GROWTH_RATE_HEADER, f"{row_prefix}.{GROWTH_RATE_HEADER}"),
+                    f"{row_prefix}.{GROWTH_RATE_HEADER}",
                 ),
-                is_flexible=_parse_bool(record.get("is_flexible", "FALSE")),
+                is_flexible=_parse_bool(record.get(IS_FLEXIBLE_HEADER, "FALSE")),
             )
         )
     return expenses
@@ -354,8 +408,8 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
     user = _build_user(settings)
 
     return Plan(
-        plan_id=_require_setting(settings, "plan_id"),
-        name=_require_setting(settings, "name"),
+        plan_id=_require_setting(settings, PLAN_ID_HEADER),
+        name=_require_setting(settings, PLAN_NAME_HEADER),
         user=user,
         start_condition=StartCondition(StartConditionType.TODAY),
         assumptions=_build_assumptions(settings),
