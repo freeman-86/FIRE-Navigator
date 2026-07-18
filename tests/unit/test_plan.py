@@ -13,6 +13,7 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
+from tests.portfolio_test_fixtures import no_allocation_contribution_strategy
 
 
 def _build_plan() -> Plan:
@@ -67,6 +68,7 @@ def _build_plan() -> Plan:
         withdrawal_strategy=WithdrawalStrategy(
             order=[AccountType.CASH, AccountType.TAXABLE, AccountType.NISA_GROWTH, AccountType.IDECO]
         ),
+        contribution_strategy=no_allocation_contribution_strategy(),
         incomes=[income],
         milestones=[milestone],
     )

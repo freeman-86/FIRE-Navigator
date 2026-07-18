@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Optional
 
 from core.domain.account import Account
+from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.debt import Debt
 from core.domain.expense import Expense
 from core.domain.income import Income
@@ -51,6 +52,7 @@ class Plan:
     tax_config: TaxConfig
     pension: Pension
     withdrawal_strategy: WithdrawalStrategy
+    contribution_strategy: ContributionStrategy
     milestones: list[Milestone] = field(default_factory=list)
     debts: list[Debt] = field(default_factory=list)
     loans: list[Loan] = field(default_factory=list)

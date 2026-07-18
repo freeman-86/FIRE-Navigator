@@ -9,19 +9,22 @@ from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.milestone import MilestoneType
 from core.domain.plan import Plan, StartConditionType
+from core.domain.portfolio_rules import PortfolioRules
 from core.domain.simulation_result import SimulationResult, YearlyProjection
 from core.domain.tax_config import TaxRules
 from core.domain.value_objects import EventCondition, EventConditionType, Money, Rate
+from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
 from core.simulation.tax.tax_engine import calculate_tax
 
 DEFAULT_PROJECTION_YEARS = 30
 UNALLOCATED_SURPLUS_KEY = "unallocated_surplus"
 
 
-def run_projection(plan: Plan, tax_rules: TaxRules) -> SimulationResult:
-    """決定論的シミュレーション。収入(手取りベース)-支出=余剰、資産×成長率で年次ネットワース推移を計算する（Sprint5スコープ）。
+def run_projection(plan: Plan, tax_rules: TaxRules, portfolio_rules: PortfolioRules) -> SimulationResult:
+    """決定論的シミュレーション。手取り収入から確定拠出(iDeCo/DC等)と生活費を差し引いた裁量的余剰を、
+    contribution_strategyの優先順位で口座へ自動配分しながら年次ネットワース推移を計算する（Sprint6スコープ）。
 
-    tax_rulesはApplication層相当の呼び出し元がrepositories.config_repository.load_tax_rules()等で
+    tax_rules/portfolio_rulesはApplication層相当の呼び出し元がrepositories.config_repository経由で
     用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
     """
 
@@ -32,6 +35,7 @@ def run_projection(plan: Plan, tax_rules: TaxRules) -> SimulationResult:
     has_spouse = plan.user.spouse is not None
 
     account_balances = {account.account_id: _initial_balance(account) for account in plan.accounts}
+    lifetime_contributions = {account.account_id: Money.zero() for account in plan.accounts}
     surplus_reserve = Money.zero()
 
     yearly_projections: list[YearlyProjection] = []
@@ -39,13 +43,38 @@ def run_projection(plan: Plan, tax_rules: TaxRules) -> SimulationResult:
         gross_income = _active_income_total(plan.incomes, year, start_year, birth_date, offset)
         total_expense = _expense_total(plan.expenses, offset)
 
-        tax_result = calculate_tax(gross_income, plan.tax_config, has_spouse, tax_rules)
+        fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
+        tax_result = calculate_tax(
+            gross_income, plan.tax_config, has_spouse, tax_rules, fixed_plan.tax_deductible_amount
+        )
         net_cashflow = tax_result.net_income - total_expense
+        discretionary_surplus = net_cashflow - _total(fixed_plan.contributions)
+
+        discretionary_contributions, unallocated_leftover = allocate_discretionary_surplus(
+            plan.accounts,
+            account_balances,
+            lifetime_contributions,
+            fixed_plan.contributions,
+            discretionary_surplus,
+            plan.contribution_strategy,
+            portfolio_rules,
+        )
+        contributions_this_year = _merge(fixed_plan.contributions, discretionary_contributions)
+
+        # 配分しきれなかった余剰、および赤字(discretionary_surplusが負)はこれまで通りunallocated_surplusで吸収する
+        unallocated_delta = unallocated_leftover
+        if discretionary_surplus.is_negative:
+            unallocated_delta = unallocated_delta + discretionary_surplus
 
         account_balances = {
-            account_id: _grow(balance, growth_rate) for account_id, balance in account_balances.items()
+            account_id: _grow(balance, growth_rate) + contributions_this_year.get(account_id, Money.zero())
+            for account_id, balance in account_balances.items()
         }
-        surplus_reserve = _grow(surplus_reserve, growth_rate) + net_cashflow
+        lifetime_contributions = {
+            account_id: lifetime_contributions[account_id] + contributions_this_year.get(account_id, Money.zero())
+            for account_id in lifetime_contributions
+        }
+        surplus_reserve = _grow(surplus_reserve, growth_rate) + unallocated_delta
 
         balances_snapshot = {**account_balances, UNALLOCATED_SURPLUS_KEY: surplus_reserve}
         networth = sum(balances_snapshot.values(), Money.zero())
@@ -74,6 +103,20 @@ def _initial_balance(account: Account) -> Money:
     for holding in account.portfolio.holdings:
         total = total + holding.cost_basis
     return total
+
+
+def _total(amounts: dict[str, Money]) -> Money:
+    total = Money.zero()
+    for amount in amounts.values():
+        total = total + amount
+    return total
+
+
+def _merge(a: dict[str, Money], b: dict[str, Money]) -> dict[str, Money]:
+    merged = dict(a)
+    for account_id, amount in b.items():
+        merged[account_id] = merged.get(account_id, Money.zero()) + amount
+    return merged
 
 
 def _grow(money: Money, rate: Rate) -> Money:

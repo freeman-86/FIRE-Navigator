@@ -30,6 +30,7 @@ ACCOUNTS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     ("asset_class", "plan.accounts[].portfolio.holdings[].asset.asset_class", "asset_class"),
     ("expected_return", "plan.accounts[].portfolio.holdings[].asset.expected_return", "rate"),
     ("volatility", "plan.accounts[].portfolio.holdings[].asset.volatility", "rate"),
+    ("monthly_contribution", "plan.accounts[].monthly_contribution", "money_optional"),
 )
 
 # Input_Incomes: ヘッダー行付きテーブル。

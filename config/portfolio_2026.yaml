@@ -1,0 +1,42 @@
+schema_version: 1
+config_year: 2026
+
+# 口座タイプ別の非課税枠上限・拠出上限。
+# annual_limit: その年に拠出できる上限額 (null = 制限なし)
+# lifetime_limit: 生涯を通じた非課税枠の上限額 (null = 制限なし)
+# tax_free: 運用益が非課税かどうか（現時点のシミュレーションでは含み益に課税していないため未使用。
+#           将来のWithdrawal Engine実装時に実現益課税の判定へ使う）
+account_types:
+  nisa_growth:
+    annual_limit: 2400000
+    lifetime_limit: 12000000
+    tax_free: true
+  nisa_tsumitate:
+    annual_limit: 1200000
+    lifetime_limit: 6000000
+    # 実際は成長投資枠と生涯枠が合算管理されるが、MVPでは口座タイプごとに独立管理する
+    # （システムアーキテクチャ設計書10.3の注記通り）
+    tax_free: true
+  ideco:
+    # 会社員(企業年金なし)の月額上限23,000円×12。MVPでは職業区分による上限の違いは非対応。
+    annual_limit: 276000
+    lifetime_limit: null
+    tax_free: true
+  company_dc:
+    # 他の企業年金制度を併用しない場合の月額上限55,000円×12。制度併用時の減額は非対応。
+    annual_limit: 660000
+    lifetime_limit: null
+    tax_free: true
+  zaikei:
+    # 財形住宅貯蓄・財形年金貯蓄（両方合算）の非課税上限（元利合計）。一般財形との区別は非対応。
+    annual_limit: null
+    lifetime_limit: 5500000
+    tax_free: true
+  taxable:
+    annual_limit: null
+    lifetime_limit: null
+    tax_free: false
+  cash:
+    annual_limit: null
+    lifetime_limit: null
+    tax_free: true

@@ -17,9 +17,17 @@ class TaxCalculationResult:
     net_income: Money
 
 
-def calculate_tax(gross_income: Money, tax_config: TaxConfig, has_spouse: bool, rules: TaxRules) -> TaxCalculationResult:
+def calculate_tax(
+    gross_income: Money,
+    tax_config: TaxConfig,
+    has_spouse: bool,
+    rules: TaxRules,
+    additional_deduction: Money = Money.zero(),
+) -> TaxCalculationResult:
     apply_spouse_deduction = has_spouse and bool(tax_config.deduction_settings.get("spouse_deduction", False))
-    taxable_income = calculate_taxable_income(gross_income, rules.income_tax, apply_spouse_deduction)
+    taxable_income = calculate_taxable_income(
+        gross_income, rules.income_tax, apply_spouse_deduction, additional_deduction
+    )
 
     income_tax = calculate_income_tax(taxable_income, rules.income_tax)
     resident_tax = calculate_resident_tax(taxable_income, rules.resident_tax)

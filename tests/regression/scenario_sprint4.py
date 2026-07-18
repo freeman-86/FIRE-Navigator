@@ -1,7 +1,9 @@
 from datetime import date
+from typing import Optional
 
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.asset import Asset, AssetClass
+from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -14,7 +16,7 @@ from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
-CONFIG_VERSION_LABEL = "sprint4-baseline"
+CONFIG_VERSION_LABEL = "sprint6-baseline"
 
 
 def build_scenario_plan() -> Plan:
@@ -24,7 +26,13 @@ def build_scenario_plan() -> Plan:
 
     user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
 
-    def _account(account_id: str, account_type: AccountType, balance: int, asset_class: AssetClass) -> Account:
+    def _account(
+        account_id: str,
+        account_type: AccountType,
+        balance: int,
+        asset_class: AssetClass,
+        monthly_contribution: Optional[int] = None,
+    ) -> Account:
         asset = Asset(
             asset_class=asset_class,
             expected_return=Rate.from_percent(5),
@@ -36,12 +44,14 @@ def build_scenario_plan() -> Plan:
             account_type=account_type,
             owner=OwnerType.SELF,
             portfolio=Portfolio(holdings=[holding]),
+            monthly_contribution=Money.of(monthly_contribution) if monthly_contribution is not None else None,
         )
 
     accounts = [
         _account("acc_cash_001", AccountType.CASH, 1_000_000, AssetClass.CASH),
-        _account("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, AssetClass.GLOBAL_EQUITY),
-        _account("acc_ideco_001", AccountType.IDECO, 1_500_000, AssetClass.DOMESTIC_BOND),
+        _account("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, AssetClass.GLOBAL_EQUITY, 50_000),
+        _account("acc_ideco_001", AccountType.IDECO, 1_500_000, AssetClass.DOMESTIC_BOND, 23_000),
+        _account("acc_taxable_001", AccountType.TAXABLE, 500_000, AssetClass.GLOBAL_EQUITY),
     ]
 
     incomes = [
@@ -90,6 +100,10 @@ def build_scenario_plan() -> Plan:
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(
             order=[AccountType.CASH, AccountType.TAXABLE, AccountType.NISA_GROWTH, AccountType.IDECO]
+        ),
+        contribution_strategy=ContributionStrategy(
+            order=[AccountType.CASH, AccountType.NISA_GROWTH, AccountType.IDECO, AccountType.TAXABLE],
+            emergency_fund_target=Money.of(1_500_000),
         ),
         milestones=milestones,
         incomes=incomes,

@@ -15,6 +15,7 @@ from adapters.sheets.sheet_mapping import (
 )
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.asset import Asset, AssetClass
+from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -97,12 +98,14 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
             volatility=Rate.of(record["volatility"]),
         )
         holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(record["balance"]))
+        monthly_contribution_raw = str(record.get("monthly_contribution", "")).strip()
         accounts.append(
             Account(
                 account_id=str(record["account_id"]),
                 account_type=AccountType(record["account_type"]),
                 owner=OwnerType(record["owner"]),
                 portfolio=Portfolio(holdings=[holding]),
+                monthly_contribution=Money.of(monthly_contribution_raw) if monthly_contribution_raw else None,
             )
         )
     return accounts
@@ -167,6 +170,21 @@ def _default_withdrawal_strategy() -> WithdrawalStrategy:
     )
 
 
+def _default_contribution_strategy() -> ContributionStrategy:
+    return ContributionStrategy(
+        order=[
+            AccountType.CASH,
+            AccountType.NISA_GROWTH,
+            AccountType.NISA_TSUMITATE,
+            AccountType.IDECO,
+            AccountType.COMPANY_DC,
+            AccountType.ZAIKEI,
+            AccountType.TAXABLE,
+        ],
+        emergency_fund_target=Money.of(1_000_000),
+    )
+
+
 def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
     settings = _read_plan_settings(spreadsheet)
     user = _build_user(settings)
@@ -181,6 +199,7 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         tax_config=_default_tax_config(user),
         pension=_default_pension(),
         withdrawal_strategy=_default_withdrawal_strategy(),
+        contribution_strategy=_default_contribution_strategy(),
         incomes=_build_incomes(spreadsheet),
         expenses=_build_expenses(spreadsheet),
     )

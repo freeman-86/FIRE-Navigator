@@ -5,6 +5,8 @@ from typing import Optional, Union
 
 import yaml
 
+from core.domain.account import AccountType
+from core.domain.portfolio_rules import AccountRules, PortfolioRules
 from core.domain.tax_config import (
     EmploymentIncomeDeductionBracket,
     IncomeTaxBracket,
@@ -16,6 +18,7 @@ from core.domain.tax_config import (
 from core.domain.value_objects import Money, Rate
 
 DEFAULT_TAX_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "tax_2026.yaml"
+DEFAULT_PORTFOLIO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "portfolio_2026.yaml"
 
 
 def load_tax_rules(config_path: Union[str, Path] = DEFAULT_TAX_CONFIG_PATH) -> TaxRules:
@@ -67,6 +70,24 @@ def load_tax_rules(config_path: Union[str, Path] = DEFAULT_TAX_CONFIG_PATH) -> T
         resident_tax=resident_tax_rules,
         social_insurance=social_insurance_rules,
     )
+
+
+def load_portfolio_rules(config_path: Union[str, Path] = DEFAULT_PORTFOLIO_CONFIG_PATH) -> PortfolioRules:
+    """portfolio.yamlを読み込み、口座タイプ別の拠出上限・非課税判定をPortfolioRulesとして返す。"""
+
+    with open(config_path, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+
+    rules_by_account_type = {
+        AccountType(account_type_key): AccountRules(
+            annual_limit=_money_or_none(entry["annual_limit"]),
+            lifetime_limit=_money_or_none(entry["lifetime_limit"]),
+            tax_free=bool(entry["tax_free"]),
+        )
+        for account_type_key, entry in raw["account_types"].items()
+    }
+
+    return PortfolioRules(rules_by_account_type=rules_by_account_type)
 
 
 def _money_or_none(value: Optional[float]) -> Optional[Money]:

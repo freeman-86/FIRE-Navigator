@@ -17,9 +17,19 @@ PLAN_ROWS = [
 ]
 
 ACCOUNTS_ROWS = [
-    ["account_id", "account_type", "owner", "balance", "asset_class", "expected_return", "volatility"],
-    ["acc_nisa_growth_001", "nisa_growth", "self", "3000000", "global_equity", "0.05", "0.15"],
-    ["acc_ideco_001", "ideco", "self", "1500000", "domestic_bond", "0.02", "0.05"],
+    [
+        "account_id",
+        "account_type",
+        "owner",
+        "balance",
+        "asset_class",
+        "expected_return",
+        "volatility",
+        "monthly_contribution",
+    ],
+    ["acc_cash_001", "cash", "self", "1000000", "cash", "0.0", "0.0", ""],
+    ["acc_nisa_growth_001", "nisa_growth", "self", "3000000", "global_equity", "0.05", "0.15", "50000"],
+    ["acc_ideco_001", "ideco", "self", "1500000", "domestic_bond", "0.02", "0.05", "23000"],
 ]
 
 INCOMES_ROWS = [

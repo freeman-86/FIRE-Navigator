@@ -16,9 +16,16 @@ def calculate_employment_income_deduction(gross_income: Money, rules: IncomeTaxR
     raise ValueError("給与所得控除テーブルに該当する区分が見つかりません")
 
 
-def calculate_taxable_income(gross_income: Money, rules: IncomeTaxRules, apply_spouse_deduction: bool) -> Money:
+def calculate_taxable_income(
+    gross_income: Money,
+    rules: IncomeTaxRules,
+    apply_spouse_deduction: bool,
+    additional_deduction: Money = Money.zero(),
+) -> Money:
+    """additional_deductionは、iDeCo/企業型DC拠出額等の小規模企業共済等掛金控除に相当する。"""
+
     employment_deduction = calculate_employment_income_deduction(gross_income, rules)
-    total_deduction = employment_deduction + rules.basic_deduction
+    total_deduction = employment_deduction + rules.basic_deduction + additional_deduction
     if apply_spouse_deduction:
         total_deduction = total_deduction + rules.spouse_deduction
 
