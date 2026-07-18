@@ -15,6 +15,7 @@ OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "Output_SensitivityAnalysis"
 OUTPUT_MONTECARLO_SHEET = "Output_MonteCarlo"
 OUTPUT_HISTORICAL_BACKTEST_SHEET = "Output_HistoricalBacktest"
 OUTPUT_PROGRESS_COMPARISON_SHEET = "Output_ProgressComparison"
+OUTPUT_ERRORS_SHEET = "Output_Errors"
 
 # Input_Plan: A列=キー / B列=値 の縦持ち設定シート。
 # (シート上のキー, Planフィールドパス, 型変換ルール)

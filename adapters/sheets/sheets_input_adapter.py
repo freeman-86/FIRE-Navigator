@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import InvalidOperation
 from typing import Optional
 
 import gspread
@@ -18,6 +19,7 @@ from adapters.sheets.sheet_mapping import (
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.asset import Asset, AssetClass
 from core.domain.contribution_strategy import ContributionStrategy
+from core.domain.errors import StructuralInputError
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -48,6 +50,54 @@ def open_spreadsheet(client: gspread.Client, spreadsheet_name: str = SPREADSHEET
     return client.open(spreadsheet_name)
 
 
+# --- 入力ミス検出用の共通ヘルパー（設計書11章 StructuralInputError） -----------------------------
+
+
+def _require(record: dict, key: str, field_path: str) -> object:
+    value = record.get(key)
+    if value is None or str(value).strip() == "":
+        raise StructuralInputError(f"必須項目が未入力です（列: {key}）", field_path)
+    return value
+
+
+def _parse_money(value: object, field_path: str) -> Money:
+    try:
+        return Money.of(value)
+    except (InvalidOperation, ValueError, TypeError) as e:
+        raise StructuralInputError(f"金額として解釈できない値です: {value!r}", field_path) from e
+
+
+def _parse_rate(value: object, field_path: str) -> Rate:
+    try:
+        return Rate.of(value)
+    except (InvalidOperation, ValueError, TypeError) as e:
+        raise StructuralInputError(f"割合として解釈できない値です: {value!r}", field_path) from e
+
+
+def _parse_int(value: object, field_path: str) -> int:
+    try:
+        return int(str(value).strip())
+    except ValueError as e:
+        raise StructuralInputError(f"整数として解釈できない値です: {value!r}", field_path) from e
+
+
+def _parse_date_field(value: object, field_path: str) -> date:
+    try:
+        return _parse_date(value)
+    except ValueError as e:
+        raise StructuralInputError(f"日付(YYYY-MM-DD形式)として解釈できない値です: {value!r}", field_path) from e
+
+
+def _parse_enum(enum_cls, value: object, field_path: str):
+    try:
+        return enum_cls(value)
+    except ValueError as e:
+        allowed = ", ".join(member.value for member in enum_cls)
+        raise StructuralInputError(
+            f"未知の値です: {value!r}（有効な値: {allowed}）", field_path
+        ) from e
+
+
 def _parse_bool(value: object) -> bool:
     return str(value).strip().upper() in ("TRUE", "1", "YES")
 
@@ -56,7 +106,7 @@ def _parse_date(value: object) -> date:
     return datetime.strptime(str(value).strip(), "%Y-%m-%d").date()
 
 
-def _build_event_condition(condition_type: object, value: object) -> Optional[EventCondition]:
+def _build_event_condition(condition_type: object, value: object, field_path: str) -> Optional[EventCondition]:
     normalized_type = str(condition_type or "").strip().lower()
     normalized_value = str(value or "").strip()
     if normalized_type in ("", "none"):
@@ -66,10 +116,12 @@ def _build_event_condition(condition_type: object, value: object) -> Optional[Ev
     if normalized_type == "plan_start":
         return EventCondition.plan_start()
     if normalized_type == "age":
-        return EventCondition.at_age(int(normalized_value))
+        return EventCondition.at_age(_parse_int(normalized_value, field_path))
     if normalized_type == "date":
-        return EventCondition.at_date(_parse_date(normalized_value))
-    raise ValueError(f"未知のcondition_type: {normalized_type}")
+        return EventCondition.at_date(_parse_date_field(normalized_value, field_path))
+    raise StructuralInputError(
+        f"未知のcondition_typeです: {normalized_type!r}（有効な値: today, plan_start, age, date）", field_path
+    )
 
 
 def _read_plan_settings(spreadsheet: gspread.Spreadsheet) -> dict[str, str]:
@@ -78,31 +130,48 @@ def _read_plan_settings(spreadsheet: gspread.Spreadsheet) -> dict[str, str]:
     return {row[0]: row[1] for row in rows if row and row[0]}
 
 
+def _require_setting(settings: dict[str, str], key: str) -> str:
+    value = settings.get(key, "").strip()
+    if not value:
+        raise StructuralInputError(f"必須項目が未入力です（{PLAN_SHEET}のA列に'{key}'の行がないか、B列が空です）", f"{PLAN_SHEET}!{key}")
+    return value
+
+
 def _build_user(settings: dict[str, str]) -> User:
     return User(
-        birth_date=_parse_date(settings["birth_date"]),
-        residence=Prefecture(settings["residence"]),
+        birth_date=_parse_date_field(_require_setting(settings, "birth_date"), f"{PLAN_SHEET}!birth_date"),
+        residence=_parse_enum(Prefecture, _require_setting(settings, "residence"), f"{PLAN_SHEET}!residence"),
     )
 
 
 def _build_assumptions(settings: dict[str, str]) -> Assumptions:
     return Assumptions(
-        inflation_rate=Rate.of(settings["inflation_rate"]),
-        investment_growth_rate=Rate.of(settings["investment_growth_rate"]),
+        inflation_rate=_parse_rate(_require_setting(settings, "inflation_rate"), f"{PLAN_SHEET}!inflation_rate"),
+        investment_growth_rate=_parse_rate(
+            _require_setting(settings, "investment_growth_rate"), f"{PLAN_SHEET}!investment_growth_rate"
+        ),
     )
 
 
 def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
     worksheet = spreadsheet.worksheet(ACCOUNTS_SHEET)
     accounts = []
-    for record in worksheet.get_all_records():
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{ACCOUNTS_SHEET}!row{row_number}"
+        account_id = str(_require(record, "account_id", f"{row_prefix}.account_id"))
         monthly_contribution_raw = str(record.get("monthly_contribution", "")).strip()
         accounts.append(
             Account(
-                account_id=str(record["account_id"]),
-                account_type=AccountType(record["account_type"]),
-                owner=OwnerType(record["owner"]),
-                monthly_contribution=Money.of(monthly_contribution_raw) if monthly_contribution_raw else None,
+                account_id=account_id,
+                account_type=_parse_enum(
+                    AccountType, _require(record, "account_type", f"{row_prefix}.account_type"), f"{row_prefix}.account_type"
+                ),
+                owner=_parse_enum(OwnerType, _require(record, "owner", f"{row_prefix}.owner"), f"{row_prefix}.owner"),
+                monthly_contribution=(
+                    _parse_money(monthly_contribution_raw, f"{row_prefix}.monthly_contribution")
+                    if monthly_contribution_raw
+                    else None
+                ),
             )
         )
     return accounts
@@ -113,14 +182,26 @@ def _build_portfolios(spreadsheet: gspread.Spreadsheet) -> dict[str, Portfolio]:
 
     worksheet = spreadsheet.worksheet(ACCOUNTS_SHEET)
     portfolios: dict[str, Portfolio] = {}
-    for record in worksheet.get_all_records():
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{ACCOUNTS_SHEET}!row{row_number}"
+        account_id = str(_require(record, "account_id", f"{row_prefix}.account_id"))
         asset = Asset(
-            asset_class=AssetClass(record["asset_class"]),
-            expected_return=Rate.of(record["expected_return"]),
-            volatility=Rate.of(record["volatility"]),
+            asset_class=_parse_enum(
+                AssetClass, _require(record, "asset_class", f"{row_prefix}.asset_class"), f"{row_prefix}.asset_class"
+            ),
+            expected_return=_parse_rate(
+                _require(record, "expected_return", f"{row_prefix}.expected_return"), f"{row_prefix}.expected_return"
+            ),
+            volatility=_parse_rate(
+                _require(record, "volatility", f"{row_prefix}.volatility"), f"{row_prefix}.volatility"
+            ),
         )
-        holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(record["balance"]))
-        portfolios[str(record["account_id"])] = Portfolio(holdings=[holding])
+        holding = Holding(
+            asset=asset,
+            quantity=1,
+            cost_basis=_parse_money(_require(record, "balance", f"{row_prefix}.balance"), f"{row_prefix}.balance"),
+        )
+        portfolios[account_id] = Portfolio(holdings=[holding])
     return portfolios
 
 
@@ -136,16 +217,17 @@ def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Sce
         return []
 
     scenarios = []
-    for record in worksheet.get_all_records():
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{SCENARIOS_SHEET}!row{row_number}"
         overrides = {}
         retirement_age_raw = str(record.get("retirement_age", "")).strip()
         if retirement_age_raw:
-            overrides["retirement_age"] = int(retirement_age_raw)
+            overrides["retirement_age"] = _parse_int(retirement_age_raw, f"{row_prefix}.retirement_age")
         scenarios.append(
             Scenario(
-                scenario_id=str(record["scenario_id"]),
+                scenario_id=str(_require(record, "scenario_id", f"{row_prefix}.scenario_id")),
                 plan_id=plan_id,
-                name=str(record["name"]),
+                name=str(_require(record, "name", f"{row_prefix}.name")),
                 overrides=overrides,
             )
         )
@@ -163,26 +245,41 @@ def _build_progress_records(spreadsheet: gspread.Spreadsheet) -> list[ProgressRe
     except gspread.exceptions.WorksheetNotFound:
         return []
 
-    return [
-        ProgressRecord(year=int(record["year"]), actual_networth=Money.of(record["actual_networth"]))
-        for record in worksheet.get_all_records()
-    ]
+    records = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{PROGRESS_SHEET}!row{row_number}"
+        records.append(
+            ProgressRecord(
+                year=_parse_int(_require(record, "year", f"{row_prefix}.year"), f"{row_prefix}.year"),
+                actual_networth=_parse_money(
+                    _require(record, "actual_networth", f"{row_prefix}.actual_networth"), f"{row_prefix}.actual_networth"
+                ),
+            )
+        )
+    return records
 
 
 def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     worksheet = spreadsheet.worksheet(INCOMES_SHEET)
     incomes = []
-    for record in worksheet.get_all_records():
-        start_condition = _build_event_condition(record.get("start_type"), record.get("start_value"))
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{INCOMES_SHEET}!row{row_number}"
+        start_condition = _build_event_condition(
+            record.get("start_type"), record.get("start_value"), f"{row_prefix}.start_type"
+        )
         if start_condition is None:
-            raise ValueError(f"income_id={record.get('income_id')} には start_type が必須です")
-        end_condition = _build_event_condition(record.get("end_type"), record.get("end_value"))
+            raise StructuralInputError("start_typeが必須です", f"{row_prefix}.start_type")
+        end_condition = _build_event_condition(record.get("end_type"), record.get("end_value"), f"{row_prefix}.end_type")
         incomes.append(
             Income(
-                income_id=str(record["income_id"]),
-                source=str(record["source"]),
-                amount=Money.of(record["amount_annual"]),
-                growth_rate=Rate.of(record["growth_rate"]),
+                income_id=str(_require(record, "income_id", f"{row_prefix}.income_id")),
+                source=str(_require(record, "source", f"{row_prefix}.source")),
+                amount=_parse_money(
+                    _require(record, "amount_annual", f"{row_prefix}.amount_annual"), f"{row_prefix}.amount_annual"
+                ),
+                growth_rate=_parse_rate(
+                    _require(record, "growth_rate", f"{row_prefix}.growth_rate"), f"{row_prefix}.growth_rate"
+                ),
                 start_condition=start_condition,
                 end_condition=end_condition,
             )
@@ -192,16 +289,23 @@ def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
 
 def _build_expenses(spreadsheet: gspread.Spreadsheet) -> list[Expense]:
     worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
-    return [
-        Expense(
-            expense_id=str(record["expense_id"]),
-            category=str(record["category"]),
-            amount=Money.of(record["amount_annual"]),
-            growth_rate=Rate.of(record["growth_rate"]),
-            is_flexible=_parse_bool(record.get("is_flexible", "FALSE")),
+    expenses = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{EXPENSES_SHEET}!row{row_number}"
+        expenses.append(
+            Expense(
+                expense_id=str(_require(record, "expense_id", f"{row_prefix}.expense_id")),
+                category=str(_require(record, "category", f"{row_prefix}.category")),
+                amount=_parse_money(
+                    _require(record, "amount_annual", f"{row_prefix}.amount_annual"), f"{row_prefix}.amount_annual"
+                ),
+                growth_rate=_parse_rate(
+                    _require(record, "growth_rate", f"{row_prefix}.growth_rate"), f"{row_prefix}.growth_rate"
+                ),
+                is_flexible=_parse_bool(record.get("is_flexible", "FALSE")),
+            )
         )
-        for record in worksheet.get_all_records()
-    ]
+    return expenses
 
 
 def _default_tax_config(user: User) -> TaxConfig:
@@ -250,8 +354,8 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
     user = _build_user(settings)
 
     return Plan(
-        plan_id=settings["plan_id"],
-        name=settings["name"],
+        plan_id=_require_setting(settings, "plan_id"),
+        name=_require_setting(settings, "name"),
         user=user,
         start_condition=StartCondition(StartConditionType.TODAY),
         assumptions=_build_assumptions(settings),
