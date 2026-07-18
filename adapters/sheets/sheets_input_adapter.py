@@ -11,6 +11,7 @@ from adapters.sheets.sheet_mapping import (
     EXPENSES_SHEET,
     INCOMES_SHEET,
     PLAN_SHEET,
+    PROGRESS_SHEET,
     SCENARIOS_SHEET,
     SPREADSHEET_NAME,
 )
@@ -23,6 +24,7 @@ from core.domain.income import Income
 from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
+from core.domain.progress_record import ProgressRecord
 from core.domain.scenario import Scenario
 from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
@@ -150,6 +152,23 @@ def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Sce
     return scenarios
 
 
+def _build_progress_records(spreadsheet: gspread.Spreadsheet) -> list[ProgressRecord]:
+    """実績ネットワースをInput_Progressシートから読み込む。
+
+    Input_Progressシートが存在しない場合は空リストを返す（Progress比較はオプション機能）。
+    """
+
+    try:
+        worksheet = spreadsheet.worksheet(PROGRESS_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    return [
+        ProgressRecord(year=int(record["year"]), actual_networth=Money.of(record["actual_networth"]))
+        for record in worksheet.get_all_records()
+    ]
+
+
 def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     worksheet = spreadsheet.worksheet(INCOMES_SHEET)
     incomes = []
@@ -272,3 +291,12 @@ def load_scenarios(
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
     return _build_scenarios(spreadsheet, plan_id)
+
+
+def load_progress_records(
+    spreadsheet_name: str = SPREADSHEET_NAME,
+    credentials_path: str = DEFAULT_CREDENTIALS_PATH,
+) -> list[ProgressRecord]:
+    client = build_client(credentials_path)
+    spreadsheet = open_spreadsheet(client, spreadsheet_name)
+    return _build_progress_records(spreadsheet)

@@ -7,10 +7,14 @@ ACCOUNTS_SHEET = "Input_Accounts"
 INCOMES_SHEET = "Input_Incomes"
 EXPENSES_SHEET = "Input_Expenses"
 SCENARIOS_SHEET = "Input_Scenarios"
+PROGRESS_SHEET = "Input_Progress"
 OUTPUT_NETWORTH_SHEET = "Output_NetWorth"
 OUTPUT_NETWORTH_BREAKDOWN_SHEET = "Output_NetWorth_Breakdown"
 OUTPUT_SCENARIO_COMPARISON_SHEET = "Output_ScenarioComparison"
 OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "Output_SensitivityAnalysis"
+OUTPUT_MONTECARLO_SHEET = "Output_MonteCarlo"
+OUTPUT_HISTORICAL_BACKTEST_SHEET = "Output_HistoricalBacktest"
+OUTPUT_PROGRESS_COMPARISON_SHEET = "Output_ProgressComparison"
 
 # Input_Plan: A列=キー / B列=値 の縦持ち設定シート。
 # (シート上のキー, Planフィールドパス, 型変換ルール)
@@ -43,6 +47,12 @@ SCENARIOS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     ("scenario_id", "scenario.scenario_id", "str"),
     ("name", "scenario.name", "str"),
     ("retirement_age", "scenario.overrides.retirement_age", "int"),
+)
+
+# Input_Progress: ヘッダー行付きテーブル。1行=1年分の実績ネットワース。
+PROGRESS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    ("year", "progress_record.year", "int"),
+    ("actual_networth", "progress_record.actual_networth", "money"),
 )
 
 # Input_Incomes: ヘッダー行付きテーブル。

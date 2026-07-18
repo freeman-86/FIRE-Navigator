@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Callable, Optional
 
 from core.domain.expense import Expense
 from core.domain.income import Income
@@ -32,6 +32,7 @@ def run_projection(
     tax_rules: TaxRules,
     portfolio_rules: PortfolioRules,
     pension_rules: PensionRules,
+    growth_rate_provider: Optional[Callable[[int], Rate]] = None,
 ) -> SimulationResult:
     """決定論的シミュレーション。
 
@@ -42,11 +43,15 @@ def run_projection(
 
     portfolios/tax_rules/portfolio_rules/pension_rulesはApplication層相当の呼び出し元が
     用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
+
+    growth_rate_provider: 年次オフセット(0始まり)を受け取りその年の資産成長率を返す関数。
+    省略時はplan.assumptions.investment_growth_rate（固定値）を毎年使う従来通りの決定論的
+    計算になる。Monte Carlo Engine/Historical Engineは、サンプリング済み・実績のリターン
+    系列を返す関数をここに渡すことで、同じProjection Engineを反復実行する（設計書v1.1 ⑥⑦）。
     """
 
     start_year = _resolve_start_year(plan)
     end_year = _resolve_end_year(plan, start_year)
-    growth_rate = plan.assumptions.investment_growth_rate
     birth_date = plan.user.birth_date
     has_spouse = plan.user.spouse is not None
 
@@ -58,6 +63,9 @@ def run_projection(
 
     yearly_projections: list[YearlyProjection] = []
     for offset, year in enumerate(range(start_year, end_year + 1)):
+        growth_rate = (
+            growth_rate_provider(offset) if growth_rate_provider is not None else plan.assumptions.investment_growth_rate
+        )
         age = year - birth_date.year
         gross_income = _active_income_total(plan.incomes, year, start_year, birth_date, offset)
         pension_income = calculate_pension_income(age, plan.pension, pension_rules)

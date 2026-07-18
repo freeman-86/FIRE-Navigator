@@ -3,6 +3,7 @@ from adapters.sheets.sheet_mapping import (
     EXPENSES_SHEET,
     INCOMES_SHEET,
     PLAN_SHEET,
+    PROGRESS_SHEET,
     SCENARIOS_SHEET,
     SPREADSHEET_NAME,
 )
@@ -49,6 +50,12 @@ SCENARIOS_ROWS = [
     ["scenario_65", "65歳退職", "65"],
 ]
 
+PROGRESS_ROWS = [
+    ["year", "actual_networth"],
+    ["2026", "6800000"],
+    ["2027", "7900000"],
+]
+
 
 def _seed_sheet(spreadsheet, sheet_name: str, rows: list[list[str]]) -> None:
     try:
@@ -68,6 +75,7 @@ def main() -> None:
     _seed_sheet(spreadsheet, INCOMES_SHEET, INCOMES_ROWS)
     _seed_sheet(spreadsheet, EXPENSES_SHEET, EXPENSES_ROWS)
     _seed_sheet(spreadsheet, SCENARIOS_SHEET, SCENARIOS_ROWS)
+    _seed_sheet(spreadsheet, PROGRESS_SHEET, PROGRESS_ROWS)
 
     print(f"サンプルデータを投入しました: {spreadsheet.url}")
 

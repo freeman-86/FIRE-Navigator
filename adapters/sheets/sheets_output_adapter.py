@@ -5,16 +5,23 @@ from typing import Optional
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    OUTPUT_HISTORICAL_BACKTEST_SHEET,
+    OUTPUT_MONTECARLO_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
+    OUTPUT_PROGRESS_COMPARISON_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
 )
+from core.domain.montecarlo_result import MonteCarloResult
 from core.domain.simulation_result import SimulationResult
 
 BREAKDOWN_CHART_TITLE = "ネットワース推移（口座種別内訳）"
 SCENARIO_COMPARISON_CHART_TITLE = "シナリオ比較（ネットワース推移）"
 SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
+PROGRESS_COMPARISON_CHART_TITLE = "計画 vs 実績"
+MONTECARLO_CHART_TITLE = "モンテカルロ・シミュレーション（p10/p50/p90）"
+HISTORICAL_BACKTEST_CHART_TITLE = "ヒストリカル・バックテスト（p10/p50/p90）"
 
 
 def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: SimulationResult) -> None:
@@ -77,6 +84,70 @@ def write_sensitivity_table(spreadsheet: gspread.Spreadsheet, table: dict) -> No
         worksheet,
         num_data_rows=len(table["row_labels"]),
         num_data_cols=len(table["column_labels"]),
+    )
+
+
+def write_progress_comparison(spreadsheet: gspread.Spreadsheet, comparison_chart: dict) -> None:
+    """計画線と実績線を折れ線グラフ（2系列）として可視化する。"""
+
+    worksheet = _write_chart_table(spreadsheet, OUTPUT_PROGRESS_COMPARISON_SHEET, comparison_chart)
+    _replace_native_chart(
+        spreadsheet,
+        worksheet,
+        title=PROGRESS_COMPARISON_CHART_TITLE,
+        chart_type="LINE",
+        stacked_type=None,
+        num_rows=len(comparison_chart["x"]) + 1,
+        num_series=len(comparison_chart["series"]),
+    )
+
+
+def write_montecarlo_result(spreadsheet: gspread.Spreadsheet, result: MonteCarloResult, percentile_chart: dict) -> None:
+    """Monte Carlo Engineの結果（成功確率＋年次パーセンタイル分布）をOutput_MonteCarloシートへ書き込む。"""
+
+    _write_percentile_result(spreadsheet, OUTPUT_MONTECARLO_SHEET, MONTECARLO_CHART_TITLE, result, percentile_chart)
+
+
+def write_historical_backtest_result(
+    spreadsheet: gspread.Spreadsheet, result: MonteCarloResult, percentile_chart: dict
+) -> None:
+    """Historical Engineの結果（成功確率＋窓ごとの年次パーセンタイル分布）をOutput_HistoricalBacktestシートへ書き込む。"""
+
+    _write_percentile_result(
+        spreadsheet, OUTPUT_HISTORICAL_BACKTEST_SHEET, HISTORICAL_BACKTEST_CHART_TITLE, result, percentile_chart
+    )
+
+
+def _write_percentile_result(
+    spreadsheet: gspread.Spreadsheet,
+    sheet_name: str,
+    chart_title: str,
+    result: MonteCarloResult,
+    percentile_chart: dict,
+) -> None:
+    header = ["year", "p10", "p50", "p90"]
+    rows: list[list[object]] = [header]
+    for index, year in enumerate(percentile_chart["x"]):
+        rows.append(
+            [year, percentile_chart["p10"][index], percentile_chart["p50"][index], percentile_chart["p90"][index]]
+        )
+
+    worksheet = _get_or_create_worksheet(spreadsheet, sheet_name, rows)
+    worksheet.update(values=rows, range_name="A1")
+    summary = f"成功確率: {result.success_rate:.1%}（{result.success_count}/{result.trials}試行）"
+    summary_row = len(rows) + 2
+    if worksheet.row_count < summary_row:
+        worksheet.resize(rows=summary_row)
+    worksheet.update(values=[[summary]], range_name=f"A{summary_row}")
+
+    _replace_native_chart(
+        spreadsheet,
+        worksheet,
+        title=chart_title,
+        chart_type="LINE",
+        stacked_type=None,
+        num_rows=len(rows),
+        num_series=3,
     )
 
 
