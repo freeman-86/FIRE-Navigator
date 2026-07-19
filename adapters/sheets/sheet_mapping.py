@@ -11,9 +11,7 @@ EXPENSES_SHEET = "入力_支出"
 SCENARIOS_SHEET = "入力_シナリオ"
 PROGRESS_SHEET = "入力_実績"
 ALLOCATION_POLICY_SHEET = "入力_配分方針"
-CHILDREN_SHEET = "入力_子供"
 EDUCATION_EXPENSES_SHEET = "入力_教育費"
-ONE_TIME_EXPENSES_SHEET = "入力_大型支出"
 OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
 OUTPUT_NETWORTH_BREAKDOWN_SHEET = "出力_純資産内訳"
 OUTPUT_SCENARIO_COMPARISON_SHEET = "出力_シナリオ比較"
@@ -54,11 +52,9 @@ EXPECTED_RETURN_HEADER = "期待リターン"
 VOLATILITY_HEADER = "ボラティリティ"
 MONTHLY_CONTRIBUTION_HEADER = "月次拠出額"
 
-# Input_収入 / Input_支出で共通の列名
+# Input_収入
 AMOUNT_ANNUAL_HEADER = "年間金額"
 GROWTH_RATE_HEADER = "成長率"
-
-# Input_収入
 INCOME_ID_HEADER = "収入ID"
 SOURCE_HEADER = "収入源"
 START_TYPE_HEADER = "開始条件タイプ"
@@ -66,10 +62,15 @@ START_VALUE_HEADER = "開始条件値"
 END_TYPE_HEADER = "終了条件タイプ"
 END_VALUE_HEADER = "終了条件値"
 
-# Input_支出
+# Input_支出: 経常支出（毎年発生・成長率あり）と単発支出（発生条件で1回のみ）を
+# ONE_TIME_FLAG_HEADERで区別し、1シートにまとめる（旧Input_大型支出を統合）。
+# 単発フラグ=TRUEの行はEXPENSE_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERを使い、
+# GROWTH_RATE_HEADER/IS_FLEXIBLE_HEADERは空欄でよい（経常支出専用）。
 EXPENSE_ID_HEADER = "支出ID"
 CATEGORY_HEADER = "カテゴリ"
 IS_FLEXIBLE_HEADER = "柔軟支出フラグ"
+ONE_TIME_FLAG_HEADER = "単発フラグ"
+EXPENSE_AMOUNT_HEADER = "金額"
 
 # Input_シナリオ
 SCENARIO_ID_HEADER = "シナリオID"
@@ -81,18 +82,13 @@ RETIREMENT_AGE_HEADER = "退職年齢"
 AGE_HEADER = "年齢"
 TARGET_WEIGHT_HEADER = "目標比率"
 
-# Input_子供
+# Input_教育費: 子供ID×年齢帯×カテゴリごとに1行（ギャップ分析3.2）。旧Input_子供を統合しており、
+# BIRTH_DATE_HEADERは同じ子供IDの行すべてに繰り返し記入する（行間で値が食い違うとエラーになる）。
 CHILD_ID_HEADER = "子供ID"
-
-# Input_教育費: 子供ID×年齢帯×カテゴリごとに1行（ギャップ分析3.2）。
 EDUCATION_BAND_ID_HEADER = "教育費ID"
 START_AGE_HEADER = "開始年齢"
 END_AGE_HEADER = "終了年齢"
 MONTHLY_AMOUNT_HEADER = "月額"
-
-# Input_大型支出: 単発支出1件=1行（ギャップ分析3.3）。発生条件はInput_収入と同じ
-# タイプ/値の形式（today/plan_start/age/date）で、START_TYPE_HEADER/START_VALUE_HEADERを流用する。
-ONE_TIME_AMOUNT_HEADER = "金額"
 
 # Input_実績 / Output_純資産推移等で共通
 YEAR_HEADER = "西暦年"
@@ -175,29 +171,16 @@ ALLOCATION_POLICY_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (TARGET_WEIGHT_HEADER, "plan.allocation_policy.targets[].weights{}", "rate"),
 )
 
-# Input_子供: ヘッダー行付きテーブル。1行=1子供。任意入力。
-CHILDREN_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    (CHILD_ID_HEADER, "plan.children[].child_id", "str"),
-    (BIRTH_DATE_HEADER, "plan.children[].birth_date", "date"),
-)
-
-# Input_教育費: ヘッダー行付きテーブル。1行=1教育費バンド。任意入力。
+# Input_教育費: ヘッダー行付きテーブル。1行=1教育費バンド。任意入力。BIRTH_DATE_HEADERから
+# plan.children（同じchild_idの行で重複排除）も組み立てる（旧Input_子供を統合）。
 EDUCATION_EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (EDUCATION_BAND_ID_HEADER, "plan.education_expenses[].band_id", "str"),
     (CHILD_ID_HEADER, "plan.education_expenses[].child_id", "str"),
+    (BIRTH_DATE_HEADER, "plan.children[].birth_date", "date"),
     (CATEGORY_HEADER, "plan.education_expenses[].category", "str"),
     (START_AGE_HEADER, "plan.education_expenses[].start_age", "int"),
     (END_AGE_HEADER, "plan.education_expenses[].end_age", "int"),
     (MONTHLY_AMOUNT_HEADER, "plan.education_expenses[].monthly_amount", "money"),
-)
-
-# Input_大型支出: ヘッダー行付きテーブル。1行=1単発支出。任意入力。
-ONE_TIME_EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    (EXPENSE_ID_HEADER, "plan.one_time_expenses[].expense_id", "str"),
-    (CATEGORY_HEADER, "plan.one_time_expenses[].category", "str"),
-    (ONE_TIME_AMOUNT_HEADER, "plan.one_time_expenses[].amount", "money"),
-    (START_TYPE_HEADER, "plan.one_time_expenses[].trigger.type", "condition_type"),
-    (START_VALUE_HEADER, "plan.one_time_expenses[].trigger.value", "condition_value"),
 )
 
 # Input_収入: ヘッダー行付きテーブル。
@@ -212,13 +195,17 @@ INCOMES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (END_VALUE_HEADER, "plan.incomes[].end_condition.value", "condition_value"),
 )
 
-# Input_支出: ヘッダー行付きテーブル。
+# Input_支出: ヘッダー行付きテーブル。ONE_TIME_FLAG_HEADER=TRUEの行はplan.one_time_expenses[]へ、
+# FALSE(既定)の行はplan.expenses[]へ振り分ける（旧Input_大型支出を統合）。
 EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    (EXPENSE_ID_HEADER, "plan.expenses[].expense_id", "str"),
-    (CATEGORY_HEADER, "plan.expenses[].category", "str"),
-    (AMOUNT_ANNUAL_HEADER, "plan.expenses[].amount", "money"),
-    (GROWTH_RATE_HEADER, "plan.expenses[].growth_rate", "rate"),
-    (IS_FLEXIBLE_HEADER, "plan.expenses[].is_flexible", "bool"),
+    (EXPENSE_ID_HEADER, "plan.expenses[].expense_id / plan.one_time_expenses[].expense_id", "str"),
+    (CATEGORY_HEADER, "plan.expenses[].category / plan.one_time_expenses[].category", "str"),
+    (ONE_TIME_FLAG_HEADER, "(振り分け用のみ、Plan本体には保持しない)", "bool"),
+    (EXPENSE_AMOUNT_HEADER, "plan.expenses[].amount / plan.one_time_expenses[].amount", "money"),
+    (GROWTH_RATE_HEADER, "plan.expenses[].growth_rate（経常支出のみ）", "rate"),
+    (IS_FLEXIBLE_HEADER, "plan.expenses[].is_flexible（経常支出のみ）", "bool"),
+    (START_TYPE_HEADER, "plan.one_time_expenses[].trigger.type（単発支出のみ）", "condition_type"),
+    (START_VALUE_HEADER, "plan.one_time_expenses[].trigger.value（単発支出のみ）", "condition_value"),
 )
 
 # Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース・譲渡税を書き戻す。

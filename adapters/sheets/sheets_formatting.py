@@ -19,11 +19,9 @@ import gspread
 from adapters.sheets.sample_data import (
     ACCOUNTS_ROWS,
     ALLOCATION_POLICY_ROWS,
-    CHILDREN_ROWS,
     EDUCATION_EXPENSES_ROWS,
     EXPENSES_ROWS,
     INCOMES_ROWS,
-    ONE_TIME_EXPENSES_ROWS,
     PLAN_ROWS,
     PROGRESS_ROWS,
     SCENARIOS_ROWS,
@@ -41,12 +39,12 @@ from adapters.sheets.sheet_mapping import (
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
-    CHILDREN_SHEET,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
     END_AGE_HEADER,
     END_TYPE_HEADER,
     EXPECTED_RETURN_HEADER,
+    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
     GROWTH_RATE_HEADER,
@@ -56,8 +54,7 @@ from adapters.sheets.sheet_mapping import (
     INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
     MONTHLY_AMOUNT_HEADER,
-    ONE_TIME_AMOUNT_HEADER,
-    ONE_TIME_EXPENSES_SHEET,
+    ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
@@ -90,6 +87,12 @@ REQUIRED_CELL_COLOR = {"red": 1.0, "green": 0.949, "blue": 0.702}
 # 背景色・プルダウンを適用する行数（ヘッダー行の次から）。将来の追加入力にも
 # あらかじめ書式が効くよう、実データ行数より広めに確保する。
 FORMAT_ROW_COUNT = 300
+
+# 書式クリア対象の列数。列構成の変更（統合等）でヘッダーの位置がずれても、以前の実行で
+# 別の列に付けた背景色・プルダウンが残らないよう、実際に使う列数より広めにクリアする
+# （worksheet.clear()は値のみを消し、書式・データの入力規則は消さないため）。
+FORMAT_CLEAR_COL_COUNT = 20
+WHITE_CELL_COLOR = {"red": 1.0, "green": 1.0, "blue": 1.0}
 
 CONDITION_TYPE_CHOICES = ["today", "plan_start", "age", "date"]
 BOOLEAN_CHOICES = ["TRUE", "FALSE"]
@@ -129,8 +132,8 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
         ),
         TabularSheetSpec(
             EXPENSES_SHEET,
-            [EXPENSE_ID_HEADER, CATEGORY_HEADER, AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER],
-            {IS_FLEXIBLE_HEADER: BOOLEAN_CHOICES},
+            [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER, EXPENSE_AMOUNT_HEADER],
+            {IS_FLEXIBLE_HEADER: BOOLEAN_CHOICES, ONE_TIME_FLAG_HEADER: BOOLEAN_CHOICES, START_TYPE_HEADER: CONDITION_TYPE_CHOICES},
         ),
         TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER]),
         TabularSheetSpec(PROGRESS_SHEET, [YEAR_HEADER, ACTUAL_NETWORTH_HEADER]),
@@ -139,15 +142,17 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
             [AGE_HEADER, ASSET_CLASS_HEADER, TARGET_WEIGHT_HEADER],
             {ASSET_CLASS_HEADER: asset_classes},
         ),
-        TabularSheetSpec(CHILDREN_SHEET, [CHILD_ID_HEADER, BIRTH_DATE_HEADER]),
         TabularSheetSpec(
             EDUCATION_EXPENSES_SHEET,
-            [EDUCATION_BAND_ID_HEADER, CHILD_ID_HEADER, CATEGORY_HEADER, START_AGE_HEADER, END_AGE_HEADER, MONTHLY_AMOUNT_HEADER],
-        ),
-        TabularSheetSpec(
-            ONE_TIME_EXPENSES_SHEET,
-            [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_AMOUNT_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
-            {START_TYPE_HEADER: CONDITION_TYPE_CHOICES},
+            [
+                EDUCATION_BAND_ID_HEADER,
+                CHILD_ID_HEADER,
+                BIRTH_DATE_HEADER,
+                CATEGORY_HEADER,
+                START_AGE_HEADER,
+                END_AGE_HEADER,
+                MONTHLY_AMOUNT_HEADER,
+            ],
         ),
     ]
 
@@ -207,6 +212,36 @@ def _data_validation_request(
     }
 
 
+def _clear_range_requests(sheet_id: int, end_row: int, end_col: int) -> list[dict]:
+    return [
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": end_row,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": end_col,
+                },
+                "cell": {"userEnteredFormat": {"backgroundColor": WHITE_CELL_COLOR}},
+                "fields": "userEnteredFormat.backgroundColor",
+            }
+        },
+        {
+            "setDataValidation": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": end_row,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": end_col,
+                },
+                "rule": None,
+            }
+        },
+    ]
+
+
 def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheetSpec) -> list[dict]:
     try:
         worksheet = spreadsheet.worksheet(spec.sheet_name)
@@ -215,7 +250,7 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
 
     sheet_id = worksheet.id
     header = worksheet.row_values(1)
-    requests = []
+    requests = _clear_range_requests(sheet_id, FORMAT_ROW_COUNT, FORMAT_CLEAR_COL_COUNT)
 
     for column_header in spec.required_headers:
         if column_header not in header:
@@ -240,7 +275,7 @@ def _plan_sheet_requests(spreadsheet: gspread.Spreadsheet) -> list[dict]:
 
     sheet_id = worksheet.id
     keys = worksheet.col_values(1)
-    requests = []
+    requests = _clear_range_requests(sheet_id, FORMAT_ROW_COUNT, FORMAT_CLEAR_COL_COUNT)
 
     for row_idx, key in enumerate(keys):
         if key in PLAN_REQUIRED_KEYS:
@@ -282,9 +317,7 @@ _EXAMPLE_SECTIONS: list[tuple[str, list[list[str]]]] = [
     (SCENARIOS_SHEET, SCENARIOS_ROWS),
     (PROGRESS_SHEET, PROGRESS_ROWS),
     (ALLOCATION_POLICY_SHEET, ALLOCATION_POLICY_ROWS),
-    (CHILDREN_SHEET, CHILDREN_ROWS),
     (EDUCATION_EXPENSES_SHEET, EDUCATION_EXPENSES_ROWS),
-    (ONE_TIME_EXPENSES_SHEET, ONE_TIME_EXPENSES_ROWS),
 ]
 
 _NOTE_TEXT = (

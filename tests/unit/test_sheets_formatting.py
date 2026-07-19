@@ -101,15 +101,43 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
 
         color_requests = [
-            r["repeatCell"] for body in self.spreadsheet.batch_updates for r in body["requests"] if "repeatCell" in r
+            r["repeatCell"]
+            for body in self.spreadsheet.batch_updates
+            for r in body["requests"]
+            if "repeatCell" in r and r["repeatCell"]["range"]["sheetId"] == self.worksheet.id
         ]
-        colored_columns = {r["range"]["startColumnIndex"] for r in color_requests if r["range"]["sheetId"] == self.worksheet.id}
+        single_column_requests = [r for r in color_requests if r["range"]["endColumnIndex"] - r["range"]["startColumnIndex"] == 1]
+        colored_columns = {r["range"]["startColumnIndex"] for r in single_column_requests}
 
         required_columns = {0, 1, 2, 3, 4, 5, 6}  # ACCOUNT_ID..VOLATILITY (0-indexed)
         optional_column = 7  # MONTHLY_CONTRIBUTION_HEADER
 
         self.assertEqual(colored_columns, required_columns)
         self.assertNotIn(optional_column, colored_columns)
+
+    def test_clears_previous_formatting_before_reapplying(self):
+        sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
+
+        wide_clear_requests = [
+            r["repeatCell"]
+            for body in self.spreadsheet.batch_updates
+            for r in body["requests"]
+            if "repeatCell" in r
+            and r["repeatCell"]["range"]["sheetId"] == self.worksheet.id
+            and r["repeatCell"]["range"]["startColumnIndex"] == 0
+            and r["repeatCell"]["range"]["endColumnIndex"] > 10
+        ]
+        self.assertTrue(wide_clear_requests, "sheet-wide clear request should run before per-column formatting")
+
+        null_validation_clears = [
+            r["setDataValidation"]
+            for body in self.spreadsheet.batch_updates
+            for r in body["requests"]
+            if "setDataValidation" in r
+            and r["setDataValidation"]["range"]["sheetId"] == self.worksheet.id
+            and r["setDataValidation"]["rule"] is None
+        ]
+        self.assertTrue(null_validation_clears, "stale data validation rules should be cleared before reapplying")
 
     def test_adds_dropdown_validation_for_enum_columns(self):
         sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
@@ -118,7 +146,9 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
             r["setDataValidation"]
             for body in self.spreadsheet.batch_updates
             for r in body["requests"]
-            if "setDataValidation" in r and r["setDataValidation"]["range"]["sheetId"] == self.worksheet.id
+            if "setDataValidation" in r
+            and r["setDataValidation"]["range"]["sheetId"] == self.worksheet.id
+            and r["setDataValidation"]["rule"] is not None
         ]
         by_column = {r["range"]["startColumnIndex"]: r for r in validation_requests}
 
@@ -153,7 +183,8 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
             for r in body["requests"]
             if "repeatCell" in r and r["repeatCell"]["range"]["sheetId"] == worksheet.id
         ]
-        colored_rows = {r["range"]["startRowIndex"] for r in color_requests}
+        single_row_requests = [r for r in color_requests if r["range"]["endRowIndex"] - r["range"]["startRowIndex"] == 1]
+        colored_rows = {r["range"]["startRowIndex"] for r in single_row_requests}
 
         # PLAN_ID(0), PLAN_NAME(1), BIRTH_DATE(2), RESIDENCE(3) are required; RETIREMENT_AGE(4) is not.
         self.assertEqual(colored_rows, {0, 1, 2, 3})
@@ -162,7 +193,9 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
             r["setDataValidation"]
             for body in spreadsheet.batch_updates
             for r in body["requests"]
-            if "setDataValidation" in r and r["setDataValidation"]["range"]["sheetId"] == worksheet.id
+            if "setDataValidation" in r
+            and r["setDataValidation"]["range"]["sheetId"] == worksheet.id
+            and r["setDataValidation"]["rule"] is not None
         ]
         validation_rows = {r["range"]["startRowIndex"] for r in validation_requests}
         self.assertEqual(validation_rows, {3, 5})  # RESIDENCE, PENSION_CLAIM_TIMING

@@ -20,7 +20,6 @@ from adapters.sheets.sheet_mapping import (
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
-    CHILDREN_SHEET,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
@@ -28,6 +27,7 @@ from adapters.sheets.sheet_mapping import (
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
+    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
     GROWTH_RATE_HEADER,
@@ -39,8 +39,7 @@ from adapters.sheets.sheet_mapping import (
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
-    ONE_TIME_AMOUNT_HEADER,
-    ONE_TIME_EXPENSES_SHEET,
+    ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -388,50 +387,43 @@ def _build_allocation_policy(
     return AllocationPolicy(targets=targets)
 
 
-def _build_children(spreadsheet: gspread.Spreadsheet) -> list[Child]:
-    """子供の一覧を入力_子供シートから組み立てる（ギャップ分析3.2）。
+def _build_children_and_education_expenses(
+    spreadsheet: gspread.Spreadsheet,
+) -> tuple[list[Child], list[EducationExpenseBand]]:
+    """子供の一覧と年齢帯別の教育費を入力_教育費シートから組み立てる（ギャップ分析3.2）。
 
-    入力_子供シートが存在しない場合は空リストを返す（教育費機能はオプション機能）。
-    """
-
-    try:
-        worksheet = spreadsheet.worksheet(CHILDREN_SHEET)
-    except gspread.exceptions.WorksheetNotFound:
-        return []
-
-    children = []
-    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
-        row_prefix = f"{CHILDREN_SHEET}!row{row_number}"
-        children.append(
-            Child(
-                child_id=str(_require(record, CHILD_ID_HEADER, f"{row_prefix}.{CHILD_ID_HEADER}")),
-                birth_date=_parse_date_field(
-                    _require(record, BIRTH_DATE_HEADER, f"{row_prefix}.{BIRTH_DATE_HEADER}"),
-                    f"{row_prefix}.{BIRTH_DATE_HEADER}",
-                ),
-            )
-        )
-    return children
-
-
-def _build_education_expenses(spreadsheet: gspread.Spreadsheet) -> list[EducationExpenseBand]:
-    """年齢帯別の教育費を入力_教育費シートから組み立てる（ギャップ分析3.2）。
-
-    入力_教育費シートが存在しない場合は空リストを返す（オプション機能）。
+    旧Input_子供シートを統合しており、BIRTH_DATE_HEADERは同じ子供IDの行すべてに繰り返し記入する
+    想定（行間で値が食い違う場合はStructuralInputErrorを送出し、入力ミスを早期に検出する）。
+    入力_教育費シートが存在しない場合は空リストを返す（教育費機能はオプション機能）。
     """
 
     try:
         worksheet = spreadsheet.worksheet(EDUCATION_EXPENSES_SHEET)
     except gspread.exceptions.WorksheetNotFound:
-        return []
+        return [], []
 
+    children_by_id: dict[str, Child] = {}
     bands = []
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{EDUCATION_EXPENSES_SHEET}!row{row_number}"
+        child_id = str(_require(record, CHILD_ID_HEADER, f"{row_prefix}.{CHILD_ID_HEADER}"))
+        birth_date = _parse_date_field(
+            _require(record, BIRTH_DATE_HEADER, f"{row_prefix}.{BIRTH_DATE_HEADER}"),
+            f"{row_prefix}.{BIRTH_DATE_HEADER}",
+        )
+        existing_child = children_by_id.get(child_id)
+        if existing_child is not None and existing_child.birth_date != birth_date:
+            raise StructuralInputError(
+                f"同じ{CHILD_ID_HEADER}で{BIRTH_DATE_HEADER}が行ごとに一致しません"
+                f"（{existing_child.birth_date} と {birth_date}）",
+                f"{row_prefix}.{BIRTH_DATE_HEADER}",
+            )
+        children_by_id.setdefault(child_id, Child(child_id=child_id, birth_date=birth_date))
+
         bands.append(
             EducationExpenseBand(
                 band_id=str(_require(record, EDUCATION_BAND_ID_HEADER, f"{row_prefix}.{EDUCATION_BAND_ID_HEADER}")),
-                child_id=str(_require(record, CHILD_ID_HEADER, f"{row_prefix}.{CHILD_ID_HEADER}")),
+                child_id=child_id,
                 category=str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}")),
                 start_age=_parse_int(
                     _require(record, START_AGE_HEADER, f"{row_prefix}.{START_AGE_HEADER}"),
@@ -447,40 +439,7 @@ def _build_education_expenses(spreadsheet: gspread.Spreadsheet) -> list[Educatio
                 ),
             )
         )
-    return bands
-
-
-def _build_one_time_expenses(spreadsheet: gspread.Spreadsheet) -> list[OneTimeExpense]:
-    """車・旅行・住宅購入等の単発支出を入力_大型支出シートから組み立てる（ギャップ分析3.3）。
-
-    入力_大型支出シートが存在しない場合は空リストを返す（オプション機能）。
-    """
-
-    try:
-        worksheet = spreadsheet.worksheet(ONE_TIME_EXPENSES_SHEET)
-    except gspread.exceptions.WorksheetNotFound:
-        return []
-
-    expenses = []
-    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
-        row_prefix = f"{ONE_TIME_EXPENSES_SHEET}!row{row_number}"
-        trigger = _build_event_condition(
-            record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
-        )
-        if trigger is None:
-            raise StructuralInputError(f"{START_TYPE_HEADER}が必須です", f"{row_prefix}.{START_TYPE_HEADER}")
-        expenses.append(
-            OneTimeExpense(
-                expense_id=str(_require(record, EXPENSE_ID_HEADER, f"{row_prefix}.{EXPENSE_ID_HEADER}")),
-                category=str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}")),
-                amount=_parse_money(
-                    _require(record, ONE_TIME_AMOUNT_HEADER, f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}"),
-                    f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}",
-                ),
-                trigger=trigger,
-            )
-        )
-    return expenses
+    return list(children_by_id.values()), bands
 
 
 def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
@@ -515,27 +474,51 @@ def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     return incomes
 
 
-def _build_expenses(spreadsheet: gspread.Spreadsheet) -> list[Expense]:
+def _build_expenses(spreadsheet: gspread.Spreadsheet) -> tuple[list[Expense], list[OneTimeExpense]]:
+    """経常支出と単発支出（旧Input_大型支出）を入力_支出シートから組み立てる。
+
+    ONE_TIME_FLAG_HEADER=TRUEの行は単発支出（発生条件で1回のみ）、それ以外(既定FALSE)は
+    経常支出（毎年発生・成長率あり）として振り分ける。
+    """
+
     worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
     expenses = []
+    one_time_expenses = []
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{EXPENSES_SHEET}!row{row_number}"
-        expenses.append(
-            Expense(
-                expense_id=str(_require(record, EXPENSE_ID_HEADER, f"{row_prefix}.{EXPENSE_ID_HEADER}")),
-                category=str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}")),
-                amount=_parse_money(
-                    _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
-                    f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
-                ),
-                growth_rate=_parse_rate(
-                    _require(record, GROWTH_RATE_HEADER, f"{row_prefix}.{GROWTH_RATE_HEADER}"),
-                    f"{row_prefix}.{GROWTH_RATE_HEADER}",
-                ),
-                is_flexible=_parse_bool(record.get(IS_FLEXIBLE_HEADER, "FALSE")),
-            )
+        expense_id = str(_require(record, EXPENSE_ID_HEADER, f"{row_prefix}.{EXPENSE_ID_HEADER}"))
+        category = str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}"))
+        amount = _parse_money(
+            _require(record, EXPENSE_AMOUNT_HEADER, f"{row_prefix}.{EXPENSE_AMOUNT_HEADER}"),
+            f"{row_prefix}.{EXPENSE_AMOUNT_HEADER}",
         )
-    return expenses
+
+        if _parse_bool(record.get(ONE_TIME_FLAG_HEADER, "FALSE")):
+            trigger = _build_event_condition(
+                record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
+            )
+            if trigger is None:
+                raise StructuralInputError(
+                    f"{START_TYPE_HEADER}が必須です（{ONE_TIME_FLAG_HEADER}=TRUEの行）", f"{row_prefix}.{START_TYPE_HEADER}"
+                )
+            one_time_expenses.append(
+                OneTimeExpense(expense_id=expense_id, category=category, amount=amount, trigger=trigger)
+            )
+        else:
+            growth_rate = _parse_rate(
+                _require(record, GROWTH_RATE_HEADER, f"{row_prefix}.{GROWTH_RATE_HEADER}"),
+                f"{row_prefix}.{GROWTH_RATE_HEADER}",
+            )
+            expenses.append(
+                Expense(
+                    expense_id=expense_id,
+                    category=category,
+                    amount=amount,
+                    growth_rate=growth_rate,
+                    is_flexible=_parse_bool(record.get(IS_FLEXIBLE_HEADER, "FALSE")),
+                )
+            )
+    return expenses, one_time_expenses
 
 
 def _default_tax_config(user: User) -> TaxConfig:
@@ -645,6 +628,8 @@ def _default_contribution_strategy() -> ContributionStrategy:
 def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
     settings = _read_plan_settings(spreadsheet)
     user = _build_user(settings)
+    expenses, one_time_expenses = _build_expenses(spreadsheet)
+    children, education_expenses = _build_children_and_education_expenses(spreadsheet)
 
     return Plan(
         plan_id=_require_setting(settings, PLAN_ID_HEADER),
@@ -658,12 +643,12 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         withdrawal_strategy=_default_withdrawal_strategy(),
         contribution_strategy=_default_contribution_strategy(),
         incomes=_build_incomes(spreadsheet),
-        expenses=_build_expenses(spreadsheet),
+        expenses=expenses,
         milestones=_build_milestones(settings),
         allocation_policy=_build_allocation_policy(spreadsheet),
-        children=_build_children(spreadsheet),
-        education_expenses=_build_education_expenses(spreadsheet),
-        one_time_expenses=_build_one_time_expenses(spreadsheet),
+        children=children,
+        education_expenses=education_expenses,
+        one_time_expenses=one_time_expenses,
     )
 
 

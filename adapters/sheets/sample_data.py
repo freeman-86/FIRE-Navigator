@@ -23,6 +23,7 @@ from adapters.sheets.sheet_mapping import (
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
+    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
@@ -32,7 +33,7 @@ from adapters.sheets.sheet_mapping import (
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
-    ONE_TIME_AMOUNT_HEADER,
+    ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -99,8 +100,18 @@ INCOMES_ROWS = [
 ]
 
 EXPENSES_ROWS = [
-    [EXPENSE_ID_HEADER, CATEGORY_HEADER, AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER, IS_FLEXIBLE_HEADER],
-    ["expense_living_001", "living", "3600000", "0.02", "FALSE"],
+    [
+        EXPENSE_ID_HEADER,
+        CATEGORY_HEADER,
+        ONE_TIME_FLAG_HEADER,
+        EXPENSE_AMOUNT_HEADER,
+        GROWTH_RATE_HEADER,
+        IS_FLEXIBLE_HEADER,
+        START_TYPE_HEADER,
+        START_VALUE_HEADER,
+    ],
+    ["expense_living_001", "living", "FALSE", "3600000", "0.02", "FALSE", "", ""],
+    ["expense_car_001", "車の買い替え", "TRUE", "3000000", "", "", "age", "45"],
 ]
 
 SCENARIOS_ROWS = [
@@ -123,21 +134,19 @@ ALLOCATION_POLICY_ROWS = [
     ["60", "bond_us_treasury", "0.6"],
 ]
 
-CHILDREN_ROWS = [
-    [CHILD_ID_HEADER, BIRTH_DATE_HEADER],
-    ["child_001", "2022-04-01"],
-]
-
 EDUCATION_EXPENSES_ROWS = [
-    [EDUCATION_BAND_ID_HEADER, CHILD_ID_HEADER, CATEGORY_HEADER, START_AGE_HEADER, END_AGE_HEADER, MONTHLY_AMOUNT_HEADER],
-    ["band_elementary", "child_001", "小学校", "6", "11", "20000"],
-    ["band_juku", "child_001", "塾", "10", "11", "15000"],
-    ["band_junior_high", "child_001", "中学校", "12", "14", "30000"],
-    ["band_high_school", "child_001", "高校", "15", "17", "40000"],
-    ["band_university", "child_001", "大学", "18", "21", "100000"],
-]
-
-ONE_TIME_EXPENSES_ROWS = [
-    [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_AMOUNT_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
-    ["expense_car_001", "車の買い替え", "3000000", "age", "45"],
+    [
+        EDUCATION_BAND_ID_HEADER,
+        CHILD_ID_HEADER,
+        BIRTH_DATE_HEADER,
+        CATEGORY_HEADER,
+        START_AGE_HEADER,
+        END_AGE_HEADER,
+        MONTHLY_AMOUNT_HEADER,
+    ],
+    ["band_elementary", "child_001", "2022-04-01", "小学校", "6", "11", "20000"],
+    ["band_juku", "child_001", "2022-04-01", "塾", "10", "11", "15000"],
+    ["band_junior_high", "child_001", "2022-04-01", "中学校", "12", "14", "30000"],
+    ["band_high_school", "child_001", "2022-04-01", "高校", "15", "17", "40000"],
+    ["band_university", "child_001", "2022-04-01", "大学", "18", "21", "100000"],
 ]
