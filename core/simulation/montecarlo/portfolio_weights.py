@@ -20,7 +20,7 @@ def compute_asset_class_weights(plan: Plan, portfolios: dict[str, Portfolio]) ->
         if portfolio is None:
             continue
         for holding in portfolio.holdings:
-            amount = holding.cost_basis.amount
+            amount = holding.current_value.amount
             totals[holding.asset.asset_class] = totals.get(holding.asset.asset_class, Decimal(0)) + amount
             grand_total += amount
 

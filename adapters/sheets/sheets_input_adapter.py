@@ -20,6 +20,7 @@ from adapters.sheets.sheet_mapping import (
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
+    COST_BASIS_HEADER,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
@@ -289,13 +290,15 @@ def build_portfolios_from_spreadsheet(
                 f"{row_prefix}.{VOLATILITY_HEADER}",
             ),
         )
-        holding = Holding(
-            asset=asset,
-            quantity=1,
-            cost_basis=_parse_money(
-                _require(record, BALANCE_HEADER, f"{row_prefix}.{BALANCE_HEADER}"), f"{row_prefix}.{BALANCE_HEADER}"
-            ),
+        current_value = _parse_money(
+            _require(record, BALANCE_HEADER, f"{row_prefix}.{BALANCE_HEADER}"), f"{row_prefix}.{BALANCE_HEADER}"
         )
+        cost_basis_raw = str(record.get(COST_BASIS_HEADER, "")).strip()
+        # 取得原価が未入力の場合は残高と同額とみなす（開始時点の含み益ゼロという後方互換のデフォルト）
+        cost_basis = (
+            _parse_money(cost_basis_raw, f"{row_prefix}.{COST_BASIS_HEADER}") if cost_basis_raw else current_value
+        )
+        holding = Holding(asset=asset, quantity=1, current_value=current_value, cost_basis=cost_basis)
         portfolios[account_id] = Portfolio(holdings=[holding])
     return portfolios
 

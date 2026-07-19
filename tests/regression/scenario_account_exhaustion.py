@@ -66,5 +66,5 @@ def build_portfolios() -> dict[str, Portfolio]:
     asset = Asset(
         asset_class="bond_us_treasury", expected_return=Rate.from_percent(3), volatility=Rate.from_percent(5)
     )
-    holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(3_000_000))
+    holding = Holding(asset=asset, quantity=1, current_value=Money.of(3_000_000), cost_basis=Money.of(3_000_000))
     return {"acc_taxable_001": Portfolio(holdings=[holding])}

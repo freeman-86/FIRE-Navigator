@@ -55,7 +55,7 @@ def _plan() -> Plan:
 
 def _portfolios() -> dict[str, Portfolio]:
     asset = Asset(asset_class="domestic_equity", expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
-    holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(1_000_000))
+    holding = Holding(asset=asset, quantity=1, current_value=Money.of(1_000_000), cost_basis=Money.of(1_000_000))
     return {"acc_001": Portfolio(holdings=[holding])}
 
 
@@ -113,7 +113,9 @@ class BuildWeightLookupTest(unittest.TestCase):
     def test_uses_allocation_policy_weights_and_switches_at_age_boundary(self) -> None:
         import dataclasses
 
-        # _plan()はstart_year=2026, birth_date=1990-04-01 -> offset0時点でage=36
+        # _plan()はstart_year=2026年1月1日開始, birth_date=1990-04-01。誕生日考慮の年齢計算のため、
+        # 4月を迎えるまでは前年の年齢のまま: offset0-2(2026年1〜3月)はage35、
+        # offset3(2026年4月、36歳の誕生日)からage36、offset15(2027年4月、37歳の誕生日)からage37。
         plan = dataclasses.replace(
             _plan(),
             allocation_policy=AllocationPolicy(
@@ -126,12 +128,14 @@ class BuildWeightLookupTest(unittest.TestCase):
 
         weight_lookup = build_weight_lookup(plan, _portfolios())
 
-        # offset0-11(2026年、age36): 株式100%
-        self.assertEqual(weight_lookup(0).get("domestic_equity"), Decimal("1.0"))
-        self.assertEqual(weight_lookup(11).get("domestic_equity"), Decimal("1.0"))
-        # offset12(2027年、age37): 債券100%に切り替わる
-        self.assertEqual(weight_lookup(12).get("domestic_bond"), Decimal("1.0"))
-        self.assertNotIn("domestic_equity", weight_lookup(12))
+        # offset0(2026年1月、age35): まだ適用対象の配分方針がない
+        self.assertEqual(weight_lookup(0), {})
+        # offset3-14(2026年4月〜2027年3月、age36): 株式100%
+        self.assertEqual(weight_lookup(3).get("domestic_equity"), Decimal("1.0"))
+        self.assertEqual(weight_lookup(14).get("domestic_equity"), Decimal("1.0"))
+        # offset15(2027年4月、age37): 債券100%に切り替わる
+        self.assertEqual(weight_lookup(15).get("domestic_bond"), Decimal("1.0"))
+        self.assertNotIn("domestic_equity", weight_lookup(15))
 
     def test_falls_back_to_static_portfolio_weights_without_allocation_policy(self) -> None:
         weight_lookup = build_weight_lookup(_plan(), _portfolios())

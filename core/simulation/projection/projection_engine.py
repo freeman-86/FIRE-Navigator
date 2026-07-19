@@ -80,9 +80,12 @@ def run_projection(
     account_balances = {
         account.account_id: _initial_balance(portfolios.get(account.account_id)) for account in plan.accounts
     }
-    # 取り崩し時の譲渡税計算（平均取得原価方式）に使う累計取得原価。シミュレーション開始時点の
-    # 残高をそのまま初期取得原価とする（開始前の含み益は追跡しない簡易化）。
-    cost_basis_balances = dict(account_balances)
+    # 取り崩し時の譲渡税計算（平均取得原価方式）に使う累計取得原価。入力_口座の取得原価列
+    # （Holding.cost_basis）をそのまま初期値とするため、シミュレーション開始前からの含み益/含み損を
+    # 正しく反映できる（取得原価が未入力の口座は残高と同額になり、含み益ゼロからのスタートになる）。
+    cost_basis_balances = {
+        account.account_id: _initial_cost_basis(portfolios.get(account.account_id)) for account in plan.accounts
+    }
     lifetime_contributions = {account.account_id: Money.zero() for account in plan.accounts}
     surplus_reserve = Money.zero()
     asset_class_by_account_id = _asset_class_by_account_id(portfolios)
@@ -91,7 +94,7 @@ def run_projection(
     monthly_projections: list[MonthlyProjection] = []
     for offset_year, year in enumerate(range(start_year, end_year + 1)):
         month_pairs_this_year = [
-            _calendar_year_month(start_year, start_month, offset_year * MONTHS_PER_YEAR + m)
+            calendar_year_month(start_year, start_month, offset_year * MONTHS_PER_YEAR + m)
             for m in range(MONTHS_PER_YEAR)
         ]
         gross_income_annual = _active_income_total(
@@ -101,9 +104,11 @@ def run_projection(
         total_expense_annual = _expense_total(plan.expenses, offset_year)
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
+        year_end_calendar_year, year_end_calendar_month = month_pairs_this_year[-1]
+        is_65_or_older = age_at(birth_date, year_end_calendar_year, year_end_calendar_month) >= 65
         tax_result = calculate_tax(
             gross_income_annual, pension_income_annual, plan.tax_config, has_spouse, tax_rules,
-            fixed_plan.tax_deductible_amount,
+            fixed_plan.tax_deductible_amount, is_65_or_older,
         )
 
         monthly_gross_income = _divide_by_12(gross_income_annual)
@@ -122,8 +127,8 @@ def run_projection(
         networth = Money.zero()
         for month in range(1, MONTHS_PER_YEAR + 1):
             month_offset = offset_year * MONTHS_PER_YEAR + (month - 1)
-            calendar_year, calendar_month = _calendar_year_month(start_year, start_month, month_offset)
-            age_this_month = _age_at(birth_date, calendar_year, calendar_month)
+            calendar_year, calendar_month = calendar_year_month(start_year, start_month, month_offset)
+            age_this_month = age_at(birth_date, calendar_year, calendar_month)
             growth_rate = (
                 growth_rate_provider(month_offset) if growth_rate_provider is not None else default_monthly_rate
             )
@@ -276,6 +281,15 @@ def _initial_balance(portfolio: Optional[Portfolio]) -> Money:
         return Money.zero()
     total = Money.zero()
     for holding in portfolio.holdings:
+        total = total + holding.current_value
+    return total
+
+
+def _initial_cost_basis(portfolio: Optional[Portfolio]) -> Money:
+    if portfolio is None:
+        return Money.zero()
+    total = Money.zero()
+    for holding in portfolio.holdings:
         total = total + holding.cost_basis
     return total
 
@@ -359,7 +373,7 @@ def resolve_start_month(plan: Plan) -> int:
     return date.today().month
 
 
-def _calendar_year_month(start_year: int, start_month: int, month_offset: int) -> tuple[int, int]:
+def calendar_year_month(start_year: int, start_month: int, month_offset: int) -> tuple[int, int]:
     """月次オフセット(0始まり)を実際の西暦年・月に変換する。
 
     YearlyProjection.yearは「プラン開始からN年目」という単純な連番（start_year+offset_year）の
@@ -457,7 +471,7 @@ def _expense_total(expenses: list[Expense], offset: int) -> Money:
     return total
 
 
-def _age_at(birth_date: date, calendar_year: int, calendar_month: int) -> int:
+def age_at(birth_date: date, calendar_year: int, calendar_month: int) -> int:
     """その月の1日時点での満年齢を返す（誕生日を考慮した正確な年齢）。
 
     配分方針の年齢帯判定・年齢表示（YearlyProjection/MonthlyProjection.age_self）に使う。

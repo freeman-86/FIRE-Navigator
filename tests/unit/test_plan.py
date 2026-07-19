@@ -73,7 +73,7 @@ def _build_portfolios(plan: Plan) -> dict[str, Portfolio]:
         expected_return=Rate.from_percent(5),
         volatility=Rate.from_percent(15),
     )
-    holding = Holding(asset=asset, quantity=100, cost_basis=Money.of(300_000))
+    holding = Holding(asset=asset, quantity=100, current_value=Money.of(300_000), cost_basis=Money.of(300_000))
     return {account.account_id: Portfolio(holdings=[holding]) for account in plan.accounts}
 
 

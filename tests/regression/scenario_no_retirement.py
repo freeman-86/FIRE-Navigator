@@ -83,7 +83,7 @@ def build_plan() -> Plan:
 def build_portfolios() -> dict[str, Portfolio]:
     def _portfolio(balance: int, asset_class: AssetClass) -> Portfolio:
         asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
-        return Portfolio(holdings=[Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))])
+        return Portfolio(holdings=[Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))])
 
     return {
         "acc_cash_001": _portfolio(1_500_000, "cash"),

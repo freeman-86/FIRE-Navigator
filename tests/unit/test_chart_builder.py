@@ -29,7 +29,7 @@ def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
             expected_return=Rate.from_percent(5),
             volatility=Rate.from_percent(15),
         )
-        return Portfolio(holdings=[Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))])
+        return Portfolio(holdings=[Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))])
 
     income = Income(
         income_id="income_001",

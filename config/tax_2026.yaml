@@ -25,6 +25,40 @@ income_tax:
     - upper_bound: null
       rate: 0.0
       base_amount: 1950000
+  pension_deduction_under_65:
+    # 公的年金等控除（65歳未満、2020年分以降の速算表）。公的年金等以外の所得が1,000万円以下の場合。
+    - upper_bound: 1300000
+      rate: 0.0
+      base_amount: 600000
+    - upper_bound: 4100000
+      rate: 0.25
+      base_amount: 275000
+    - upper_bound: 7700000
+      rate: 0.15
+      base_amount: 685000
+    - upper_bound: 10000000
+      rate: 0.05
+      base_amount: 1455000
+    - upper_bound: null
+      rate: 0.0
+      base_amount: 1955000
+  pension_deduction_65_or_older:
+    # 公的年金等控除（65歳以上、2020年分以降の速算表）。公的年金等以外の所得が1,000万円以下の場合。
+    - upper_bound: 3300000
+      rate: 0.0
+      base_amount: 1100000
+    - upper_bound: 4100000
+      rate: 0.25
+      base_amount: 275000
+    - upper_bound: 7700000
+      rate: 0.15
+      base_amount: 685000
+    - upper_bound: 10000000
+      rate: 0.05
+      base_amount: 1455000
+    - upper_bound: null
+      rate: 0.0
+      base_amount: 1955000
   basic_deduction: 480000
   spouse_deduction: 380000
   brackets:

@@ -47,6 +47,9 @@ ACCOUNT_ID_HEADER = "口座ID"
 ACCOUNT_TYPE_HEADER = "口座タイプ"
 OWNER_HEADER = "名義"
 BALANCE_HEADER = "残高"
+# 取得原価: 任意入力。未入力の場合は残高と同額（含み益ゼロ）とみなす。譲渡税計算（平均取得原価方式）で
+# シミュレーション開始前からの含み益/含み損を反映するために使う（Holding.cost_basis）。
+COST_BASIS_HEADER = "取得原価"
 ASSET_CLASS_HEADER = "資産クラス"
 EXPECTED_RETURN_HEADER = "期待リターン"
 VOLATILITY_HEADER = "ボラティリティ"
@@ -143,7 +146,8 @@ ACCOUNTS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (ACCOUNT_ID_HEADER, "plan.accounts[].account_id", "str"),
     (ACCOUNT_TYPE_HEADER, "plan.accounts[].account_type", "account_type"),
     (OWNER_HEADER, "plan.accounts[].owner", "owner_type"),
-    (BALANCE_HEADER, "portfolios[account_id].holdings[].cost_basis", "money"),
+    (BALANCE_HEADER, "portfolios[account_id].holdings[].current_value", "money"),
+    (COST_BASIS_HEADER, "portfolios[account_id].holdings[].cost_basis", "money_optional"),
     (ASSET_CLASS_HEADER, "portfolios[account_id].holdings[].asset.asset_class", "asset_class"),
     (EXPECTED_RETURN_HEADER, "portfolios[account_id].holdings[].asset.expected_return", "rate"),
     (VOLATILITY_HEADER, "portfolios[account_id].holdings[].asset.volatility", "rate"),

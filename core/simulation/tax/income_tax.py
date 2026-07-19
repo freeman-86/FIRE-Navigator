@@ -1,35 +1,64 @@
 from __future__ import annotations
 
-from core.domain.tax_config import IncomeTaxRules
+from core.domain.tax_config import EmploymentIncomeDeductionBracket, IncomeTaxRules
 from core.domain.value_objects import Money
 
 
 def calculate_employment_income_deduction(gross_income: Money, rules: IncomeTaxRules) -> Money:
     """給与所得控除。区分ごとに base_amount + 収入金額×rate（rate=0の区分は base_amount を固定額として使う）。"""
 
-    income = gross_income if not gross_income.is_negative else Money.zero()
-    for bracket in rules.employment_income_deduction_brackets:
+    return _apply_deduction_brackets(gross_income, rules.employment_income_deduction_brackets)
+
+
+def calculate_pension_income_deduction(pension_income: Money, is_65_or_older: bool, rules: IncomeTaxRules) -> Money:
+    """公的年金等控除。年齢（その年12月31日現在、is_65_or_older）で使う速算表が異なる。"""
+
+    brackets = (
+        rules.pension_deduction_brackets_65_or_older if is_65_or_older else rules.pension_deduction_brackets_under_65
+    )
+    return _apply_deduction_brackets(pension_income, brackets)
+
+
+def _apply_deduction_brackets(income: Money, brackets: list[EmploymentIncomeDeductionBracket]) -> Money:
+    income = income if not income.is_negative else Money.zero()
+    for bracket in brackets:
         if bracket.upper_bound is None or income <= bracket.upper_bound:
             if bracket.rate.value == 0:
                 return bracket.base_amount
             return bracket.rate.apply_to(income) + bracket.base_amount
-    raise ValueError("給与所得控除テーブルに該当する区分が見つかりません")
+    raise ValueError("控除テーブルに該当する区分が見つかりません")
 
 
 def calculate_taxable_income(
-    gross_income: Money,
+    employment_income: Money,
+    pension_income: Money,
     rules: IncomeTaxRules,
+    is_65_or_older: bool,
     apply_spouse_deduction: bool,
     additional_deduction: Money = Money.zero(),
 ) -> Money:
-    """additional_deductionは、iDeCo/企業型DC拠出額等の小規模企業共済等掛金控除に相当する。"""
+    """給与所得（収入-給与所得控除）と雑所得(公的年金等、収入-公的年金等控除)をそれぞれ算出して
+    合算し、そこから基礎控除等（所得控除）を差し引く（実際の制度と同様、所得の種類ごとに
+    控除してから合算する）。additional_deductionは、iDeCo/企業型DC拠出額等の
+    小規模企業共済等掛金控除に相当する。
+    """
 
-    employment_deduction = calculate_employment_income_deduction(gross_income, rules)
-    total_deduction = employment_deduction + rules.basic_deduction + additional_deduction
+    employment_deduction = calculate_employment_income_deduction(employment_income, rules)
+    employment_income_amount = employment_income - employment_deduction
+    if employment_income_amount.is_negative:
+        employment_income_amount = Money.zero()
+
+    pension_deduction = calculate_pension_income_deduction(pension_income, is_65_or_older, rules)
+    pension_income_amount = pension_income - pension_deduction
+    if pension_income_amount.is_negative:
+        pension_income_amount = Money.zero()
+
+    total_income = employment_income_amount + pension_income_amount
+    total_deduction = rules.basic_deduction + additional_deduction
     if apply_spouse_deduction:
         total_deduction = total_deduction + rules.spouse_deduction
 
-    taxable_income = gross_income - total_deduction
+    taxable_income = total_income - total_deduction
     return taxable_income if not taxable_income.is_negative else Money.zero()
 
 

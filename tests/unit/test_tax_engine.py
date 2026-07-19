@@ -33,16 +33,42 @@ class IncomeTaxTest(unittest.TestCase):
 
     def test_taxable_income_subtracts_basic_and_employment_deduction(self) -> None:
         # 6,000,000 - (給与所得控除1,640,000 + 基礎控除480,000) = 3,880,000
-        taxable_income = calculate_taxable_income(Money.of(6_000_000), self.rules, apply_spouse_deduction=False)
+        taxable_income = calculate_taxable_income(
+            Money.of(6_000_000), Money.zero(), self.rules, is_65_or_older=False, apply_spouse_deduction=False
+        )
         self.assertEqual(taxable_income, Money.of(3_880_000))
 
     def test_taxable_income_with_spouse_deduction(self) -> None:
-        taxable_income = calculate_taxable_income(Money.of(6_000_000), self.rules, apply_spouse_deduction=True)
+        taxable_income = calculate_taxable_income(
+            Money.of(6_000_000), Money.zero(), self.rules, is_65_or_older=False, apply_spouse_deduction=True
+        )
         self.assertEqual(taxable_income, Money.of(3_500_000))
 
     def test_taxable_income_never_negative(self) -> None:
-        taxable_income = calculate_taxable_income(Money.of(500_000), self.rules, apply_spouse_deduction=False)
+        taxable_income = calculate_taxable_income(
+            Money.of(500_000), Money.zero(), self.rules, is_65_or_older=False, apply_spouse_deduction=False
+        )
         self.assertEqual(taxable_income, Money.zero())
+
+    def test_pension_income_uses_pension_deduction_table_not_employment_table(self) -> None:
+        # 公的年金等収入3,000,000円(65歳未満): 控除は3,000,000×25%+275,000=1,025,000
+        # (給与所得控除の場合は3,000,000×30%+80,000=980,000で異なる値になる)
+        taxable_income = calculate_taxable_income(
+            Money.zero(), Money.of(3_000_000), self.rules, is_65_or_older=False, apply_spouse_deduction=False
+        )
+        # 3,000,000 - 1,025,000(公的年金等控除) - 480,000(基礎控除) = 1,495,000
+        self.assertEqual(taxable_income, Money.of(1_495_000))
+
+    def test_pension_deduction_is_more_generous_at_65_or_older(self) -> None:
+        # 65歳以上は同じ収入でも控除額が大きい(最低保障110万円 vs 65歳未満の60万円)ため、
+        # 課税所得(under_65)の方が大きくなる
+        under_65 = calculate_taxable_income(
+            Money.zero(), Money.of(2_000_000), self.rules, is_65_or_older=False, apply_spouse_deduction=False
+        )
+        over_65 = calculate_taxable_income(
+            Money.zero(), Money.of(2_000_000), self.rules, is_65_or_older=True, apply_spouse_deduction=False
+        )
+        self.assertGreater(under_65, over_65)
 
     def test_progressive_income_tax_matches_hand_calculation(self) -> None:
         # 3,880,000円 -> 1,950,000*5% + (3,300,000-1,950,000)*10% + (3,880,000-3,300,000)*20%

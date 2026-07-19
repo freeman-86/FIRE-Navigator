@@ -40,17 +40,14 @@ def load_tax_rules(config_path: Union[str, Path] = DEFAULT_TAX_CONFIG_PATH) -> T
         IncomeTaxBracket(upper_bound=_money_or_none(b["upper_bound"]), rate=Rate.of(b["rate"]))
         for b in income_tax_raw["brackets"]
     ]
-    employment_income_deduction_brackets = [
-        EmploymentIncomeDeductionBracket(
-            upper_bound=_money_or_none(b["upper_bound"]),
-            rate=Rate.of(b["rate"]),
-            base_amount=Money.of(b["base_amount"]),
-        )
-        for b in income_tax_raw["employment_income_deduction"]
-    ]
+    employment_income_deduction_brackets = _deduction_brackets(income_tax_raw["employment_income_deduction"])
+    pension_deduction_brackets_under_65 = _deduction_brackets(income_tax_raw["pension_deduction_under_65"])
+    pension_deduction_brackets_65_or_older = _deduction_brackets(income_tax_raw["pension_deduction_65_or_older"])
     income_tax_rules = IncomeTaxRules(
         brackets=brackets,
         employment_income_deduction_brackets=employment_income_deduction_brackets,
+        pension_deduction_brackets_under_65=pension_deduction_brackets_under_65,
+        pension_deduction_brackets_65_or_older=pension_deduction_brackets_65_or_older,
         basic_deduction=Money.of(income_tax_raw["basic_deduction"]),
         spouse_deduction=Money.of(income_tax_raw["spouse_deduction"]),
     )
@@ -116,3 +113,14 @@ def load_pension_rules(config_path: Union[str, Path] = DEFAULT_PENSION_CONFIG_PA
 
 def _money_or_none(value: Optional[float]) -> Optional[Money]:
     return Money.of(value) if value is not None else None
+
+
+def _deduction_brackets(raw_brackets: list[dict]) -> list[EmploymentIncomeDeductionBracket]:
+    return [
+        EmploymentIncomeDeductionBracket(
+            upper_bound=_money_or_none(b["upper_bound"]),
+            rate=Rate.of(b["rate"]),
+            base_amount=Money.of(b["base_amount"]),
+        )
+        for b in raw_brackets
+    ]

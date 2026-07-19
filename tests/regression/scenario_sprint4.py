@@ -106,5 +106,5 @@ def build_scenario_portfolios() -> dict[str, Portfolio]:
     portfolios = {}
     for account_id, _account_type, balance, asset_class, _monthly_contribution in _ACCOUNT_SPECS:
         asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
-        portfolios[account_id] = Portfolio(holdings=[Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))])
+        portfolios[account_id] = Portfolio(holdings=[Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))])
     return portfolios

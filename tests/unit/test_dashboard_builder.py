@@ -65,7 +65,7 @@ def _plan() -> Plan:
 
 def _portfolios(balance: int = INITIAL_BALANCE) -> dict[str, Portfolio]:
     asset = Asset(asset_class="cash", expected_return=Rate.zero(), volatility=Rate.zero())
-    holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
+    holding = Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))
     return {"acc_taxable": Portfolio(holdings=[holding])}
 
 

@@ -18,6 +18,12 @@ def zero_tax_rules() -> TaxRules:
             employment_income_deduction_brackets=[
                 EmploymentIncomeDeductionBracket(upper_bound=None, rate=Rate.zero(), base_amount=Money.zero())
             ],
+            pension_deduction_brackets_under_65=[
+                EmploymentIncomeDeductionBracket(upper_bound=None, rate=Rate.zero(), base_amount=Money.zero())
+            ],
+            pension_deduction_brackets_65_or_older=[
+                EmploymentIncomeDeductionBracket(upper_bound=None, rate=Rate.zero(), base_amount=Money.zero())
+            ],
             basic_deduction=Money.zero(),
             spouse_deduction=Money.zero(),
         ),

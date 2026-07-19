@@ -17,6 +17,7 @@ from adapters.sheets.sheet_mapping import (
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
+    COST_BASIS_HEADER,
     EDUCATION_BAND_ID_HEADER,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
     END_AGE_HEADER,
@@ -74,15 +75,17 @@ ACCOUNTS_ROWS = [
         ACCOUNT_TYPE_HEADER,
         OWNER_HEADER,
         BALANCE_HEADER,
+        COST_BASIS_HEADER,
         ASSET_CLASS_HEADER,
         EXPECTED_RETURN_HEADER,
         VOLATILITY_HEADER,
         MONTHLY_CONTRIBUTION_HEADER,
     ],
-    ["acc_cash_001", "cash", "self", "1000000", "cash", "0.0", "0.0", ""],
-    ["acc_nisa_growth_001", "nisa_growth", "self", "3000000", "equity_sp500", "0.05", "0.15", "50000"],
-    ["acc_ideco_001", "ideco", "self", "1500000", "bond_us_treasury", "0.02", "0.05", "23000"],
-    ["acc_taxable_001", "taxable", "self", "2000000", "equity_sp500", "0.05", "0.15", "30000"],
+    ["acc_cash_001", "cash", "self", "1000000", "", "cash", "0.0", "0.0", ""],
+    ["acc_nisa_growth_001", "nisa_growth", "self", "3000000", "", "equity_sp500", "0.05", "0.15", "50000"],
+    ["acc_ideco_001", "ideco", "self", "1500000", "", "bond_us_treasury", "0.02", "0.05", "23000"],
+    # 取得原価を残高より低く指定する例（含み益500,000円がある状態からシミュレーションを開始する）
+    ["acc_taxable_001", "taxable", "self", "2000000", "1500000", "equity_sp500", "0.05", "0.15", "30000"],
 ]
 
 INCOMES_ROWS = [

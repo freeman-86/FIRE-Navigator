@@ -17,7 +17,13 @@ from core.simulation.montecarlo.portfolio_weights import compute_asset_class_wei
 from core.simulation.montecarlo.random_seed import create_rng
 from core.simulation.montecarlo.return_generator import sample_returns
 from core.simulation.montecarlo.statistics import compute_statistics
-from core.simulation.projection.projection_engine import resolve_start_year, run_projection
+from core.simulation.projection.projection_engine import (
+    age_at,
+    calendar_year_month,
+    resolve_start_month,
+    resolve_start_year,
+    run_projection,
+)
 
 DEFAULT_TRIALS = 1000
 
@@ -66,11 +72,15 @@ def run_montecarlo(
 def build_weight_lookup(plan: Plan, portfolios: dict[str, Portfolio]) -> Callable[[int], dict[AssetClass, Decimal]]:
     if plan.allocation_policy is not None and plan.allocation_policy.targets:
         start_year = resolve_start_year(plan)
-        birth_year = plan.user.birth_date.year
+        start_month = resolve_start_month(plan)
+        birth_date = plan.user.birth_date
         allocation_policy = plan.allocation_policy
 
         def weight_lookup(month_offset: int) -> dict[AssetClass, Decimal]:
-            age = (start_year + month_offset // 12) - birth_year
+            # 決定論的エンジンと同じ誕生日考慮の年齢計算を使う（「西暦年-生年」だけの単純計算だと
+            # 誕生月を無視して最大1年近くずれるため、Projection Engineのage_at()を再利用する）。
+            calendar_year, calendar_month = calendar_year_month(start_year, start_month, month_offset)
+            age = age_at(birth_date, calendar_year, calendar_month)
             return {ac: rate.value for ac, rate in allocation_policy.weights_for_age(age).items()}
 
         return weight_lookup

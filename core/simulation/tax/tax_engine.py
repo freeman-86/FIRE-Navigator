@@ -24,18 +24,18 @@ def calculate_tax(
     has_spouse: bool,
     rules: TaxRules,
     additional_deduction: Money = Money.zero(),
+    is_65_or_older: bool = False,
 ) -> TaxCalculationResult:
-    """employment_income(給与等)とpension_income(公的年金等)を合算して課税所得を計算する。
-
-    pension_incomeも簡略化のため給与所得控除と同じ計算式を流用する（公的年金等控除の専用
-    テーブルは未実装、Sprint8時点のMVP簡略化）。社会保険料は年金受給者には課さないため、
+    """employment_income(給与等)とpension_income(公的年金等)を、それぞれの控除を適用してから
+    合算して課税所得を計算する。is_65_or_olderは公的年金等控除の速算表選択に使う（その年12月31日
+    現在の年齢で判定するのが実際の制度）。社会保険料は年金受給者には課さないため、
     employment_incomeのみを対象に計算する。
     """
 
     total_income = employment_income + pension_income
     apply_spouse_deduction = has_spouse and bool(tax_config.deduction_settings.get("spouse_deduction", False))
     taxable_income = calculate_taxable_income(
-        total_income, rules.income_tax, apply_spouse_deduction, additional_deduction
+        employment_income, pension_income, rules.income_tax, is_65_or_older, apply_spouse_deduction, additional_deduction
     )
 
     income_tax = calculate_income_tax(taxable_income, rules.income_tax)

@@ -29,8 +29,15 @@ class EmploymentIncomeDeductionBracket:
 
 @dataclass
 class IncomeTaxRules:
+    """pension_deduction_brackets_*は公的年金等控除の速算表（65歳未満/65歳以上で表が異なる）。
+    「その年12月31日現在の年齢」で表を選ぶのが実際の制度（is_65_or_olderの判定基準）。
+    公的年金等以外の所得が1,000万円を超える場合の控除縮小には対応しない（MVP簡略化）。
+    """
+
     brackets: list[IncomeTaxBracket]
     employment_income_deduction_brackets: list[EmploymentIncomeDeductionBracket]
+    pension_deduction_brackets_under_65: list[EmploymentIncomeDeductionBracket]
+    pension_deduction_brackets_65_or_older: list[EmploymentIncomeDeductionBracket]
     basic_deduction: Money
     spouse_deduction: Money
 

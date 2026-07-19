@@ -31,7 +31,7 @@ def _initial_networth(portfolios: dict[str, Portfolio]) -> Money:
     total = Money.zero()
     for portfolio in portfolios.values():
         for holding in portfolio.holdings:
-            total = total + holding.cost_basis
+            total = total + holding.current_value
     return total
 
 

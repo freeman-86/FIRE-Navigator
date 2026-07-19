@@ -17,7 +17,7 @@ from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import (
     DEFAULT_LIFE_EXPECTANCY_AGE,
-    _age_at,
+    age_at,
     _pension_eligible_months,
     _school_year_age,
     run_projection,
@@ -60,7 +60,7 @@ def _portfolio(balance: int, asset_class: AssetClass = "equity_sp500", expected_
         expected_return=expected_return if expected_return is not None else Rate.zero(),
         volatility=Rate.from_percent(15),
     )
-    holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
+    holding = Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))
     return Portfolio(holdings=[holding])
 
 
@@ -446,6 +446,27 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
         # 成長率5%で口座が値上がりした状態から取り崩しが発生するため、含み益に譲渡税がかかる
         self.assertGreater(first_year.capital_gains_tax.amount, 0)
 
+    def test_preexisting_unrealized_gain_is_taxed_on_withdrawal(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        expense = Expense(
+            expense_id="expense_001", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero()
+        )
+        plan = _minimal_plan(
+            accounts=[account],
+            expenses=[expense],
+            withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
+        )
+        # シミュレーション開始時点で既に含み益がある状態（残高5,000,000・取得原価3,000,000、
+        # 入力_口座の取得原価列に相当）。成長率0%でも、この既存の含み益に対して譲渡税が発生する。
+        asset = Asset(asset_class="cash", expected_return=Rate.zero(), volatility=Rate.zero())
+        holding = Holding(asset=asset, quantity=1, current_value=Money.of(5_000_000), cost_basis=Money.of(3_000_000))
+        portfolios = {"acc_taxable": Portfolio(holdings=[holding])}
+
+        result = run_projection(plan, portfolios, load_tax_rules(), load_portfolio_rules(), zero_pension_rules())
+        first_year = result.yearly_projections[0]
+
+        self.assertGreater(first_year.capital_gains_tax.amount, 0)
+
     def test_withdraw_shortfall_reports_capital_gains_tax_for_realized_gain(self) -> None:
         account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         portfolio_rules = load_portfolio_rules()
@@ -480,8 +501,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
         bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
         portfolios = {
-            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, cost_basis=Money.of(900_000))]),
-            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, cost_basis=Money.of(100_000))]),
+            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, current_value=Money.of(900_000), cost_basis=Money.of(900_000))]),
+            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, current_value=Money.of(100_000), cost_basis=Money.of(100_000))]),
         }
 
         result = run_projection(
@@ -499,8 +520,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
         bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
         portfolios = {
-            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, cost_basis=Money.of(900_000))]),
-            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, cost_basis=Money.of(100_000))]),
+            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, current_value=Money.of(900_000), cost_basis=Money.of(900_000))]),
+            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, current_value=Money.of(100_000), cost_basis=Money.of(100_000))]),
         }
 
         result = _run(plan, portfolios)
@@ -514,19 +535,19 @@ class AgeAtMonthTest(unittest.TestCase):
     def test_switches_exactly_on_birth_month_not_january(self) -> None:
         birth_date = date(1990, 9, 1)
         # 誕生月(9月)より前は前年の年齢のまま、誕生月(1日時点)以降で切り替わる
-        self.assertEqual(_age_at(birth_date, 2026, 8), 35)
-        self.assertEqual(_age_at(birth_date, 2026, 9), 36)
-        self.assertEqual(_age_at(birth_date, 2026, 12), 36)
-        self.assertEqual(_age_at(birth_date, 2027, 1), 36)
+        self.assertEqual(age_at(birth_date, 2026, 8), 35)
+        self.assertEqual(age_at(birth_date, 2026, 9), 36)
+        self.assertEqual(age_at(birth_date, 2026, 12), 36)
+        self.assertEqual(age_at(birth_date, 2027, 1), 36)
 
     def test_reference_is_the_first_of_the_month_so_late_birthday_delays_switch(self) -> None:
         birth_date = date(1990, 9, 15)
         # 参照日は各月の1日のため、9月1日時点ではまだ誕生日(9/15)を迎えておらず35歳のまま
-        self.assertEqual(_age_at(birth_date, 2026, 9), 35)
-        self.assertEqual(_age_at(birth_date, 2026, 10), 36)
+        self.assertEqual(age_at(birth_date, 2026, 9), 35)
+        self.assertEqual(age_at(birth_date, 2026, 10), 36)
 
     def test_returns_zero_before_birth(self) -> None:
-        self.assertEqual(_age_at(date(2030, 1, 1), 2026, 1), 0)
+        self.assertEqual(age_at(date(2030, 1, 1), 2026, 1), 0)
 
 
 class PensionEligibleMonthsTest(unittest.TestCase):
