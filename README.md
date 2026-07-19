@@ -50,12 +50,46 @@ pip install -r requirements.txt
 
 ## 使い方
 
+### 全部まとめて実行する（推奨）
+
+「スプレッドシートを読み込む→シミュレーション実行（決定論的・シナリオ比較・感応度分析・
+モンテカルロ・ヒストリカルバックテスト・Progress比較）→結果を書き戻す」を一括で行う。
+
+**Finderからダブルクリックで実行する場合**: リポジトリ直下の `シミュレーション実行.command` を
+ダブルクリックする。初回はmacOSのセキュリティ設定でブロックされることがあるため、その場合は
+`シミュレーション実行.command` を右クリック→「開く」を選び、表示される確認ダイアログで
+「開く」を選択する（一度許可すれば以降はダブルクリックで実行できる）。ターミナルが開いて
+実行ログが表示され、完了後は何かキーを押すとウィンドウが閉じる。
+
+**ターミナルから実行する場合**:
+
+```bash
+PYTHONPATH=. python3 scripts/run_full_simulation.py
+```
+
+モンテカルロ/ヒストリカルバックテストは計算に数十秒〜数分かかることがある。基本的な数値だけ
+素早く確認したいときは省略できる:
+
+```bash
+PYTHONPATH=. python3 scripts/run_full_simulation.py --quick             # 両方省略して高速実行
+PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000       # モンテカルロの試行回数を指定（既定200）
+PYTHONPATH=. python3 scripts/run_full_simulation.py --spreadsheet-name "自分のシート名"
+```
+
+入力に不備があると処理を中断し、`出力_エラー` シートに詳細を書き込む（`シミュレーション実行.command`
+経由でもターミナル上にエラー内容が表示される）。
+
+### 個別のスクリプト
+
 すべてのスクリプトはリポジトリルートから `PYTHONPATH=.` を付けて実行する。
 
 ```bash
 # サンプルデータをテスト用スプレッドシートに投入する
 PYTHONPATH=. python3 scripts/seed_test_spreadsheet.py
 ```
+
+上記の一括実行スクリプトを使わず、特定の計算だけをPythonコードから個別に呼び出すこともできる
+（Jupyter notebook等での動作確認や、独自のバッチ処理を書く場合を想定）。
 
 シミュレーションの実行例（Plan読込 → 計算 → 結果をスプレッドシートへ書き戻す）:
 
@@ -166,6 +200,8 @@ repositories/         config/yamlの読込窓口
 adapters/sheets/       Googleスプレッドシート ⇔ ドメインモデルの変換
 reports/              SimulationResult等からグラフ・表用データを生成
 config/               税制・年金・口座制度・過去市場データ（yaml）
+scripts/run_full_simulation.py  読込→計算→書き戻しを一括実行するスクリプト
+シミュレーション実行.command      ↑をダブルクリックで実行するためのランチャー
 tests/unit/           単体テスト
 tests/integration/     Sheets Adapterの結合テスト（実スプレッドシート接続）
 tests/regression/      固定シナリオでの回帰テスト（golden file比較）

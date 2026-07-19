@@ -251,7 +251,7 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
     return accounts
 
 
-def _build_portfolios(
+def build_portfolios_from_spreadsheet(
     spreadsheet: gspread.Spreadsheet, asset_class_registry: Optional[dict[AssetClass, str]] = None
 ) -> dict[str, Portfolio]:
     """Portfolio Aggregate（account_idで参照される独立集約）を入力_口座シートから組み立てる。
@@ -294,7 +294,7 @@ def _build_portfolios(
     return portfolios
 
 
-def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Scenario]:
+def build_scenarios_from_spreadsheet(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Scenario]:
     """Scenario Aggregate（plan_idで参照される独立集約）を入力_シナリオシートから組み立てる。
 
     入力_シナリオシートが存在しない場合は空リストを返す（シナリオ比較はオプション機能）。
@@ -323,7 +323,7 @@ def _build_scenarios(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Sce
     return scenarios
 
 
-def _build_progress_records(spreadsheet: gspread.Spreadsheet) -> list[ProgressRecord]:
+def build_progress_records_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> list[ProgressRecord]:
     """実績ネットワースを入力_実績シートから読み込む。
 
     入力_実績シートが存在しない場合は空リストを返す（Progress比較はオプション機能）。
@@ -682,7 +682,7 @@ def load_portfolios(
 ) -> dict[str, Portfolio]:
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
-    return _build_portfolios(spreadsheet)
+    return build_portfolios_from_spreadsheet(spreadsheet)
 
 
 def load_scenarios(
@@ -692,7 +692,7 @@ def load_scenarios(
 ) -> list[Scenario]:
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
-    return _build_scenarios(spreadsheet, plan_id)
+    return build_scenarios_from_spreadsheet(spreadsheet, plan_id)
 
 
 def load_progress_records(
@@ -701,7 +701,7 @@ def load_progress_records(
 ) -> list[ProgressRecord]:
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
-    return _build_progress_records(spreadsheet)
+    return build_progress_records_from_spreadsheet(spreadsheet)
 
 
 def load_target_ending_networth(
