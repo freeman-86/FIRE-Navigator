@@ -49,11 +49,17 @@ resident_tax:
   flat_rate: 0.10
   per_capita_levy: 5000
 
-# 社会保険料。標準報酬月額表・上限は考慮せず、年収に対する合算料率を掛けるだけのMVP簡略化。
+# 社会保険料。標準報酬月額の等級表そのものは非対応で、年収に対する合算料率を掛けるMVP簡略化。
+# 健康保険・厚生年金は標準報酬月額に上限があるため、年収換算の上限額を超える分には保険料をかけない
+# （協会けんぽ・厚生年金保険の標準報酬月額上限に基づく概算値。雇用保険には上限がない）。
+# health_insurance_cap: 標準報酬月額上限139万円(第50等級)×12ヶ月の概算
+# pension_insurance_cap: 標準報酬月額上限65万円(第32等級)×12ヶ月
 social_insurance:
   health_insurance_rate: 0.05
   pension_insurance_rate: 0.0915
   employment_insurance_rate: 0.006
+  health_insurance_cap: 16680000
+  pension_insurance_cap: 7800000
 
 # 譲渡税。課税口座(特定口座/TAXABLE)からの取り崩し時、平均取得原価方式で算出した譲渡益に課税する。
 # 申告分離課税の実際の税率(所得税15%+復興特別所得税0.315%+住民税5% = 20.315%)。

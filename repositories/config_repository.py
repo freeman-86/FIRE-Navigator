@@ -66,6 +66,8 @@ def load_tax_rules(config_path: Union[str, Path] = DEFAULT_TAX_CONFIG_PATH) -> T
         health_insurance_rate=Rate.of(social_insurance_raw["health_insurance_rate"]),
         pension_insurance_rate=Rate.of(social_insurance_raw["pension_insurance_rate"]),
         employment_insurance_rate=Rate.of(social_insurance_raw["employment_insurance_rate"]),
+        health_insurance_cap=_money_or_none(social_insurance_raw.get("health_insurance_cap")),
+        pension_insurance_cap=_money_or_none(social_insurance_raw.get("pension_insurance_cap")),
     )
 
     capital_gains_raw = raw["capital_gains"]

@@ -25,7 +25,7 @@ from adapters.sheets.sheets_input_adapter import (
     _build_expenses,
 )
 from core.domain.errors import StructuralInputError
-from core.domain.value_objects import EventConditionType, Money
+from core.domain.value_objects import EventConditionType, Money, Rate
 
 
 class _FakeWorksheet:
@@ -141,13 +141,56 @@ class BuildExpensesTest(unittest.TestCase):
             }
         )
 
-        expenses, one_time_expenses = _build_expenses(spreadsheet)
+        expenses, one_time_expenses = _build_expenses(spreadsheet, Rate.zero())
 
         self.assertEqual(len(expenses), 1)
         self.assertEqual(one_time_expenses, [])
         self.assertEqual(expenses[0].category, "living")
         self.assertEqual(expenses[0].amount, Money.of(3_600_000))
+        self.assertEqual(expenses[0].growth_rate, Rate.of("0.02"))
         self.assertFalse(expenses[0].is_flexible)
+
+    def test_blank_growth_rate_defaults_to_inflation_rate(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_living",
+                            CATEGORY_HEADER: "living",
+                            ONE_TIME_FLAG_HEADER: "FALSE",
+                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            GROWTH_RATE_HEADER: "",
+                        }
+                    ]
+                )
+            }
+        )
+
+        expenses, _ = _build_expenses(spreadsheet, Rate.of("0.02"))
+
+        self.assertEqual(expenses[0].growth_rate, Rate.of("0.02"))
+
+    def test_explicit_growth_rate_takes_priority_over_inflation_rate(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_living",
+                            CATEGORY_HEADER: "living",
+                            ONE_TIME_FLAG_HEADER: "FALSE",
+                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            GROWTH_RATE_HEADER: "0.03",
+                        }
+                    ]
+                )
+            }
+        )
+
+        expenses, _ = _build_expenses(spreadsheet, Rate.of("0.02"))
+
+        self.assertEqual(expenses[0].growth_rate, Rate.of("0.03"))
 
     def test_blank_one_time_flag_defaults_to_recurring(self) -> None:
         spreadsheet = _FakeSpreadsheet(
@@ -165,7 +208,7 @@ class BuildExpensesTest(unittest.TestCase):
             }
         )
 
-        expenses, one_time_expenses = _build_expenses(spreadsheet)
+        expenses, one_time_expenses = _build_expenses(spreadsheet, Rate.zero())
 
         self.assertEqual(len(expenses), 1)
         self.assertEqual(one_time_expenses, [])
@@ -188,7 +231,7 @@ class BuildExpensesTest(unittest.TestCase):
             }
         )
 
-        expenses, one_time_expenses = _build_expenses(spreadsheet)
+        expenses, one_time_expenses = _build_expenses(spreadsheet, Rate.zero())
 
         self.assertEqual(expenses, [])
         self.assertEqual(len(one_time_expenses), 1)
@@ -213,7 +256,7 @@ class BuildExpensesTest(unittest.TestCase):
         )
 
         with self.assertRaises(StructuralInputError) as ctx:
-            _build_expenses(spreadsheet)
+            _build_expenses(spreadsheet, Rate.zero())
         self.assertEqual(ctx.exception.field_path, f"{EXPENSES_SHEET}!row2.{START_TYPE_HEADER}")
 
 

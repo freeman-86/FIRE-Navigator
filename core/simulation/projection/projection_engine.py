@@ -11,7 +11,7 @@ from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.milestone import MilestoneType
 from core.domain.one_time_expense import OneTimeExpense
-from core.domain.pension import PensionRules
+from core.domain.pension import Pension, PensionRules
 from core.domain.plan import Plan, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import PortfolioRules
@@ -72,6 +72,7 @@ def run_projection(
     birth_date = plan.user.birth_date
     has_spouse = plan.user.spouse is not None
     default_monthly_rate = plan.assumptions.investment_growth_rate.monthly_equivalent()
+    per_account_monthly_rate = _monthly_rate_by_account_id(portfolios)
     one_time_expenses_by_month_offset = _one_time_expenses_by_month_offset(
         plan.one_time_expenses, start_year, start_month, birth_date
     )
@@ -89,9 +90,14 @@ def run_projection(
     yearly_projections: list[YearlyProjection] = []
     monthly_projections: list[MonthlyProjection] = []
     for offset_year, year in enumerate(range(start_year, end_year + 1)):
-        age = year - birth_date.year
-        gross_income_annual = _active_income_total(plan.incomes, year, start_year, birth_date, offset_year)
-        pension_income_annual = calculate_pension_income(age, plan.pension, pension_rules)
+        month_pairs_this_year = [
+            _calendar_year_month(start_year, start_month, offset_year * MONTHS_PER_YEAR + m)
+            for m in range(MONTHS_PER_YEAR)
+        ]
+        gross_income_annual = _active_income_total(
+            plan.incomes, month_pairs_this_year, start_year, start_month, birth_date, offset_year
+        )
+        pension_income_annual = _pension_income_for_year(birth_date, plan.pension, pension_rules, month_pairs_this_year)
         total_expense_annual = _expense_total(plan.expenses, offset_year)
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
@@ -117,6 +123,7 @@ def run_projection(
         for month in range(1, MONTHS_PER_YEAR + 1):
             month_offset = offset_year * MONTHS_PER_YEAR + (month - 1)
             calendar_year, calendar_month = _calendar_year_month(start_year, start_month, month_offset)
+            age_this_month = _age_at(birth_date, calendar_year, calendar_month)
             growth_rate = (
                 growth_rate_provider(month_offset) if growth_rate_provider is not None else default_monthly_rate
             )
@@ -132,7 +139,7 @@ def run_projection(
             net_cashflow_month = monthly_net_income - monthly_expense
             discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
             target_weights_this_month = (
-                plan.allocation_policy.weights_for_age(age) if plan.allocation_policy is not None else {}
+                plan.allocation_policy.weights_for_age(age_this_month) if plan.allocation_policy is not None else {}
             )
 
             if discretionary_surplus_month.is_negative:
@@ -180,7 +187,13 @@ def run_projection(
 
             account_balances = {
                 account_id: _floor_zero(
-                    _grow(balance, growth_rate) + contributions_this_month.get(account_id, Money.zero())
+                    _grow(
+                        balance,
+                        growth_rate
+                        if growth_rate_provider is not None
+                        else per_account_monthly_rate.get(account_id, default_monthly_rate),
+                    )
+                    + contributions_this_month.get(account_id, Money.zero())
                 )
                 for account_id, balance in account_balances.items()
             }
@@ -218,7 +231,7 @@ def run_projection(
                 MonthlyProjection(
                     year=calendar_year,
                     month=calendar_month,
-                    age_self=age,
+                    age_self=age_this_month,
                     gross_income=monthly_gross_income,
                     pension_income=monthly_pension_income,
                     net_income=monthly_net_income,
@@ -234,7 +247,7 @@ def run_projection(
         yearly_projections.append(
             YearlyProjection(
                 year=year,
-                age_self=age,
+                age_self=age_this_month,  # 月次ループの最終月(年末時点)の年齢
                 gross_income=gross_income_annual,
                 pension_income=pension_income_annual,
                 income_tax=tax_result.income_tax,
@@ -277,6 +290,22 @@ def _asset_class_by_account_id(portfolios: dict[str, Portfolio]) -> dict[str, As
     for account_id, portfolio in portfolios.items():
         if portfolio.holdings:
             result[account_id] = portfolio.holdings[0].asset.asset_class
+    return result
+
+
+def _monthly_rate_by_account_id(portfolios: dict[str, Portfolio]) -> dict[str, Rate]:
+    """口座ごとの月率換算した期待リターンを解決する（決定論的エンジン専用）。
+
+    入力_口座の期待リターン(Asset.expected_return)を口座ごとの資産成長率として使う。
+    Monte Carlo/Historical Engineはgrowth_rate_providerで全口座に一律の月次レートを渡す
+    既存の設計のままとする（資産クラス別の過去実績分布をAllocationPolicyの資産クラス比率で
+    加重合成した単一レートを使う設計であり、口座単位のexpected_returnは使わない）。
+    """
+
+    result: dict[str, Rate] = {}
+    for account_id, portfolio in portfolios.items():
+        if portfolio.holdings:
+            result[account_id] = portfolio.holdings[0].asset.expected_return.monthly_equivalent()
     return result
 
 
@@ -358,31 +387,66 @@ def _retirement_year(plan: Plan, start_year: int) -> Optional[int]:
     return None
 
 
-def _is_active(
+def _is_active_in_month(
     start_condition: EventCondition,
     end_condition: Optional[EventCondition],
-    year: int,
+    calendar_year: int,
+    calendar_month: int,
     start_year: int,
+    start_month: int,
     birth_date: date,
 ) -> bool:
-    start_year_resolved = resolve_condition_year(start_condition, start_year, birth_date)
-    if start_year_resolved is not None and year < start_year_resolved:
+    start_resolved = resolve_condition_month(start_condition, start_year, start_month, birth_date)
+    if start_resolved is not None and (calendar_year, calendar_month) < start_resolved:
         return False
     if end_condition is not None:
-        end_year_resolved = resolve_condition_year(end_condition, start_year, birth_date)
-        if end_year_resolved is not None and year >= end_year_resolved:
+        end_resolved = resolve_condition_month(end_condition, start_year, start_month, birth_date)
+        if end_resolved is not None and (calendar_year, calendar_month) >= end_resolved:
             return False
     return True
 
 
+def _active_months_in_year(
+    start_condition: EventCondition,
+    end_condition: Optional[EventCondition],
+    month_pairs: list[tuple[int, int]],
+    start_year: int,
+    start_month: int,
+    birth_date: date,
+) -> int:
+    return sum(
+        1
+        for calendar_year, calendar_month in month_pairs
+        if _is_active_in_month(
+            start_condition, end_condition, calendar_year, calendar_month, start_year, start_month, birth_date
+        )
+    )
+
+
 def _active_income_total(
-    incomes: list[Income], year: int, start_year: int, birth_date: date, offset: int
+    incomes: list[Income],
+    month_pairs: list[tuple[int, int]],
+    start_year: int,
+    start_month: int,
+    birth_date: date,
+    offset: int,
 ) -> Money:
+    """月精度で開始/終了条件を判定し、年間のうち条件を満たす月数分だけ按分した年間収入合計を返す
+    （「西暦年」だけでの判定だと、年の途中で開始/終了する収入が最大11ヶ月分ずれるため）。
+    """
+
     total = Money.zero()
     for income in incomes:
-        if not _is_active(income.start_condition, income.end_condition, year, start_year, birth_date):
+        active_months = _active_months_in_year(
+            income.start_condition, income.end_condition, month_pairs, start_year, start_month, birth_date
+        )
+        if active_months == 0:
             continue
-        total = total + _grown_amount(income.amount, income.growth_rate, offset)
+        full_year_amount = _grown_amount(income.amount, income.growth_rate, offset)
+        if active_months >= MONTHS_PER_YEAR:
+            total = total + full_year_amount
+        else:
+            total = total + full_year_amount * (Decimal(active_months) / Decimal(MONTHS_PER_YEAR))
     return total
 
 
@@ -391,6 +455,60 @@ def _expense_total(expenses: list[Expense], offset: int) -> Money:
     for expense in expenses:
         total = total + _grown_amount(expense.amount, expense.growth_rate, offset)
     return total
+
+
+def _age_at(birth_date: date, calendar_year: int, calendar_month: int) -> int:
+    """その月の1日時点での満年齢を返す（誕生日を考慮した正確な年齢）。
+
+    配分方針の年齢帯判定・年齢表示（YearlyProjection/MonthlyProjection.age_self）に使う。
+    「西暦年-生年」だけの単純計算だと誕生月を無視して最大1年近くずれるため、AgeAtで
+    誕生日基準の年齢を毎月計算し直す。
+    """
+
+    reference_date = date(calendar_year, calendar_month, 1)
+    if reference_date < birth_date:
+        return 0
+    return AgeAt(birth_date, reference_date).years
+
+
+def _pension_eligible_months(birth_date: date, claim_age: int, month_pairs: list[tuple[int, int]]) -> int:
+    """month_pairs（その年にループが実際に処理する(西暦年,月)の一覧）のうち、
+    年金受給資格年齢(claim_age)に達している月数を返す（0〜12）。
+
+    誕生日を迎えた月から資格を得ると仮定する簡略化（実際の支給開始月の厳密な制度計算は行わない）。
+    「西暦年-生年」だけで判定すると、誕生日がまだ来ていない月も受給資格ありと誤判定してしまうため
+    （最大11ヶ月分の年金を早く計上してしまう）、月ごとにAgeAtで正確な年齢を確認する。
+    month_pairsは_calendar_year_month()で解決した実際のカレンダー年月を渡す必要がある
+    （プランがTODAY開始で年度途中から始まる場合、ループの名目上のyearとは一致しないため）。
+    """
+
+    count = 0
+    for calendar_year, calendar_month in month_pairs:
+        reference_date = date(calendar_year, calendar_month, 1)
+        if reference_date < birth_date:
+            continue
+        if AgeAt(birth_date, reference_date).years >= claim_age:
+            count += 1
+    return count
+
+
+def _pension_income_for_year(
+    birth_date: date, pension: Pension, pension_rules: PensionRules, month_pairs: list[tuple[int, int]]
+) -> Money:
+    """その年の年金収入を、受給資格を得た月数で按分して返す（受給資格を得る年の按分計算）。
+
+    受給開始タイミングによる増減率(繰上げ/繰下げ)はcalculate_pension_income内で固定額として
+    決まるため、まず満額(claim_timing.age時点の額)を求め、その年のうち資格がある月数分だけ
+    按分する。年金は所得税・住民税と同様に年1回のみ確定する既存の設計を維持する。
+    """
+
+    eligible_months = _pension_eligible_months(birth_date, pension.claim_timing.age, month_pairs)
+    if eligible_months == 0:
+        return Money.zero()
+    full_year_amount = calculate_pension_income(pension.claim_timing.age, pension, pension_rules)
+    if eligible_months >= MONTHS_PER_YEAR:
+        return full_year_amount
+    return full_year_amount * (Decimal(eligible_months) / Decimal(MONTHS_PER_YEAR))
 
 
 def _school_year_age(birth_date: date, calendar_year: int, calendar_month: int) -> Optional[int]:

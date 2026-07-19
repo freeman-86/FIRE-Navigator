@@ -126,6 +126,13 @@ def _parse_rate(value: object, field_path: str) -> Rate:
         raise StructuralInputError(f"割合として解釈できない値です: {value!r}", field_path) from e
 
 
+def _parse_growth_rate(record: dict, field_path: str, default_growth_rate: Rate) -> Rate:
+    """成長率列。未入力の行はプラン設定のインフレ率を既定値として使う（入力済みの行はそちらを優先）。"""
+
+    raw = str(record.get(GROWTH_RATE_HEADER, "")).strip()
+    return _parse_rate(raw, field_path) if raw else default_growth_rate
+
+
 def _parse_int(value: object, field_path: str) -> int:
     try:
         return int(str(value).strip())
@@ -442,7 +449,13 @@ def _build_children_and_education_expenses(
     return list(children_by_id.values()), bands
 
 
-def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
+def _build_incomes(spreadsheet: gspread.Spreadsheet, default_growth_rate: Rate) -> list[Income]:
+    """収入一覧を入力_収入シートから組み立てる。
+
+    成長率(GROWTH_RATE_HEADER)が未入力の行は、プラン設定のインフレ率(default_growth_rate)を
+    既定値として使う（入力済みの行はそちらを優先する）。
+    """
+
     worksheet = spreadsheet.worksheet(INCOMES_SHEET)
     incomes = []
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
@@ -463,10 +476,7 @@ def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
                     _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
                     f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
                 ),
-                growth_rate=_parse_rate(
-                    _require(record, GROWTH_RATE_HEADER, f"{row_prefix}.{GROWTH_RATE_HEADER}"),
-                    f"{row_prefix}.{GROWTH_RATE_HEADER}",
-                ),
+                growth_rate=_parse_growth_rate(record, f"{row_prefix}.{GROWTH_RATE_HEADER}", default_growth_rate),
                 start_condition=start_condition,
                 end_condition=end_condition,
             )
@@ -474,11 +484,14 @@ def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     return incomes
 
 
-def _build_expenses(spreadsheet: gspread.Spreadsheet) -> tuple[list[Expense], list[OneTimeExpense]]:
+def _build_expenses(
+    spreadsheet: gspread.Spreadsheet, default_growth_rate: Rate
+) -> tuple[list[Expense], list[OneTimeExpense]]:
     """経常支出と単発支出（旧Input_大型支出）を入力_支出シートから組み立てる。
 
     ONE_TIME_FLAG_HEADER=TRUEの行は単発支出（発生条件で1回のみ）、それ以外(既定FALSE)は
-    経常支出（毎年発生・成長率あり）として振り分ける。
+    経常支出（毎年発生・成長率あり）として振り分ける。経常支出の成長率が未入力の行は、
+    プラン設定のインフレ率(default_growth_rate)を既定値として使う（入力済みの行はそちらを優先）。
     """
 
     worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
@@ -505,10 +518,7 @@ def _build_expenses(spreadsheet: gspread.Spreadsheet) -> tuple[list[Expense], li
                 OneTimeExpense(expense_id=expense_id, category=category, amount=amount, trigger=trigger)
             )
         else:
-            growth_rate = _parse_rate(
-                _require(record, GROWTH_RATE_HEADER, f"{row_prefix}.{GROWTH_RATE_HEADER}"),
-                f"{row_prefix}.{GROWTH_RATE_HEADER}",
-            )
+            growth_rate = _parse_growth_rate(record, f"{row_prefix}.{GROWTH_RATE_HEADER}", default_growth_rate)
             expenses.append(
                 Expense(
                     expense_id=expense_id,
@@ -628,7 +638,8 @@ def _default_contribution_strategy() -> ContributionStrategy:
 def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
     settings = _read_plan_settings(spreadsheet)
     user = _build_user(settings)
-    expenses, one_time_expenses = _build_expenses(spreadsheet)
+    assumptions = _build_assumptions(settings)
+    expenses, one_time_expenses = _build_expenses(spreadsheet, assumptions.inflation_rate)
     children, education_expenses = _build_children_and_education_expenses(spreadsheet)
 
     return Plan(
@@ -636,13 +647,13 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         name=_require_setting(settings, PLAN_NAME_HEADER),
         user=user,
         start_condition=StartCondition(StartConditionType.TODAY),
-        assumptions=_build_assumptions(settings),
+        assumptions=assumptions,
         accounts=_build_accounts(spreadsheet),
         tax_config=_default_tax_config(user),
         pension=_build_pension(settings),
         withdrawal_strategy=_default_withdrawal_strategy(),
         contribution_strategy=_default_contribution_strategy(),
-        incomes=_build_incomes(spreadsheet),
+        incomes=_build_incomes(spreadsheet, assumptions.inflation_rate),
         expenses=expenses,
         milestones=_build_milestones(settings),
         allocation_policy=_build_allocation_policy(spreadsheet),

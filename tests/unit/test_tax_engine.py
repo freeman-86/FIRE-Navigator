@@ -1,8 +1,8 @@
 import unittest
 
-from core.domain.tax_config import TaxConfig
+from core.domain.tax_config import SocialInsuranceRules, TaxConfig
 from core.domain.user import Prefecture
-from core.domain.value_objects import Money
+from core.domain.value_objects import Money, Rate
 from core.simulation.tax.income_tax import (
     calculate_employment_income_deduction,
     calculate_income_tax,
@@ -63,11 +63,16 @@ class ResidentTaxTest(unittest.TestCase):
         self.rules = load_tax_rules().resident_tax
 
     def test_flat_rate_plus_per_capita_levy(self) -> None:
-        tax = calculate_resident_tax(Money.of(3_880_000), self.rules)
+        tax = calculate_resident_tax(Money.of(3_880_000), Money.of(6_000_000), self.rules)
         self.assertEqual(tax, Money.of(393_000))
 
-    def test_zero_when_no_taxable_income(self) -> None:
-        self.assertEqual(calculate_resident_tax(Money.zero(), self.rules), Money.zero())
+    def test_per_capita_levy_still_applies_when_deductions_zero_out_taxable_income(self) -> None:
+        # 収入はあるが控除の結果taxable_incomeが0になった場合、均等割(5,000円)のみ課税される
+        tax = calculate_resident_tax(Money.zero(), Money.of(500_000), self.rules)
+        self.assertEqual(tax, Money.of(5_000))
+
+    def test_zero_when_no_income_at_all(self) -> None:
+        self.assertEqual(calculate_resident_tax(Money.zero(), Money.zero(), self.rules), Money.zero())
 
 
 class SocialInsuranceTest(unittest.TestCase):
@@ -77,6 +82,32 @@ class SocialInsuranceTest(unittest.TestCase):
     def test_combined_rate_applied_to_gross_income(self) -> None:
         insurance = calculate_social_insurance(Money.of(6_000_000), self.rules)
         self.assertEqual(insurance, Money.of(885_000))
+
+    def test_health_and_pension_insurance_are_capped_but_employment_insurance_is_not(self) -> None:
+        rules = SocialInsuranceRules(
+            health_insurance_rate=Rate.of("0.05"),
+            pension_insurance_rate=Rate.of("0.0915"),
+            employment_insurance_rate=Rate.of("0.006"),
+            health_insurance_cap=Money.of(16_680_000),
+            pension_insurance_cap=Money.of(7_800_000),
+        )
+        # 健康保険は上限16,680,000円、厚生年金は上限7,800,000円で頭打ちになる。雇用保険は上限なし。
+        insurance = calculate_social_insurance(Money.of(20_000_000), rules)
+        expected = (
+            Money.of(16_680_000) * Rate.of("0.05")
+            + Money.of(7_800_000) * Rate.of("0.0915")
+            + Money.of(20_000_000) * Rate.of("0.006")
+        )
+        self.assertEqual(insurance, expected)
+
+    def test_no_cap_configured_behaves_as_before(self) -> None:
+        rules = SocialInsuranceRules(
+            health_insurance_rate=Rate.of("0.05"),
+            pension_insurance_rate=Rate.of("0.0915"),
+            employment_insurance_rate=Rate.of("0.006"),
+        )
+        insurance = calculate_social_insurance(Money.of(20_000_000), rules)
+        self.assertEqual(insurance, Money.of(20_000_000) * Rate.of("0.1475"))
 
 
 class TaxEngineTest(unittest.TestCase):

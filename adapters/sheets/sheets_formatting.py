@@ -47,7 +47,6 @@ from adapters.sheets.sheet_mapping import (
     EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
-    GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
@@ -127,7 +126,7 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
         ),
         TabularSheetSpec(
             INCOMES_SHEET,
-            [INCOME_ID_HEADER, SOURCE_HEADER, AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
+            [INCOME_ID_HEADER, SOURCE_HEADER, AMOUNT_ANNUAL_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
             {START_TYPE_HEADER: CONDITION_TYPE_CHOICES, END_TYPE_HEADER: CONDITION_TYPE_CHOICES},
         ),
         TabularSheetSpec(

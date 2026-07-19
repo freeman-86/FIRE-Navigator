@@ -29,6 +29,7 @@ from adapters.sheets.sheet_mapping import (
     VOLATILITY_HEADER,
 )
 from core.domain.errors import StructuralInputError
+from core.domain.value_objects import Rate
 
 
 class _FakeWorksheet:
@@ -125,7 +126,7 @@ class BuildIncomesErrorTest(unittest.TestCase):
             }
         )
         with self.assertRaises(StructuralInputError) as ctx:
-            _build_incomes(spreadsheet)
+            _build_incomes(spreadsheet, Rate.zero())
         self.assertEqual(ctx.exception.field_path, f"{INCOMES_SHEET}!row2.{AMOUNT_ANNUAL_HEADER}")
 
     def test_missing_start_type_raises_error(self) -> None:
@@ -146,7 +147,53 @@ class BuildIncomesErrorTest(unittest.TestCase):
             }
         )
         with self.assertRaises(StructuralInputError):
-            _build_incomes(spreadsheet)
+            _build_incomes(spreadsheet, Rate.zero())
+
+
+class BuildIncomesGrowthRateDefaultTest(unittest.TestCase):
+    def test_blank_growth_rate_defaults_to_inflation_rate(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                INCOMES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            INCOME_ID_HEADER: "income_001",
+                            SOURCE_HEADER: "salary",
+                            AMOUNT_ANNUAL_HEADER: "1000000",
+                            GROWTH_RATE_HEADER: "",
+                            START_TYPE_HEADER: "plan_start",
+                            START_VALUE_HEADER: "",
+                        }
+                    ]
+                )
+            }
+        )
+
+        incomes = _build_incomes(spreadsheet, Rate.of("0.02"))
+
+        self.assertEqual(incomes[0].growth_rate, Rate.of("0.02"))
+
+    def test_explicit_growth_rate_takes_priority_over_inflation_rate(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                INCOMES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            INCOME_ID_HEADER: "income_001",
+                            SOURCE_HEADER: "salary",
+                            AMOUNT_ANNUAL_HEADER: "1000000",
+                            GROWTH_RATE_HEADER: "0.01",
+                            START_TYPE_HEADER: "plan_start",
+                            START_VALUE_HEADER: "",
+                        }
+                    ]
+                )
+            }
+        )
+
+        incomes = _build_incomes(spreadsheet, Rate.of("0.02"))
+
+        self.assertEqual(incomes[0].growth_rate, Rate.of("0.01"))
 
 
 if __name__ == "__main__":

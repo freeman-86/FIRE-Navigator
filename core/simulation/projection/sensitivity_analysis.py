@@ -41,9 +41,11 @@ def run_sensitivity_analysis(
     """assumptionsの成長率・インフレ率をplanの値からの増減幅で複数パターン振って再計算し、
     各組み合わせの最終年ネットワースをグリッドとして返すバッチ処理。
 
-    既知の制約: inflation_rateは現時点のProjection Engineでは未使用（Income/Expenseが個別に
-    growth_rateを持つ設計のため）。したがってinflation_rate側の軸を振っても結果は変わらない。
-    growth_rate側は投資成長率として実際にrun_projection()へ反映される。
+    既知の制約: inflation_rateはInput_収入・入力_支出で成長率が未入力の行の既定値として、
+    スプレッドシート読込時（sheets_input_adapter._parse_growth_rate）にIncome/Expenseの
+    growth_rateへ反映済みの値である。そのため、このplan（読込済みのPlan）のinflation_rateを
+    ここで振っても、既にgrowth_rateが確定済みのIncome/Expenseには反映されず、inflation_rate側の
+    軸を振っても結果は変わらない。growth_rate側は投資成長率として実際にrun_projection()へ反映される。
     """
 
     growth_rate_labels = [label for label, _delta in growth_rate_variations]

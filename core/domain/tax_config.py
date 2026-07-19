@@ -43,9 +43,17 @@ class ResidentTaxRules:
 
 @dataclass
 class SocialInsuranceRules:
+    """健康保険・厚生年金保険は標準報酬月額に上限があるため、年収換算の上限
+    (health_insurance_cap/pension_insurance_cap)を超える部分には保険料がかからない。
+    雇用保険には上限がないため対応するcapフィールドはない。上限を指定しない場合(None)は
+    従来通り上限なしで計算する。
+    """
+
     health_insurance_rate: Rate
     pension_insurance_rate: Rate
     employment_insurance_rate: Rate
+    health_insurance_cap: Optional[Money] = None
+    pension_insurance_cap: Optional[Money] = None
 
 
 @dataclass

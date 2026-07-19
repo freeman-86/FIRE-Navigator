@@ -15,7 +15,13 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
-from core.simulation.projection.projection_engine import DEFAULT_LIFE_EXPECTANCY_AGE, _school_year_age, run_projection
+from core.simulation.projection.projection_engine import (
+    DEFAULT_LIFE_EXPECTANCY_AGE,
+    _age_at,
+    _pension_eligible_months,
+    _school_year_age,
+    run_projection,
+)
 from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
 from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
 from tests.pension_test_fixtures import zero_pension_rules
@@ -46,8 +52,14 @@ def _minimal_plan(**overrides) -> Plan:
     return Plan(**defaults)
 
 
-def _portfolio(balance: int, asset_class: AssetClass = "equity_sp500") -> Portfolio:
-    asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
+def _portfolio(balance: int, asset_class: AssetClass = "equity_sp500", expected_return: Rate = None) -> Portfolio:
+    # 決定論的エンジンは口座ごとのexpected_returnで資産成長させるため、成長を意図しないテストが
+    # 意図せず影響を受けないよう既定は0%とする（成長を検証したいテストは明示的に指定する）。
+    asset = Asset(
+        asset_class=asset_class,
+        expected_return=expected_return if expected_return is not None else Rate.zero(),
+        volatility=Rate.from_percent(15),
+    )
     holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
     return Portfolio(holdings=[holding])
 
@@ -103,7 +115,8 @@ class ProjectionEngineTest(unittest.TestCase):
             expenses=[expense],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
         )
-        portfolios = {"acc_001": _portfolio(1_000_000)}
+        # 決定論的エンジンは口座ごとのexpected_returnで成長させるため、投資成長率(5%)と合わせて指定する
+        portfolios = {"acc_001": _portfolio(1_000_000, expected_return=Rate.from_percent(5))}
 
         result = _run(plan, portfolios)
         first_year = result.yearly_projections[0]
@@ -117,6 +130,27 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(first_year.account_balances["acc_001"], Money.of(1_050_000))
         self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(2_045_434))
         self.assertEqual(first_year.networth, Money.of(3_095_434))
+
+    def test_deterministic_engine_grows_each_account_by_its_own_expected_return(self) -> None:
+        high_growth_account = Account(account_id="acc_high", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        low_growth_account = Account(account_id="acc_low", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        plan = _minimal_plan(
+            accounts=[high_growth_account, low_growth_account],
+            # プラン全体のinvestment_growth_rateはどちらの口座の期待リターンとも異なる値にして、
+            # 口座ごとのexpected_returnが実際に使われている(投資成長率が使われていない)ことを示す
+            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(2)),
+        )
+        portfolios = {
+            "acc_high": _portfolio(1_000_000, expected_return=Rate.from_percent(10)),
+            "acc_low": _portfolio(1_000_000, expected_return=Rate.zero()),
+        }
+
+        result = _run(plan, portfolios)
+        first_year = result.yearly_projections[0]
+
+        # 月次複利12回の端数丸めにより単純な年率10%(1,100,000)からわずかにずれる
+        self.assertEqual(first_year.account_balances["acc_high"], Money.of(1_099_999))
+        self.assertEqual(first_year.account_balances["acc_low"], Money.of(1_000_000))
 
     def test_account_without_portfolio_entry_starts_at_zero_balance(self) -> None:
         account = Account(account_id="acc_no_portfolio", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
@@ -138,9 +172,12 @@ class ProjectionEngineTest(unittest.TestCase):
         plan = _minimal_plan(incomes=[income])
         result = _run(plan)
 
+        # 生年月日1990-04-01、終了条件は60歳(2050年4月に60歳の誕生日)。60歳に達する年（2050年）は
+        # 1〜3月の3ヶ月分のみ収入があり(1,000,000×3/12=250,000)、翌年(2051年、61歳)は0円になる。
         by_age = {p.age_self: p.gross_income for p in result.yearly_projections}
         self.assertEqual(by_age[59], Money.of(1_000_000))
-        self.assertEqual(by_age[60], Money.zero())
+        self.assertEqual(by_age[60], Money.of(250_000))
+        self.assertEqual(by_age[61], Money.zero())
 
 
 class PensionAndWithdrawalTest(unittest.TestCase):
@@ -161,9 +198,13 @@ class PensionAndWithdrawalTest(unittest.TestCase):
 
         result = _run(plan)
 
+        # 生年月日1990-04-01、標準65歳受給。65歳に達する年（2055年）は4〜12月の9ヶ月分のみ
+        # 受給資格があるため、満額(1,980,000)の9/12を按分計上する（誕生日を考慮した按分）。
+        # 翌年(2056年、66歳)は年間を通じて資格があるため満額になる。
         by_age = {p.age_self: p.pension_income for p in result.yearly_projections}
         self.assertEqual(by_age[64], Money.zero())
-        self.assertEqual(by_age[65], Money.of(1_980_000))
+        self.assertEqual(by_age[65], Money.of(1_485_000))
+        self.assertEqual(by_age[66], Money.of(1_980_000))
 
     def test_early_claim_reduces_pension_income(self) -> None:
         pension_rules = load_pension_rules()
@@ -182,8 +223,11 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules(), pension_rules)
 
         # 60歳受給(標準65歳より60ヶ月早い) -> 60ヶ月×0.4%=24%減額 -> 1,980,000×0.76=1,504,800
+        # 生年月日1990-04-01のため、60歳に達する年（2050年）は4〜12月の9ヶ月分のみ按分計上
+        # （1,504,800×9/12=1,128,600）。翌年(2051年、61歳)は満額になる。
         by_age = {p.age_self: p.pension_income for p in result.yearly_projections}
-        self.assertEqual(by_age[60], Money.of(1_504_800))
+        self.assertEqual(by_age[60], Money.of(1_128_600))
+        self.assertEqual(by_age[61], Money.of(1_504_800))
 
     def test_withdrawal_covers_post_retirement_shortfall_from_account_balance(self) -> None:
         account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
@@ -356,7 +400,7 @@ class MonthlyProjectionsTest(unittest.TestCase):
             accounts=[account],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
         )
-        portfolios = {"acc_taxable": _portfolio(1_000_000)}
+        portfolios = {"acc_taxable": _portfolio(1_000_000, expected_return=Rate.from_percent(5))}
 
         result = _run(plan, portfolios)
 
@@ -394,7 +438,7 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
             withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
         )
-        portfolios = {"acc_taxable": _portfolio(5_000_000, "cash")}
+        portfolios = {"acc_taxable": _portfolio(5_000_000, "cash", expected_return=Rate.from_percent(5))}
 
         result = run_projection(plan, portfolios, load_tax_rules(), load_portfolio_rules(), zero_pension_rules())
         first_year = result.yearly_projections[0]
@@ -464,6 +508,44 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         first_month = result.monthly_projections[0]
         self.assertEqual(first_month.account_balances["acc_equity"], Money.of(900_000))
         self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
+
+
+class AgeAtMonthTest(unittest.TestCase):
+    def test_switches_exactly_on_birth_month_not_january(self) -> None:
+        birth_date = date(1990, 9, 1)
+        # 誕生月(9月)より前は前年の年齢のまま、誕生月(1日時点)以降で切り替わる
+        self.assertEqual(_age_at(birth_date, 2026, 8), 35)
+        self.assertEqual(_age_at(birth_date, 2026, 9), 36)
+        self.assertEqual(_age_at(birth_date, 2026, 12), 36)
+        self.assertEqual(_age_at(birth_date, 2027, 1), 36)
+
+    def test_reference_is_the_first_of_the_month_so_late_birthday_delays_switch(self) -> None:
+        birth_date = date(1990, 9, 15)
+        # 参照日は各月の1日のため、9月1日時点ではまだ誕生日(9/15)を迎えておらず35歳のまま
+        self.assertEqual(_age_at(birth_date, 2026, 9), 35)
+        self.assertEqual(_age_at(birth_date, 2026, 10), 36)
+
+    def test_returns_zero_before_birth(self) -> None:
+        self.assertEqual(_age_at(date(2030, 1, 1), 2026, 1), 0)
+
+
+class PensionEligibleMonthsTest(unittest.TestCase):
+    def test_counts_only_months_from_birth_month_in_transition_year(self) -> None:
+        # 1990-04-01生まれ、65歳受給。2055年度中に65歳の誕生日(4/1)を迎えるため、
+        # 4月〜12月の9ヶ月分のみ資格がある(1〜3月はまだ64歳)。
+        birth_date = date(1990, 4, 1)
+        month_pairs = [(2055, m) for m in range(1, 13)]
+        self.assertEqual(_pension_eligible_months(birth_date, 65, month_pairs), 9)
+
+    def test_counts_all_twelve_months_once_fully_eligible(self) -> None:
+        birth_date = date(1990, 4, 1)
+        month_pairs = [(2056, m) for m in range(1, 13)]
+        self.assertEqual(_pension_eligible_months(birth_date, 65, month_pairs), 12)
+
+    def test_counts_zero_months_before_eligible(self) -> None:
+        birth_date = date(1990, 4, 1)
+        month_pairs = [(2054, m) for m in range(1, 13)]
+        self.assertEqual(_pension_eligible_months(birth_date, 65, month_pairs), 0)
 
 
 class SchoolYearAgeTest(unittest.TestCase):

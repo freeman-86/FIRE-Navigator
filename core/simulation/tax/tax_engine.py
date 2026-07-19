@@ -39,7 +39,7 @@ def calculate_tax(
     )
 
     income_tax = calculate_income_tax(taxable_income, rules.income_tax)
-    resident_tax = calculate_resident_tax(taxable_income, rules.resident_tax)
+    resident_tax = calculate_resident_tax(taxable_income, total_income, rules.resident_tax)
     social_insurance = calculate_social_insurance(employment_income, rules.social_insurance)
 
     total_tax = income_tax + resident_tax + social_insurance
