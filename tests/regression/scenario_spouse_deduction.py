@@ -1,7 +1,7 @@
 from datetime import date
 
 from core.domain.account import Account, AccountType, OwnerType
-from core.domain.asset import Asset, AssetClass
+from core.domain.asset import Asset
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
 from core.domain.holding import Holding
@@ -66,7 +66,7 @@ def build_plan() -> Plan:
 
 def build_portfolios() -> dict[str, Portfolio]:
     asset = Asset(
-        asset_class=AssetClass.GLOBAL_EQUITY, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15)
+        asset_class="equity_sp500", expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15)
     )
     holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(2_000_000))
     return {"acc_taxable_001": Portfolio(holdings=[holding])}

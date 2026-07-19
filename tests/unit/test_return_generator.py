@@ -1,6 +1,5 @@
 import unittest
 
-from core.domain.asset import AssetClass
 from core.simulation.montecarlo.correlation_matrix import CorrelationMatrix
 from core.simulation.montecarlo.distribution import AssetReturnDistribution
 from core.simulation.montecarlo.random_seed import create_rng
@@ -10,16 +9,16 @@ from core.domain.value_objects import Rate
 
 class GenerateAnnualReturnsTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.asset_classes = [AssetClass.DOMESTIC_EQUITY, AssetClass.DOMESTIC_BOND]
+        self.asset_classes = ["domestic_equity", "domestic_bond"]
         self.distributions = {
-            AssetClass.DOMESTIC_EQUITY: AssetReturnDistribution(
-                AssetClass.DOMESTIC_EQUITY, mean=Rate.from_percent(5), std_dev=Rate.from_percent(15)
+            "domestic_equity": AssetReturnDistribution(
+                "domestic_equity", mean=Rate.from_percent(5), std_dev=Rate.from_percent(15)
             ),
-            AssetClass.DOMESTIC_BOND: AssetReturnDistribution(
-                AssetClass.DOMESTIC_BOND, mean=Rate.from_percent(1), std_dev=Rate.from_percent(3)
+            "domestic_bond": AssetReturnDistribution(
+                "domestic_bond", mean=Rate.from_percent(1), std_dev=Rate.from_percent(3)
             ),
         }
-        self.correlation_matrix = CorrelationMatrix({(AssetClass.DOMESTIC_EQUITY, AssetClass.DOMESTIC_BOND): 0.2})
+        self.correlation_matrix = CorrelationMatrix({("domestic_equity", "domestic_bond"): 0.2})
 
     def test_same_seed_produces_identical_sequence(self) -> None:
         sequence_a = [

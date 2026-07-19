@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 
 from core.domain.account import Account, AccountType, OwnerType
-from core.domain.asset import Asset, AssetClass
+from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
 from core.domain.milestone import Milestone, MilestoneType
@@ -69,7 +69,7 @@ def _build_plan() -> Plan:
 
 def _build_portfolios(plan: Plan) -> dict[str, Portfolio]:
     asset = Asset(
-        asset_class=AssetClass.GLOBAL_EQUITY,
+        asset_class="equity_sp500",
         expected_return=Rate.from_percent(5),
         volatility=Rate.from_percent(15),
     )
@@ -87,7 +87,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(plan.withdrawal_strategy.order[0], AccountType.CASH)
         # PortfolioはPlan Aggregateに埋め込まれず、account_idをキーに独立して参照する
         self.assertEqual(
-            portfolios[plan.accounts[0].account_id].holdings[0].asset.asset_class, AssetClass.GLOBAL_EQUITY
+            portfolios[plan.accounts[0].account_id].holdings[0].asset.asset_class, "equity_sp500"
         )
 
     def test_user_age_at_plan_start(self) -> None:

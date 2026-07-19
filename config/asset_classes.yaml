@@ -1,0 +1,25 @@
+# 有効な資産クラスの識別子と日本語表示名のレジストリ。
+#
+# core/domain/asset.py の AssetClass は固定Enumではなく単なる文字列（設計書3.2:
+# domain層はI/Oを持たないため、値の妥当性検証はrepositories/adapters側の責務とする）。
+# 新しい資産クラスを追加したいときは、このファイルに1エントリ追加するだけでよく、
+# core/simulation配下のコード変更は不要（Projection Engine・Monte Carlo Engine等は
+# 資産クラスをdictのキーとしてのみ扱うため）。
+#
+# ただしMonte Carlo/Historical Engineでリターン分布・過去データを使うには、別途
+# config/market_data/historical_returns_*.yaml に対応する系列を追加する必要がある
+# （未追加の資産クラスは、Monte Carlo/Historicalの加重平均リターン計算から除外され、
+# 実質0%リターン扱いになる点に注意。決定論的なProjection Engineは
+# plan.assumptions.investment_growth_rateを使うため、この制約の影響を受けない）。
+
+schema_version: 1
+
+asset_classes:
+  cash:
+    display_name: "現金"
+  equity_sp500:
+    display_name: "株式（S&P500連動）"
+  bond_us_treasury:
+    display_name: "債券（米国長期国債）"
+  btc:
+    display_name: "BTC"

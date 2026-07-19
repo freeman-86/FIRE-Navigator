@@ -121,8 +121,13 @@ docs/                 設計書・ロードマップ
 
 ## 既知の制約
 
-- `domestic_bond`・`global_bond` の過去リターン系列（`config/market_data/`）は実際の指数値を
-  検証しきれておらず、一般的な資産クラスの特性に基づく参考値（詳細はファイル内コメント参照）。
+- 資産クラスは`config/asset_classes.yaml`で管理しており、コード変更なしに追加できる
+  （`repositories/asset_class_repository.py`）。ただしMonte Carlo/Historical Engineで
+  使うには別途`config/market_data/`に過去リターン系列を追加する必要があり、未追加の資産クラス
+  （例: `btc`）はこれらのEngineの加重平均リターン計算で実質0%リターン扱いになる
+  （決定論的なProjection Engineはこの制約を受けない）。
+- `config/market_data/historical_returns_2001_2024.yaml`の過去リターン系列（S&P500・米国長期国債）
+  はAswath Damodaran教授（NYU Stern）の公開データセットに基づく実データ（詳細はファイル内コメント参照）。
 - `inflation_rate`（`入力_プラン設定`）は現時点でシミュレーション結果に反映されない
   （Income/Expenseが個別の`growth_rate`を持つ設計のため）。
 - 投資の含み益・実現益に対する課税、住宅ローン（`core/domain/loan.py`）は未実装（MVPスコープ外）。

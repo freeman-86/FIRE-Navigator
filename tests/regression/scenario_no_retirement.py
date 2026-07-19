@@ -86,7 +86,7 @@ def build_portfolios() -> dict[str, Portfolio]:
         return Portfolio(holdings=[Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))])
 
     return {
-        "acc_cash_001": _portfolio(1_500_000, AssetClass.CASH),
-        "acc_nisa_growth_001": _portfolio(500_000, AssetClass.GLOBAL_EQUITY),
-        "acc_ideco_001": _portfolio(300_000, AssetClass.DOMESTIC_BOND),
+        "acc_cash_001": _portfolio(1_500_000, "cash"),
+        "acc_nisa_growth_001": _portfolio(500_000, "equity_sp500"),
+        "acc_ideco_001": _portfolio(300_000, "bond_us_treasury"),
     }

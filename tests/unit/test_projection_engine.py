@@ -45,7 +45,7 @@ def _minimal_plan(**overrides) -> Plan:
     return Plan(**defaults)
 
 
-def _portfolio(balance: int, asset_class: AssetClass = AssetClass.GLOBAL_EQUITY) -> Portfolio:
+def _portfolio(balance: int, asset_class: AssetClass = "equity_sp500") -> Portfolio:
     asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
     holding = Holding(asset=asset, quantity=1, cost_basis=Money.of(balance))
     return Portfolio(holdings=[holding])
@@ -201,7 +201,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
             milestones=[milestone],
             withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
         )
-        portfolios = {"acc_taxable": _portfolio(10_000_000, AssetClass.CASH)}
+        portfolios = {"acc_taxable": _portfolio(10_000_000, "cash")}
 
         result = _run(plan, portfolios)
         first_year = result.yearly_projections[0]
@@ -229,7 +229,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
             milestones=[milestone],
             withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
         )
-        portfolios = {"acc_taxable": _portfolio(1_000_000, AssetClass.CASH)}
+        portfolios = {"acc_taxable": _portfolio(1_000_000, "cash")}
 
         result = _run(plan, portfolios)
         first_year = result.yearly_projections[0]
@@ -254,7 +254,7 @@ class NisaIdecoComparisonTest(unittest.TestCase):
                 monthly_contribution=Money.of(23_000),
             )
             accounts.append(ideco)
-            portfolios["acc_ideco"] = _portfolio(0, AssetClass.DOMESTIC_BOND)
+            portfolios["acc_ideco"] = _portfolio(0, "bond_us_treasury")
         return accounts, portfolios
 
     def _income(self) -> Income:

@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 
 from core.domain.account import Account, AccountType, OwnerType
-from core.domain.asset import Asset, AssetClass
+from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
 from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
@@ -25,7 +25,7 @@ def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
 
     def _portfolio(balance: int) -> Portfolio:
         asset = Asset(
-            asset_class=AssetClass.GLOBAL_EQUITY,
+            asset_class="equity_sp500",
             expected_return=Rate.from_percent(5),
             volatility=Rate.from_percent(15),
         )

@@ -1,27 +1,21 @@
 import unittest
 
-from core.domain.asset import AssetClass
 from repositories.market_data_repository import load_historical_dataset
 
 
 class LoadHistoricalDatasetTest(unittest.TestCase):
-    def test_loads_all_four_asset_classes_for_committed_dataset(self) -> None:
+    def test_loads_both_asset_classes_for_committed_dataset(self) -> None:
         dataset = load_historical_dataset()
 
         self.assertEqual(dataset.start_year, 2001)
         self.assertEqual(dataset.end_year, 2024)
-        self.assertEqual(
-            set(dataset.series_by_asset_class.keys()),
-            {AssetClass.DOMESTIC_EQUITY, AssetClass.GLOBAL_EQUITY, AssetClass.DOMESTIC_BOND, AssetClass.GLOBAL_BOND},
-        )
+        self.assertEqual(set(dataset.series_by_asset_class.keys()), {"equity_sp500", "bond_us_treasury"})
 
-    def test_verified_flag_distinguishes_sourced_from_illustrative_series(self) -> None:
+    def test_both_series_are_verified(self) -> None:
         dataset = load_historical_dataset()
 
-        self.assertTrue(dataset.series_by_asset_class[AssetClass.DOMESTIC_EQUITY].verified)
-        self.assertTrue(dataset.series_by_asset_class[AssetClass.GLOBAL_EQUITY].verified)
-        self.assertFalse(dataset.series_by_asset_class[AssetClass.DOMESTIC_BOND].verified)
-        self.assertFalse(dataset.series_by_asset_class[AssetClass.GLOBAL_BOND].verified)
+        self.assertTrue(dataset.series_by_asset_class["equity_sp500"].verified)
+        self.assertTrue(dataset.series_by_asset_class["bond_us_treasury"].verified)
 
     def test_each_series_spans_the_full_dataset_range(self) -> None:
         dataset = load_historical_dataset()

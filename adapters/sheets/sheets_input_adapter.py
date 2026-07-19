@@ -62,6 +62,7 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
+from repositories.asset_class_repository import load_asset_class_registry
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -126,6 +127,16 @@ def _parse_enum(enum_cls, value: object, field_path: str):
         raise StructuralInputError(
             f"未知の値です: {value!r}（有効な値: {allowed}）", field_path
         ) from e
+
+
+def _parse_asset_class(value: object, field_path: str, asset_class_registry: dict[AssetClass, str]) -> AssetClass:
+    code = str(value).strip()
+    if code not in asset_class_registry:
+        allowed = ", ".join(asset_class_registry.keys())
+        raise StructuralInputError(
+            f"未知の資産クラスです: {code!r}（有効な値: {allowed}）", field_path
+        )
+    return code
 
 
 def _parse_bool(value: object) -> bool:
@@ -218,8 +229,17 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
     return accounts
 
 
-def _build_portfolios(spreadsheet: gspread.Spreadsheet) -> dict[str, Portfolio]:
-    """Portfolio Aggregate（account_idで参照される独立集約）を入力_口座シートから組み立てる。"""
+def _build_portfolios(
+    spreadsheet: gspread.Spreadsheet, asset_class_registry: Optional[dict[AssetClass, str]] = None
+) -> dict[str, Portfolio]:
+    """Portfolio Aggregate（account_idで参照される独立集約）を入力_口座シートから組み立てる。
+
+    asset_class_registryは資産クラス識別子の妥当性検証に使う（省略時はconfig/asset_classes.yamlを
+    読み込む）。新しい資産クラスを追加してもこの関数のロジックは変更不要（設計書3.2）。
+    """
+
+    if asset_class_registry is None:
+        asset_class_registry = load_asset_class_registry()
 
     worksheet = spreadsheet.worksheet(ACCOUNTS_SHEET)
     portfolios: dict[str, Portfolio] = {}
@@ -227,10 +247,10 @@ def _build_portfolios(spreadsheet: gspread.Spreadsheet) -> dict[str, Portfolio]:
         row_prefix = f"{ACCOUNTS_SHEET}!row{row_number}"
         account_id = str(_require(record, ACCOUNT_ID_HEADER, f"{row_prefix}.{ACCOUNT_ID_HEADER}"))
         asset = Asset(
-            asset_class=_parse_enum(
-                AssetClass,
+            asset_class=_parse_asset_class(
                 _require(record, ASSET_CLASS_HEADER, f"{row_prefix}.{ASSET_CLASS_HEADER}"),
                 f"{row_prefix}.{ASSET_CLASS_HEADER}",
+                asset_class_registry,
             ),
             expected_return=_parse_rate(
                 _require(record, EXPECTED_RETURN_HEADER, f"{row_prefix}.{EXPECTED_RETURN_HEADER}"),

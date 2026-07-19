@@ -19,10 +19,10 @@ from core.domain.withdrawal_strategy import WithdrawalStrategy
 CONFIG_VERSION_LABEL = "sprint7-baseline"
 
 _ACCOUNT_SPECS: tuple[tuple[str, AccountType, int, AssetClass, Optional[int]], ...] = (
-    ("acc_cash_001", AccountType.CASH, 1_000_000, AssetClass.CASH, None),
-    ("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, AssetClass.GLOBAL_EQUITY, 50_000),
-    ("acc_ideco_001", AccountType.IDECO, 1_500_000, AssetClass.DOMESTIC_BOND, 23_000),
-    ("acc_taxable_001", AccountType.TAXABLE, 500_000, AssetClass.GLOBAL_EQUITY, None),
+    ("acc_cash_001", AccountType.CASH, 1_000_000, "cash", None),
+    ("acc_nisa_growth_001", AccountType.NISA_GROWTH, 3_000_000, "equity_sp500", 50_000),
+    ("acc_ideco_001", AccountType.IDECO, 1_500_000, "bond_us_treasury", 23_000),
+    ("acc_taxable_001", AccountType.TAXABLE, 500_000, "equity_sp500", None),
 )
 
 
