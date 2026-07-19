@@ -4,7 +4,11 @@ import gspread
 
 from adapters.sheets import sheets_output_adapter as output_adapter
 from adapters.sheets.sheet_mapping import (
+    DASHBOARD_CURRENT_NETWORTH_LABEL,
+    DASHBOARD_DEPLETION_AGE_LABEL,
+    DASHBOARD_NO_DEPLETION_TEXT,
     NETWORTH_HEADER,
+    OUTPUT_DASHBOARD_SHEET,
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
@@ -120,6 +124,45 @@ def _projection(year: int, networth: int) -> YearlyProjection:
         account_balances={},
         networth=Money.of(networth),
     )
+
+
+class WriteDashboardTest(unittest.TestCase):
+    def test_writes_summary_rows(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        dashboard = {
+            "current_networth": Money.of(30_000_000),
+            "extra_annual_budget": Money.of(300_000),
+            "extra_monthly_budget": Money.of(25_000),
+            "depletion_age": None,
+            "target_ending_networth": Money.zero(),
+            "ending_networth": Money.of(21_000_000),
+            "surplus_vs_target": Money.of(21_000_000),
+        }
+
+        output_adapter.write_dashboard(spreadsheet, dashboard)
+
+        worksheet = spreadsheet.worksheet(OUTPUT_DASHBOARD_SHEET)
+        rows = dict(worksheet.last_values)
+        self.assertEqual(rows[DASHBOARD_CURRENT_NETWORTH_LABEL], 30_000_000)
+        self.assertEqual(rows[DASHBOARD_DEPLETION_AGE_LABEL], DASHBOARD_NO_DEPLETION_TEXT)
+
+    def test_writes_depletion_age_when_present(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        dashboard = {
+            "current_networth": Money.of(1_000_000),
+            "extra_annual_budget": Money.zero(),
+            "extra_monthly_budget": Money.zero(),
+            "depletion_age": 78,
+            "target_ending_networth": Money.zero(),
+            "ending_networth": Money.of(-500_000),
+            "surplus_vs_target": Money.of(-500_000),
+        }
+
+        output_adapter.write_dashboard(spreadsheet, dashboard)
+
+        worksheet = spreadsheet.worksheet(OUTPUT_DASHBOARD_SHEET)
+        rows = dict(worksheet.last_values)
+        self.assertEqual(rows[DASHBOARD_DEPLETION_AGE_LABEL], 78)
 
 
 class WriteNetworthTableTest(unittest.TestCase):

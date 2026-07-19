@@ -17,6 +17,7 @@ from adapters.sheets.sheet_mapping import (
     BALANCE_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
+    EMPLOYEE_PENSION_ESTIMATE_HEADER,
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
@@ -29,7 +30,10 @@ from adapters.sheets.sheet_mapping import (
     INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
+    NATIONAL_PENSION_ESTIMATE_HEADER,
     OWNER_HEADER,
+    PENSION_CLAIM_AGE_HEADER,
+    PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
@@ -43,6 +47,7 @@ from adapters.sheets.sheet_mapping import (
     SPREADSHEET_NAME,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
+    TARGET_ENDING_NETWORTH_HEADER,
     VOLATILITY_HEADER,
     YEAR_HEADER,
 )
@@ -53,6 +58,7 @@ from core.domain.errors import StructuralInputError
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
+from core.domain.milestone import Milestone, MilestoneType
 from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
@@ -386,12 +392,75 @@ def _default_tax_config(user: User) -> TaxConfig:
     return TaxConfig(residence=user.residence)
 
 
-def _default_pension() -> Pension:
-    return Pension(
-        national_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+def _build_pension(settings: dict[str, str]) -> Pension:
+    """入力_プラン設定（Master的な要約入力ビュー）の年金4項目からPensionを組み立てる。
+
+    すべて任意入力。未入力の項目は年金見込額ゼロ・標準65歳受給という後方互換のデフォルトを使う
+    （このMaster項目が追加される以前は、年金条件はSheetsから一切編集できなかった）。
+    """
+
+    national_raw = settings.get(NATIONAL_PENSION_ESTIMATE_HEADER, "").strip()
+    employee_raw = settings.get(EMPLOYEE_PENSION_ESTIMATE_HEADER, "").strip()
+    claim_timing_raw = settings.get(PENSION_CLAIM_TIMING_HEADER, "").strip()
+    claim_age_raw = settings.get(PENSION_CLAIM_AGE_HEADER, "").strip()
+
+    national_amount = (
+        _parse_money(national_raw, f"{PLAN_SHEET}!{NATIONAL_PENSION_ESTIMATE_HEADER}")
+        if national_raw
+        else Money.zero()
     )
+    employee_amount = (
+        _parse_money(employee_raw, f"{PLAN_SHEET}!{EMPLOYEE_PENSION_ESTIMATE_HEADER}")
+        if employee_raw
+        else Money.zero()
+    )
+    claim_timing_type = (
+        _parse_enum(ClaimTimingType, claim_timing_raw, f"{PLAN_SHEET}!{PENSION_CLAIM_TIMING_HEADER}")
+        if claim_timing_raw
+        else ClaimTimingType.STANDARD
+    )
+    claim_age = _parse_int(claim_age_raw, f"{PLAN_SHEET}!{PENSION_CLAIM_AGE_HEADER}") if claim_age_raw else 65
+
+    return Pension(
+        national_pension=PensionEntitlement(estimate_annual=national_amount),
+        employee_pension=PensionEntitlement(estimate_annual=employee_amount),
+        claim_timing=ClaimTiming(timing_type=claim_timing_type, age=claim_age),
+    )
+
+
+def _build_milestones(settings: dict[str, str]) -> list[Milestone]:
+    """入力_プラン設定の退職年齢（任意入力）からRETIREMENTマイルストーンを組み立てる。
+
+    未入力ならマイルストーンなし（退職を仮定しない従来通りの挙動）。
+    退職年齢が設定されると、Projection Engineは想定寿命まで自動的にシミュレーション期間を延長する
+    （既存のprojection_engine._resolve_end_yearのロジック）。
+    """
+
+    retirement_age_raw = settings.get(RETIREMENT_AGE_HEADER, "").strip()
+    if not retirement_age_raw:
+        return []
+
+    age = _parse_int(retirement_age_raw, f"{PLAN_SHEET}!{RETIREMENT_AGE_HEADER}")
+    return [
+        Milestone(
+            milestone_id="milestone_retirement",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(age),
+        )
+    ]
+
+
+def read_target_ending_networth(spreadsheet: gspread.Spreadsheet) -> Money:
+    """入力_プラン設定の目標資産（想定寿命時点、任意入力）を読み込む。未入力なら0円。
+
+    ダッシュボードの逆算機能でのみ使う値のため、Plan Aggregateには含めない。
+    """
+
+    settings = _read_plan_settings(spreadsheet)
+    raw = settings.get(TARGET_ENDING_NETWORTH_HEADER, "").strip()
+    if not raw:
+        return Money.zero()
+    return _parse_money(raw, f"{PLAN_SHEET}!{TARGET_ENDING_NETWORTH_HEADER}")
 
 
 def _default_withdrawal_strategy() -> WithdrawalStrategy:
@@ -435,11 +504,12 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         assumptions=_build_assumptions(settings),
         accounts=_build_accounts(spreadsheet),
         tax_config=_default_tax_config(user),
-        pension=_default_pension(),
+        pension=_build_pension(settings),
         withdrawal_strategy=_default_withdrawal_strategy(),
         contribution_strategy=_default_contribution_strategy(),
         incomes=_build_incomes(spreadsheet),
         expenses=_build_expenses(spreadsheet),
+        milestones=_build_milestones(settings),
     )
 
 
@@ -478,3 +548,12 @@ def load_progress_records(
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
     return _build_progress_records(spreadsheet)
+
+
+def load_target_ending_networth(
+    spreadsheet_name: str = SPREADSHEET_NAME,
+    credentials_path: str = DEFAULT_CREDENTIALS_PATH,
+) -> Money:
+    client = build_client(credentials_path)
+    spreadsheet = open_spreadsheet(client, spreadsheet_name)
+    return read_target_ending_networth(spreadsheet)

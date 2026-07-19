@@ -18,17 +18,26 @@ OUTPUT_MONTECARLO_SHEET = "出力_モンテカルロ"
 OUTPUT_HISTORICAL_BACKTEST_SHEET = "出力_ヒストリカルバックテスト"
 OUTPUT_PROGRESS_COMPARISON_SHEET = "出力_計画実績比較"
 OUTPUT_ERRORS_SHEET = "出力_エラー"
+OUTPUT_DASHBOARD_SHEET = "出力_ダッシュボード"
 
 # --- 列名（ヘッダー行）。account_type/asset_class等の「値」は内部識別子として英語のまま維持し、
 # 列名（ヘッダーテキスト）のみ日本語化する。NISA/iDeCoは制度の正式名称のため英語表記を維持する。 ---
 
 # Input_プラン設定: A列=キー / B列=値 の縦持ち設定シート。
+# 旧ドラフトのMasterシート（主要条件をまとめて素早く変更できる単一シート）の方向性を踏襲し、
+# 退職年齢・年金条件・目標資産もここに集約する（口座/収入/支出等の表形式シートとは別に
+# 複製ビューを作らず、単一の置き場所に統一することで値の食い違いを防ぐ）。
 PLAN_ID_HEADER = "プランID"
 PLAN_NAME_HEADER = "プラン名"
 BIRTH_DATE_HEADER = "生年月日"
 RESIDENCE_HEADER = "居住都道府県"
 INFLATION_RATE_HEADER = "インフレ率"
 INVESTMENT_GROWTH_RATE_HEADER = "投資成長率"
+NATIONAL_PENSION_ESTIMATE_HEADER = "国民年金見込額（年額）"
+EMPLOYEE_PENSION_ESTIMATE_HEADER = "厚生年金見込額（年額）"
+PENSION_CLAIM_TIMING_HEADER = "年金受給タイミング"
+PENSION_CLAIM_AGE_HEADER = "年金受給開始年齢"
+TARGET_ENDING_NETWORTH_HEADER = "目標資産（想定寿命時点）"
 
 # Input_口座
 ACCOUNT_ID_HEADER = "口座ID"
@@ -77,6 +86,16 @@ SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
 # Output_エラー
 FIELD_PATH_HEADER = "エラー箇所"
 MESSAGE_HEADER = "エラー内容"
+
+# Output_ダッシュボード: A列=項目 / B列=値 の縦持ち集約ビュー（旧ドラフトのDashboardシートを踏襲）。
+DASHBOARD_CURRENT_NETWORTH_LABEL = "現在の純資産"
+DASHBOARD_EXTRA_ANNUAL_BUDGET_LABEL = "追加で使える金額（年額・暫定）"
+DASHBOARD_EXTRA_MONTHLY_BUDGET_LABEL = "追加で使える金額（月額換算・暫定）"
+DASHBOARD_DEPLETION_AGE_LABEL = "資産枯渇年齢"
+DASHBOARD_TARGET_NETWORTH_LABEL = "目標資産（想定寿命時点）"
+DASHBOARD_ENDING_NETWORTH_LABEL = "想定寿命時点の予測純資産"
+DASHBOARD_SURPLUS_LABEL = "目標資産との余裕（想定寿命時点）"
+DASHBOARD_NO_DEPLETION_TEXT = "枯渇なし"
 
 # --- シート・セル・JSONフィールドパスの対応表（設計書7.3）。programmatic には未使用だが、
 # レイアウト変更時の一元的な参照ドキュメントとして維持する。 ---

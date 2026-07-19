@@ -64,16 +64,40 @@ write_networth_breakdown_chart(spreadsheet, build_networth_chart(plan, result))
 `adapters/sheets/sheets_input_adapter.py` の `load_*` 関数と `core/simulation/` 配下の各Engineを
 組み合わせて実行する。
 
+ダッシュボード（今月使える金額の逆算・資産枯渇年齢）の実行例:
+
+```python
+from adapters.sheets.sheets_input_adapter import (
+    build_client, open_spreadsheet, load_plan, load_portfolios, load_target_ending_networth,
+)
+from adapters.sheets.sheets_output_adapter import write_dashboard
+from repositories.config_repository import load_tax_rules, load_portfolio_rules, load_pension_rules
+from reports.dashboard_builder import build_dashboard
+
+plan = load_plan()
+portfolios = load_portfolios()
+target = load_target_ending_networth()
+dashboard = build_dashboard(plan, portfolios, load_tax_rules(), load_portfolio_rules(), load_pension_rules(), target)
+
+write_dashboard(open_spreadsheet(build_client()), dashboard)
+```
+
 ### 入力シート一覧
 
 | シート名 | 内容 | 必須 |
 |---|---|---|
-| `入力_プラン設定` | 基本設定（生年月日・居住地・前提条件） | ✓ |
+| `入力_プラン設定` | 基本設定（生年月日・居住地・前提条件・退職年齢・年金条件・目標資産等） | ✓ |
 | `入力_口座` | 口座一覧（NISA/iDeCo等） | ✓ |
 | `入力_収入` | 収入 | ✓ |
 | `入力_支出` | 支出 | ✓ |
 | `入力_シナリオ` | シナリオ比較用（退職年齢違い等） | 任意 |
 | `入力_実績` | 実績純資産（計画との比較用） | 任意 |
+
+`入力_プラン設定`は旧ドラフトのMasterシート（主要条件をまとめて素早く変更できる単一シート）の
+方向性を踏襲し、退職年齢・年金見込額・年金受給タイミング・目標資産（想定寿命時点）も含めて
+1シートに集約している（いずれも任意入力。未入力時は退職なし・年金見込額ゼロ・標準65歳受給という
+後方互換のデフォルトになる）。他の`入力_*`シート（口座/収入/支出等の表形式シート）とは別に
+複製の入力ビューは作らず、各項目の置き場所は常に1箇所に統一している。
 
 タブ名・列名（ヘッダー行）は日本語だが、`account_type`・`asset_class`等の値は内部識別子として
 英語のまま扱う（`adapters/sheets/sheet_mapping.py` に集約）。NISA/iDeCoは制度の正式名称のため
@@ -82,6 +106,19 @@ write_networth_breakdown_chart(spreadsheet, build_networth_chart(plan, result))
 入力に不備があると `StructuralInputError` が送出される（`core/domain/errors.py`）。
 `adapters/sheets/sheets_error_writer.py` の `write_errors()` で `出力_エラー` シートへ
 「どのフィールドで・何が」の形式で一覧を書き戻せる。
+
+### ダッシュボード（出力_ダッシュボード）
+
+旧ドラフトのDashboardシート（1画面で主要指標を把握できる要約ビュー）を踏襲した出力シート。
+`reports/dashboard_builder.py` の `build_dashboard()` が以下を算出する。
+
+- 今年/今月使える追加金額（`入力_プラン設定`の目標資産を下回らない範囲で生活費に上乗せできる金額を、
+  既存の決定論的Projection Engineに対する二分探索で逆算する）
+- 資産枯渇年齢（想定寿命までにnetworthが0以下になる最初の年齢）
+- 目標資産との余裕（想定寿命時点の予測networth − 目標資産）
+
+「今月使える金額」は現時点では年額を12等分した暫定値であり、Projection Engineの月次化後に
+月次粒度の値へ置き換える予定（`docs/FIRE_Navigator_旧ドラフトとのギャップ分析_追加要件定義.md` 3.1）。
 
 ## テスト
 

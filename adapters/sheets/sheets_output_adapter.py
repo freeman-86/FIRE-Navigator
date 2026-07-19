@@ -5,7 +5,16 @@ from typing import Optional
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    DASHBOARD_CURRENT_NETWORTH_LABEL,
+    DASHBOARD_DEPLETION_AGE_LABEL,
+    DASHBOARD_ENDING_NETWORTH_LABEL,
+    DASHBOARD_EXTRA_ANNUAL_BUDGET_LABEL,
+    DASHBOARD_EXTRA_MONTHLY_BUDGET_LABEL,
+    DASHBOARD_NO_DEPLETION_TEXT,
+    DASHBOARD_SURPLUS_LABEL,
+    DASHBOARD_TARGET_NETWORTH_LABEL,
     NETWORTH_HEADER,
+    OUTPUT_DASHBOARD_SHEET,
     OUTPUT_HISTORICAL_BACKTEST_SHEET,
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
@@ -36,6 +45,26 @@ def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: Si
         for projection in simulation_result.yearly_projections
     ]
     worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_NETWORTH_SHEET, rows)
+    worksheet.update(values=rows, range_name="A1")
+
+
+def write_dashboard(spreadsheet: gspread.Spreadsheet, dashboard: dict) -> None:
+    """reports.dashboard_builder.build_dashboard()の出力を、旧ドラフトのDashboardシートを踏襲した
+    縦持ちの1画面要約ビュー（出力_ダッシュボード）として書き込む。
+    """
+
+    depletion_age = dashboard["depletion_age"]
+    rows: list[list[object]] = [
+        [DASHBOARD_CURRENT_NETWORTH_LABEL, int(dashboard["current_networth"].amount)],
+        [DASHBOARD_EXTRA_ANNUAL_BUDGET_LABEL, int(dashboard["extra_annual_budget"].amount)],
+        [DASHBOARD_EXTRA_MONTHLY_BUDGET_LABEL, int(dashboard["extra_monthly_budget"].amount)],
+        [DASHBOARD_DEPLETION_AGE_LABEL, depletion_age if depletion_age is not None else DASHBOARD_NO_DEPLETION_TEXT],
+        [DASHBOARD_TARGET_NETWORTH_LABEL, int(dashboard["target_ending_networth"].amount)],
+        [DASHBOARD_ENDING_NETWORTH_LABEL, int(dashboard["ending_networth"].amount)],
+        [DASHBOARD_SURPLUS_LABEL, int(dashboard["surplus_vs_target"].amount)],
+    ]
+
+    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_DASHBOARD_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
 
 
