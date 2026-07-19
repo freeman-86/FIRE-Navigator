@@ -17,7 +17,7 @@ from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import PortfolioRules
 from core.domain.simulation_result import MonthlyProjection, SimulationResult, YearlyProjection
 from core.domain.tax_config import TaxRules
-from core.domain.value_objects import EventCondition, Money, Rate
+from core.domain.value_objects import AgeAt, EventCondition, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
 from core.simulation.portfolio.rebalance_engine import rebalance
@@ -92,8 +92,7 @@ def run_projection(
         age = year - birth_date.year
         gross_income_annual = _active_income_total(plan.incomes, year, start_year, birth_date, offset_year)
         pension_income_annual = calculate_pension_income(age, plan.pension, pension_rules)
-        education_expense_monthly = _education_expense_monthly_total(plan.children, plan.education_expenses, year)
-        total_expense_annual = _expense_total(plan.expenses, offset_year) + education_expense_monthly * 12
+        total_expense_annual = _expense_total(plan.expenses, offset_year)
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
         tax_result = calculate_tax(
@@ -111,6 +110,7 @@ def run_projection(
         discretionary_contributed_this_year: dict[str, Money] = {}
         capital_gains_tax_annual = Money.zero()
         one_time_expense_annual = Money.zero()
+        education_expense_annual = Money.zero()
 
         balances_snapshot: dict[str, Money] = {}
         networth = Money.zero()
@@ -123,7 +123,11 @@ def run_projection(
 
             one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
             one_time_expense_annual = one_time_expense_annual + one_time_expense_this_month
-            monthly_expense = monthly_recurring_expense + one_time_expense_this_month
+            education_expense_this_month = _education_expense_monthly_total(
+                plan.children, plan.education_expenses, calendar_year, calendar_month
+            )
+            education_expense_annual = education_expense_annual + education_expense_this_month
+            monthly_expense = monthly_recurring_expense + one_time_expense_this_month + education_expense_this_month
 
             net_cashflow_month = monthly_net_income - monthly_expense
             discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
@@ -226,7 +230,7 @@ def run_projection(
                 )
             )
 
-        total_expense_including_one_time = total_expense_annual + one_time_expense_annual
+        total_expense_including_one_time = total_expense_annual + one_time_expense_annual + education_expense_annual
         yearly_projections.append(
             YearlyProjection(
                 year=year,
@@ -389,14 +393,31 @@ def _expense_total(expenses: list[Expense], offset: int) -> Money:
     return total
 
 
-def _education_expense_monthly_total(
-    children: list[Child], bands: list[EducationExpenseBand], year: int
-) -> Money:
-    """その年に該当する子供の年齢に基づき、教育費バンド（小学校・塾等）の月額合計を返す
-    （ギャップ分析3.2）。物価上昇は考慮しない（既存のinflation_rate同様、現時点では未対応）。
+def _school_year_age(birth_date: date, calendar_year: int, calendar_month: int) -> Optional[int]:
+    """その月が属する年度（4月始まり）の4月1日時点の年齢を返す（日本の学年の切り替わり基準）。
+
+    1〜3月は前年度扱いとする（例: 2028年1月〜3月は2027年度、2028年4月〜12月は2028年度）。
+    その年度の4月1日時点でまだ生まれていない場合はNoneを返す（該当年齢なし）。
     """
 
-    age_by_child_id = {child.child_id: year - child.birth_date.year for child in children}
+    school_year = calendar_year if calendar_month >= 4 else calendar_year - 1
+    reference_date = date(school_year, 4, 1)
+    if reference_date < birth_date:
+        return None
+    return AgeAt(birth_date, reference_date).years
+
+
+def _education_expense_monthly_total(
+    children: list[Child], bands: list[EducationExpenseBand], calendar_year: int, calendar_month: int
+) -> Money:
+    """その月が属する年度の4月1日時点の子供の年齢に基づき、教育費バンド（小学校・塾等）の
+    月額合計を返す（ギャップ分析3.2）。年齢帯の切り替わりは誕生月ではなく学年（4月1日）を基準にする。
+    物価上昇は考慮しない（既存のinflation_rate同様、現時点では未対応）。
+    """
+
+    age_by_child_id = {
+        child.child_id: _school_year_age(child.birth_date, calendar_year, calendar_month) for child in children
+    }
     total = Money.zero()
     for band in bands:
         age = age_by_child_id.get(band.child_id)

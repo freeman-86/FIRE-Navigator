@@ -15,7 +15,7 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
-from core.simulation.projection.projection_engine import DEFAULT_LIFE_EXPECTANCY_AGE, run_projection
+from core.simulation.projection.projection_engine import DEFAULT_LIFE_EXPECTANCY_AGE, _school_year_age, run_projection
 from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
 from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
 from tests.pension_test_fixtures import zero_pension_rules
@@ -466,12 +466,62 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
 
 
+class SchoolYearAgeTest(unittest.TestCase):
+    def test_born_on_april_first_switches_exactly_at_april(self) -> None:
+        birth_date = date(2020, 4, 1)
+        # 2026年3月(2025年度): 4/1(2025-04-01)時点でまだ5歳
+        self.assertEqual(_school_year_age(birth_date, 2026, 3), 5)
+        # 2026年4月(2026年度): 4/1(2026-04-01)時点で6歳
+        self.assertEqual(_school_year_age(birth_date, 2026, 4), 6)
+
+    def test_birth_month_does_not_affect_switch_timing(self) -> None:
+        birth_date = date(2019, 9, 1)
+        # 誕生日(9月)を過ぎていても、4月を跨がなければ学年年齢は変わらない
+        self.assertEqual(_school_year_age(birth_date, 2025, 12), 5)
+        self.assertEqual(_school_year_age(birth_date, 2026, 3), 5)
+        self.assertEqual(_school_year_age(birth_date, 2026, 4), 6)
+
+    def test_returns_none_before_birth(self) -> None:
+        birth_date = date(2025, 6, 1)
+        self.assertIsNone(_school_year_age(birth_date, 2025, 4))
+        self.assertIsNone(_school_year_age(birth_date, 2026, 3))
+        self.assertEqual(_school_year_age(birth_date, 2026, 4), 0)
+
+
 class EducationExpenseIntegrationTest(unittest.TestCase):
+    def test_education_expense_switches_at_april_not_birth_month(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import EducationExpenseBand
+
+        # 誕生日は9月(2019-09-01)。誕生日基準なら6歳になるのは2025年9月だが、
+        # 学年(4月1日)基準では2026年度(2026年4月〜)にならないと4/1時点で6歳に到達しない
+        # （2025年度の4/1時点ではまだ5歳）。切り替わりが誕生月(9月)ではなく4月であることを確認する。
+        child = Child(child_id="child_001", birth_date=date(2019, 9, 1))
+        band = EducationExpenseBand(
+            band_id="band_elementary",
+            child_id="child_001",
+            category="小学校",
+            start_age=6,
+            end_age=11,
+            monthly_amount=Money.of(30_000),
+        )
+        plan = _minimal_plan(children=[child], education_expenses=[band])
+
+        result = _run(plan)
+
+        # 2026年3月(2025年度、4/1時点で5歳): 対象外
+        march_2026 = next(p for p in result.monthly_projections if p.year == 2026 and p.month == 3)
+        self.assertEqual(march_2026.total_expense, Money.zero())
+        # 2025年9月の誕生日を過ぎていても、4月を跨がなければ切り替わらない
+        # 2026年4月(2026年度、4/1時点で6歳): 対象
+        april_2026 = next(p for p in result.monthly_projections if p.year == 2026 and p.month == 4)
+        self.assertEqual(april_2026.total_expense, Money.of(30_000))
+
     def test_education_expense_is_added_only_during_applicable_age_band(self) -> None:
         from core.domain.child import Child
         from core.domain.education_expense import EducationExpenseBand
 
-        # _minimal_planはstart_year=2026固定。子供が2020年生まれなら2026年に6歳(小学校入学)。
+        # 誕生日がちょうど4月1日の子供 -> 学年年齢の切り替わりが分かりやすい。
         child = Child(child_id="child_001", birth_date=date(2020, 4, 1))
         band = EducationExpenseBand(
             band_id="band_elementary",
@@ -485,12 +535,21 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
 
         result = _run(plan)
 
-        # 2026年(6歳、対象年): 月30,000円 x 12 = 360,000円が支出に加算される
-        year_2026 = next(p for p in result.yearly_projections if p.year == 2026)
-        self.assertEqual(year_2026.total_expense, Money.of(360_000))
-        # 2027年(7歳、対象外): 加算されない
-        year_2027 = next(p for p in result.yearly_projections if p.year == 2027)
-        self.assertEqual(year_2027.total_expense, Money.zero())
+        # 2026年1〜3月(2025年度の4/1時点で5歳、対象外)
+        for month in (1, 2, 3):
+            projection = next(p for p in result.monthly_projections if p.year == 2026 and p.month == month)
+            self.assertEqual(projection.total_expense, Money.zero(), f"2026年{month}月")
+        # 2026年4〜12月(2026年度の4/1時点で6歳、対象)
+        for month in range(4, 13):
+            projection = next(p for p in result.monthly_projections if p.year == 2026 and p.month == month)
+            self.assertEqual(projection.total_expense, Money.of(30_000), f"2026年{month}月")
+        # 2027年1〜3月(2026年度のまま、6歳、対象)
+        for month in (1, 2, 3):
+            projection = next(p for p in result.monthly_projections if p.year == 2027 and p.month == month)
+            self.assertEqual(projection.total_expense, Money.of(30_000), f"2027年{month}月")
+        # 2027年4月以降(2027年度の4/1時点で7歳、対象外)
+        april_2027 = next(p for p in result.monthly_projections if p.year == 2027 and p.month == 4)
+        self.assertEqual(april_2027.total_expense, Money.zero())
 
 
 class OneTimeExpenseIntegrationTest(unittest.TestCase):
