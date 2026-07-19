@@ -4,13 +4,18 @@ import gspread
 
 from adapters.sheets import sheets_output_adapter as output_adapter
 from adapters.sheets.sheet_mapping import (
+    AGE_HEADER,
     CAPITAL_GAINS_TAX_HEADER,
     DASHBOARD_CURRENT_NETWORTH_LABEL,
     DASHBOARD_DEPLETION_AGE_LABEL,
     DASHBOARD_NO_DEPLETION_TEXT,
+    MONTH_HEADER,
+    NET_CASHFLOW_HEADER,
+    NET_INCOME_HEADER,
     NETWORTH_HEADER,
     OUTPUT_DASHBOARD_SHEET,
     OUTPUT_MONTECARLO_SHEET,
+    OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
@@ -18,10 +23,11 @@ from adapters.sheets.sheet_mapping import (
     P10_HEADER,
     P50_HEADER,
     P90_HEADER,
+    TOTAL_EXPENSE_HEADER,
     YEAR_HEADER,
 )
 from core.domain.montecarlo_result import MonteCarloResult, PercentileBand
-from core.domain.simulation_result import SimulationResult, YearlyProjection
+from core.domain.simulation_result import MonthlyProjection, SimulationResult, YearlyProjection
 from core.domain.value_objects import Money
 
 
@@ -180,6 +186,46 @@ class WriteNetworthTableTest(unittest.TestCase):
                 [YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER],
                 [2026, 1_000_000, 0],
                 [2027, 2_000_000, 0],
+            ],
+        )
+
+
+def _monthly_projection(year: int, month: int, networth: int, capital_gains_tax: int = 0) -> MonthlyProjection:
+    return MonthlyProjection(
+        year=year,
+        month=month,
+        age_self=36,
+        gross_income=Money.zero(),
+        pension_income=Money.zero(),
+        net_income=Money.of(300_000),
+        total_expense=Money.of(250_000),
+        net_cashflow=Money.of(50_000),
+        capital_gains_tax=Money.of(capital_gains_tax),
+        account_balances={},
+        networth=Money.of(networth),
+    )
+
+
+class WriteMonthlyDetailTableTest(unittest.TestCase):
+    def test_writes_one_row_per_monthly_projection(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        result = SimulationResult(
+            monthly_projections=[
+                _monthly_projection(2026, 1, 1_050_000),
+                _monthly_projection(2026, 2, 1_100_000, capital_gains_tax=5_000),
+            ]
+        )
+
+        output_adapter.write_monthly_detail_table(spreadsheet, result)
+
+        worksheet = spreadsheet.worksheet(OUTPUT_MONTHLY_DETAIL_SHEET)
+        self.assertEqual(
+            worksheet.last_values,
+            [
+                [YEAR_HEADER, MONTH_HEADER, AGE_HEADER, NET_INCOME_HEADER, TOTAL_EXPENSE_HEADER,
+                 NET_CASHFLOW_HEADER, CAPITAL_GAINS_TAX_HEADER, NETWORTH_HEADER],
+                [2026, 1, 36, 300_000, 250_000, 50_000, 0, 1_050_000],
+                [2026, 2, 36, 300_000, 250_000, 50_000, 5_000, 1_100_000],
             ],
         )
 

@@ -14,10 +14,15 @@ from adapters.sheets.sheet_mapping import (
     DASHBOARD_NO_DEPLETION_TEXT,
     DASHBOARD_SURPLUS_LABEL,
     DASHBOARD_TARGET_NETWORTH_LABEL,
+    AGE_HEADER,
+    MONTH_HEADER,
+    NET_CASHFLOW_HEADER,
+    NET_INCOME_HEADER,
     NETWORTH_HEADER,
     OUTPUT_DASHBOARD_SHEET,
     OUTPUT_HISTORICAL_BACKTEST_SHEET,
     OUTPUT_MONTECARLO_SHEET,
+    OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_PROGRESS_COMPARISON_SHEET,
@@ -27,6 +32,7 @@ from adapters.sheets.sheet_mapping import (
     P50_HEADER,
     P90_HEADER,
     SENSITIVITY_TABLE_HEADER,
+    TOTAL_EXPENSE_HEADER,
     YEAR_HEADER,
 )
 from core.domain.montecarlo_result import MonteCarloResult
@@ -46,6 +52,32 @@ def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: Si
         for projection in simulation_result.yearly_projections
     ]
     worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_NETWORTH_SHEET, rows)
+    worksheet.update(values=rows, range_name="A1")
+
+
+def write_monthly_detail_table(spreadsheet: gspread.Spreadsheet, simulation_result: SimulationResult) -> None:
+    """SimulationResult.monthly_projections（Sprint12 月次化）を、月次の資金の動きが一覧できる
+    出力_月次詳細シートへ書き込む。「FIRE後、毎月いくら使えるか」を月単位で確認できるようにする。
+    """
+
+    rows: list[list[object]] = [
+        [YEAR_HEADER, MONTH_HEADER, AGE_HEADER, NET_INCOME_HEADER, TOTAL_EXPENSE_HEADER, NET_CASHFLOW_HEADER,
+         CAPITAL_GAINS_TAX_HEADER, NETWORTH_HEADER]
+    ]
+    rows += [
+        [
+            projection.year,
+            projection.month,
+            projection.age_self,
+            int(projection.net_income.amount),
+            int(projection.total_expense.amount),
+            int(projection.net_cashflow.amount),
+            int(projection.capital_gains_tax.amount),
+            int(projection.networth.amount),
+        ]
+        for projection in simulation_result.monthly_projections
+    ]
+    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_MONTHLY_DETAIL_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
 
 

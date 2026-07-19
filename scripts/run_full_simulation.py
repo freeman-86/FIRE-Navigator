@@ -81,6 +81,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
     from adapters.sheets.sheets_output_adapter import (
         write_dashboard,
         write_historical_backtest_result,
+        write_monthly_detail_table,
         write_montecarlo_result,
         write_networth_breakdown_chart,
         write_networth_table,
@@ -127,8 +128,10 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
     result = run_projection(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
     write_networth_table(spreadsheet, result)
     write_networth_breakdown_chart(spreadsheet, build_networth_chart(plan, result))
+    write_monthly_detail_table(spreadsheet, result)
     final_networth = result.yearly_projections[-1].networth if result.yearly_projections else None
     print(f"      完了（計算期間: {len(result.yearly_projections)}年、最終ネットワース: {final_networth}）")
+    print(f"      月次詳細（{len(result.monthly_projections)}ヶ月分）を出力_月次詳細シートへ書き込みました")
 
     print("\n[5/9] ダッシュボード（今月使える金額の逆算等）を計算しています...")
     target_ending_networth = read_target_ending_networth(spreadsheet)

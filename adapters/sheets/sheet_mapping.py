@@ -23,6 +23,7 @@ OUTPUT_HISTORICAL_BACKTEST_SHEET = "出力_ヒストリカルバックテスト"
 OUTPUT_PROGRESS_COMPARISON_SHEET = "出力_計画実績比較"
 OUTPUT_ERRORS_SHEET = "出力_エラー"
 OUTPUT_DASHBOARD_SHEET = "出力_ダッシュボード"
+OUTPUT_MONTHLY_DETAIL_SHEET = "出力_月次詳細"
 
 # --- 列名（ヘッダー行）。account_type/asset_class等の「値」は内部識別子として英語のまま維持し、
 # 列名（ヘッダーテキスト）のみ日本語化する。NISA/iDeCoは制度の正式名称のため英語表記を維持する。 ---
@@ -98,6 +99,12 @@ YEAR_HEADER = "西暦年"
 ACTUAL_NETWORTH_HEADER = "実績純資産"
 NETWORTH_HEADER = "純資産"
 CAPITAL_GAINS_TAX_HEADER = "譲渡税"
+
+# Output_月次詳細: 月次の資金の動きをそのまま一覧表示する（Sprint12 月次化のmonthly_projections）。
+MONTH_HEADER = "月"
+NET_INCOME_HEADER = "手取り収入"
+TOTAL_EXPENSE_HEADER = "支出"
+NET_CASHFLOW_HEADER = "収支"
 
 # Output_モンテカルロ / Output_ヒストリカルバックテスト
 P10_HEADER = "下位10%値"
@@ -219,6 +226,18 @@ OUTPUT_NETWORTH_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (YEAR_HEADER, "simulation_result.yearly_projections[].year", "int"),
     (NETWORTH_HEADER, "simulation_result.yearly_projections[].networth", "money"),
     (CAPITAL_GAINS_TAX_HEADER, "simulation_result.yearly_projections[].capital_gains_tax", "money"),
+)
+
+# Output_月次詳細: ヘッダー行付きテーブル。西暦年・月別の月次明細を書き戻す。
+OUTPUT_MONTHLY_DETAIL_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    (YEAR_HEADER, "simulation_result.monthly_projections[].year", "int"),
+    (MONTH_HEADER, "simulation_result.monthly_projections[].month", "int"),
+    (AGE_HEADER, "simulation_result.monthly_projections[].age_self", "int"),
+    (NET_INCOME_HEADER, "simulation_result.monthly_projections[].net_income", "money"),
+    (TOTAL_EXPENSE_HEADER, "simulation_result.monthly_projections[].total_expense", "money"),
+    (NET_CASHFLOW_HEADER, "simulation_result.monthly_projections[].net_cashflow", "money"),
+    (CAPITAL_GAINS_TAX_HEADER, "simulation_result.monthly_projections[].capital_gains_tax", "money"),
+    (NETWORTH_HEADER, "simulation_result.monthly_projections[].networth", "money"),
 )
 
 # Output_純資産内訳: ヘッダー行付きテーブル。1列目=year、以降は口座種別（+unallocated_surplus）ごとの残高。

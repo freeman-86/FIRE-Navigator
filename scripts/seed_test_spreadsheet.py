@@ -3,12 +3,19 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
     ACTUAL_NETWORTH_HEADER,
+    AGE_HEADER,
+    ALLOCATION_POLICY_SHEET,
     AMOUNT_ANNUAL_HEADER,
     ASSET_CLASS_HEADER,
     BALANCE_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
+    CHILD_ID_HEADER,
+    CHILDREN_SHEET,
+    EDUCATION_BAND_ID_HEADER,
+    EDUCATION_EXPENSES_SHEET,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
+    END_AGE_HEADER,
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
@@ -20,8 +27,11 @@ from adapters.sheets.sheet_mapping import (
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
+    MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
+    ONE_TIME_EXPENSES_SHEET,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -36,9 +46,11 @@ from adapters.sheets.sheet_mapping import (
     SCENARIOS_SHEET,
     SOURCE_HEADER,
     SPREADSHEET_NAME,
+    START_AGE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
+    TARGET_WEIGHT_HEADER,
     VOLATILITY_HEADER,
     YEAR_HEADER,
 )
@@ -73,6 +85,7 @@ ACCOUNTS_ROWS = [
     ["acc_cash_001", "cash", "self", "1000000", "cash", "0.0", "0.0", ""],
     ["acc_nisa_growth_001", "nisa_growth", "self", "3000000", "equity_sp500", "0.05", "0.15", "50000"],
     ["acc_ideco_001", "ideco", "self", "1500000", "bond_us_treasury", "0.02", "0.05", "23000"],
+    ["acc_taxable_001", "taxable", "self", "2000000", "equity_sp500", "0.05", "0.15", "30000"],
 ]
 
 INCOMES_ROWS = [
@@ -106,6 +119,33 @@ PROGRESS_ROWS = [
     ["2027", "7900000"],
 ]
 
+ALLOCATION_POLICY_ROWS = [
+    [AGE_HEADER, ASSET_CLASS_HEADER, TARGET_WEIGHT_HEADER],
+    ["30", "equity_sp500", "0.8"],
+    ["30", "bond_us_treasury", "0.2"],
+    ["60", "equity_sp500", "0.4"],
+    ["60", "bond_us_treasury", "0.6"],
+]
+
+CHILDREN_ROWS = [
+    [CHILD_ID_HEADER, BIRTH_DATE_HEADER],
+    ["child_001", "2022-04-01"],
+]
+
+EDUCATION_EXPENSES_ROWS = [
+    [EDUCATION_BAND_ID_HEADER, CHILD_ID_HEADER, CATEGORY_HEADER, START_AGE_HEADER, END_AGE_HEADER, MONTHLY_AMOUNT_HEADER],
+    ["band_elementary", "child_001", "小学校", "6", "11", "20000"],
+    ["band_juku", "child_001", "塾", "10", "11", "15000"],
+    ["band_junior_high", "child_001", "中学校", "12", "14", "30000"],
+    ["band_high_school", "child_001", "高校", "15", "17", "40000"],
+    ["band_university", "child_001", "大学", "18", "21", "100000"],
+]
+
+ONE_TIME_EXPENSES_ROWS = [
+    [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_AMOUNT_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
+    ["expense_car_001", "車の買い替え", "3000000", "age", "45"],
+]
+
 
 def _seed_sheet(spreadsheet, sheet_name: str, rows: list[list[str]]) -> None:
     try:
@@ -126,6 +166,10 @@ def main() -> None:
     _seed_sheet(spreadsheet, EXPENSES_SHEET, EXPENSES_ROWS)
     _seed_sheet(spreadsheet, SCENARIOS_SHEET, SCENARIOS_ROWS)
     _seed_sheet(spreadsheet, PROGRESS_SHEET, PROGRESS_ROWS)
+    _seed_sheet(spreadsheet, ALLOCATION_POLICY_SHEET, ALLOCATION_POLICY_ROWS)
+    _seed_sheet(spreadsheet, CHILDREN_SHEET, CHILDREN_ROWS)
+    _seed_sheet(spreadsheet, EDUCATION_EXPENSES_SHEET, EDUCATION_EXPENSES_ROWS)
+    _seed_sheet(spreadsheet, ONE_TIME_EXPENSES_SHEET, ONE_TIME_EXPENSES_ROWS)
 
     print(f"サンプルデータを投入しました: {spreadsheet.url}")
 
