@@ -7,12 +7,32 @@ from core.domain.asset import AssetClass
 from core.domain.market_data import HistoricalDataset
 from core.domain.value_objects import Rate
 
+MONTHS_PER_YEAR = 12
+_SQRT_MONTHS_PER_YEAR = Decimal(MONTHS_PER_YEAR).sqrt()
+
 
 @dataclass
 class AssetReturnDistribution:
     asset_class: AssetClass
     mean: Rate
     std_dev: Rate
+
+
+def to_monthly_distributions(
+    distributions: dict[AssetClass, AssetReturnDistribution],
+) -> dict[AssetClass, AssetReturnDistribution]:
+    """年率で表された分布パラメータを、独立同分布の月次リターンを仮定して月率へ変換する
+    （mean/12, std_dev/sqrt(12)という標準的な近似）。Monte Carlo Engineが毎月サンプリングする際に使う。
+    """
+
+    return {
+        asset_class: AssetReturnDistribution(
+            asset_class=asset_class,
+            mean=Rate(distribution.mean.value / MONTHS_PER_YEAR),
+            std_dev=Rate(distribution.std_dev.value / _SQRT_MONTHS_PER_YEAR),
+        )
+        for asset_class, distribution in distributions.items()
+    }
 
 
 def distributions_from_historical_dataset(dataset: HistoricalDataset) -> dict[AssetClass, AssetReturnDistribution]:

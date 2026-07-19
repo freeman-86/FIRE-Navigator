@@ -110,10 +110,12 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(first_year.gross_income, Money.of(5_000_000))
         self.assertEqual(first_year.total_expense, Money.of(3_000_000))
         self.assertEqual(first_year.net_cashflow, Money.of(2_000_000))
-        # 口座残高: 1,000,000 * 1.05 = 1,050,000 / 余剰: 0 * 1.05 + 2,000,000 = 2,000,000
+        # 口座残高: 追加拠出なしの口座は月次複利でも年率複利と一致する: 1,000,000 * 1.05 = 1,050,000
+        # 余剰: 毎月の余剰(2,000,000/12)がその都度その年の残り月数分だけ月次複利で増える
+        # （Sprint12月次化により、年末に一括計上していた旧仕様より高くなる。ドルコスト平均的な効果）
         self.assertEqual(first_year.account_balances["acc_001"], Money.of(1_050_000))
-        self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(2_000_000))
-        self.assertEqual(first_year.networth, Money.of(3_050_000))
+        self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(2_045_434))
+        self.assertEqual(first_year.networth, Money.of(3_095_434))
 
     def test_account_without_portfolio_entry_starts_at_zero_balance(self) -> None:
         account = Account(account_id="acc_no_portfolio", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
@@ -312,6 +314,53 @@ class NisaIdecoComparisonTest(unittest.TestCase):
         final_with = result_with_ideco.yearly_projections[-1]
         final_without = result_without_ideco.yearly_projections[-1]
         self.assertGreater(final_with.networth, final_without.networth)
+
+
+class MonthlyProjectionsTest(unittest.TestCase):
+    def test_monthly_projections_have_12_entries_per_year(self) -> None:
+        plan = _minimal_plan()
+        result = _run(plan)
+
+        self.assertEqual(len(result.monthly_projections), len(result.yearly_projections) * 12)
+
+    def test_monthly_projections_are_labelled_in_order(self) -> None:
+        plan = _minimal_plan()
+        result = _run(plan)
+
+        first_year = result.yearly_projections[0].year
+        first_twelve = result.monthly_projections[:12]
+        self.assertEqual([p.year for p in first_twelve], [first_year] * 12)
+        self.assertEqual([p.month for p in first_twelve], list(range(1, 13)))
+
+    def test_year_end_snapshot_matches_last_month_of_that_year(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        plan = _minimal_plan(
+            accounts=[account],
+            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+        )
+        portfolios = {"acc_taxable": _portfolio(1_000_000)}
+
+        result = _run(plan, portfolios)
+
+        first_year = result.yearly_projections[0]
+        last_month_of_first_year = result.monthly_projections[11]
+        self.assertEqual(last_month_of_first_year.year, first_year.year)
+        self.assertEqual(last_month_of_first_year.month, 12)
+        self.assertEqual(last_month_of_first_year.account_balances, first_year.account_balances)
+        self.assertEqual(last_month_of_first_year.networth, first_year.networth)
+
+    def test_no_contribution_account_compounds_monthly_to_same_annual_total(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        plan = _minimal_plan(
+            accounts=[account],
+            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+        )
+        portfolios = {"acc_taxable": _portfolio(1_000_000)}
+
+        result = _run(plan, portfolios)
+
+        # 追加拠出のない口座は、月次複利12回でも単純な年率複利と一致する
+        self.assertEqual(result.yearly_projections[0].account_balances["acc_taxable"], Money.of(1_050_000))
 
 
 if __name__ == "__main__":

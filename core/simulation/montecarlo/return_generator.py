@@ -9,13 +9,16 @@ from core.simulation.montecarlo.correlation_matrix import CorrelationMatrix
 from core.simulation.montecarlo.distribution import AssetReturnDistribution
 
 
-def generate_annual_returns(
+def sample_returns(
     asset_classes: list[AssetClass],
     distributions: dict[AssetClass, AssetReturnDistribution],
     correlation_matrix: CorrelationMatrix,
     rng: random.Random,
 ) -> dict[AssetClass, Rate]:
-    """相関を考慮した多変量正規分布近似で、資産クラスごとの年次リターンを1回分サンプリングする。"""
+    """相関を考慮した多変量正規分布近似で、資産クラスごとのリターンを1期間分サンプリングする。
+
+    distributionsの単位（年率/月率）に応じて、そのまま年次/月次いずれのサンプリングにも使える。
+    """
 
     n = len(asset_classes)
     covariance = [

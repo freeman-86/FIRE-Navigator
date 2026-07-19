@@ -11,7 +11,7 @@ from core.domain.pension import PensionRules
 from core.domain.plan import Plan, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import PortfolioRules
-from core.domain.simulation_result import SimulationResult, YearlyProjection
+from core.domain.simulation_result import MonthlyProjection, SimulationResult, YearlyProjection
 from core.domain.tax_config import TaxRules
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
@@ -24,6 +24,7 @@ from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
 DEFAULT_PROJECTION_YEARS = 30
 DEFAULT_LIFE_EXPECTANCY_AGE = 100
 UNALLOCATED_SURPLUS_KEY = "unallocated_surplus"
+MONTHS_PER_YEAR = 12
 
 
 def run_projection(
@@ -34,26 +35,37 @@ def run_projection(
     pension_rules: PensionRules,
     growth_rate_provider: Optional[Callable[[int], Rate]] = None,
 ) -> SimulationResult:
-    """決定論的シミュレーション。
+    """決定論的シミュレーション。内部的には月次ループで計算し（Sprint12 月次化）、
+    年末時点のスナップショットを従来通りYearlyProjectionとして積み上げる。これにより
+    milestone評価・感応度分析・チャート・Monte Carlo/Historical Engine等の年次インターフェースは
+    無改修で動作する。月次の明細はSimulationResult.monthly_projectionsに別途保持する。
 
     退職(RETIREMENT)マイルストーンがある場合、想定寿命(DEFAULT_LIFE_EXPECTANCY_AGE)まで
-    退職後フェーズを含めて計算する。手取り収入(給与+年金)が生活費・確定拠出を上回る年は
-    contribution_strategyの優先順位で口座へ自動配分し、下回る年（退職後の取り崩し局面等）は
+    退職後フェーズを含めて計算する。手取り収入(給与+年金)が生活費・確定拠出を上回る月は
+    contribution_strategyの優先順位で口座へ自動配分し、下回る月（退職後の取り崩し局面等）は
     withdrawal_strategyの優先順位で口座残高を取り崩す。
+
+    所得税・住民税・社会保険料は日本の税制がそもそも年次確定であるため、従来通り年1回のみ
+    計算し、その結果を12等分して毎月のキャッシュフローに反映する（旧ドラフトのEngineと同様の
+    簡略化）。収入・支出の開始/終了条件は現時点では年単位でのみ判定する（月単位への精緻化は
+    将来課題）。
 
     portfolios/tax_rules/portfolio_rules/pension_rulesはApplication層相当の呼び出し元が
     用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
 
-    growth_rate_provider: 年次オフセット(0始まり)を受け取りその年の資産成長率を返す関数。
-    省略時はplan.assumptions.investment_growth_rate（固定値）を毎年使う従来通りの決定論的
-    計算になる。Monte Carlo Engine/Historical Engineは、サンプリング済み・実績のリターン
-    系列を返す関数をここに渡すことで、同じProjection Engineを反復実行する（設計書v1.1 ⑥⑦）。
+    growth_rate_provider: 月次オフセット(0始まり)を受け取りその月の資産成長率を返す関数。
+    省略時はplan.assumptions.investment_growth_rate（年率固定値）をmonthly_equivalent()で
+    月率に変換し、毎月同じ値を使う従来通りの決定論的計算になる。Monte Carlo Engineは毎月
+    新規にサンプリングした相関考慮済みの月次リターンを、Historical Engineは実績の年次リターンを
+    月率換算した値を返す関数をここに渡すことで、同じProjection Engineを反復実行する
+    （設計書v1.1 ⑥⑦）。
     """
 
     start_year = _resolve_start_year(plan)
     end_year = _resolve_end_year(plan, start_year)
     birth_date = plan.user.birth_date
     has_spouse = plan.user.spouse is not None
+    default_monthly_rate = plan.assumptions.investment_growth_rate.monthly_equivalent()
 
     account_balances = {
         account.account_id: _initial_balance(portfolios.get(account.account_id)) for account in plan.accounts
@@ -62,68 +74,104 @@ def run_projection(
     surplus_reserve = Money.zero()
 
     yearly_projections: list[YearlyProjection] = []
-    for offset, year in enumerate(range(start_year, end_year + 1)):
-        growth_rate = (
-            growth_rate_provider(offset) if growth_rate_provider is not None else plan.assumptions.investment_growth_rate
-        )
+    monthly_projections: list[MonthlyProjection] = []
+    for offset_year, year in enumerate(range(start_year, end_year + 1)):
         age = year - birth_date.year
-        gross_income = _active_income_total(plan.incomes, year, start_year, birth_date, offset)
-        pension_income = calculate_pension_income(age, plan.pension, pension_rules)
-        total_expense = _expense_total(plan.expenses, offset)
+        gross_income_annual = _active_income_total(plan.incomes, year, start_year, birth_date, offset_year)
+        pension_income_annual = calculate_pension_income(age, plan.pension, pension_rules)
+        total_expense_annual = _expense_total(plan.expenses, offset_year)
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
         tax_result = calculate_tax(
-            gross_income, pension_income, plan.tax_config, has_spouse, tax_rules, fixed_plan.tax_deductible_amount
+            gross_income_annual, pension_income_annual, plan.tax_config, has_spouse, tax_rules,
+            fixed_plan.tax_deductible_amount,
         )
-        net_cashflow = tax_result.net_income - total_expense
-        discretionary_surplus = net_cashflow - _total(fixed_plan.contributions)
 
-        if discretionary_surplus.is_negative:
-            withdrawals, unmet_shortfall = withdraw_shortfall(
-                plan.accounts, account_balances, -discretionary_surplus, plan.withdrawal_strategy
-            )
-            contributions_this_year = _merge(fixed_plan.contributions, _negate(withdrawals))
-            unallocated_delta = -unmet_shortfall
-        else:
-            discretionary_contributions, unallocated_leftover = allocate_discretionary_surplus(
-                plan.accounts,
-                account_balances,
-                lifetime_contributions,
-                fixed_plan.contributions,
-                discretionary_surplus,
-                plan.contribution_strategy,
-                portfolio_rules,
-            )
-            contributions_this_year = _merge(fixed_plan.contributions, discretionary_contributions)
-            unallocated_delta = unallocated_leftover
-
-        account_balances = {
-            account_id: _floor_zero(
-                _grow(balance, growth_rate) + contributions_this_year.get(account_id, Money.zero())
-            )
-            for account_id, balance in account_balances.items()
+        monthly_gross_income = _divide_by_12(gross_income_annual)
+        monthly_pension_income = _divide_by_12(pension_income_annual)
+        monthly_net_income = _divide_by_12(tax_result.net_income)
+        monthly_expense = _divide_by_12(total_expense_annual)
+        monthly_fixed_contributions = {
+            account_id: _divide_by_12(amount) for account_id, amount in fixed_plan.contributions.items()
         }
-        lifetime_contributions = {
-            account_id: lifetime_contributions[account_id] + contributions_this_year.get(account_id, Money.zero())
-            for account_id in lifetime_contributions
-        }
-        surplus_reserve = _grow(surplus_reserve, growth_rate) + unallocated_delta
+        discretionary_contributed_this_year: dict[str, Money] = {}
 
-        balances_snapshot = {**account_balances, UNALLOCATED_SURPLUS_KEY: surplus_reserve}
-        networth = sum(balances_snapshot.values(), Money.zero())
+        balances_snapshot: dict[str, Money] = {}
+        networth = Money.zero()
+        for month in range(1, MONTHS_PER_YEAR + 1):
+            month_offset = offset_year * MONTHS_PER_YEAR + (month - 1)
+            growth_rate = (
+                growth_rate_provider(month_offset) if growth_rate_provider is not None else default_monthly_rate
+            )
+
+            net_cashflow_month = monthly_net_income - monthly_expense
+            discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
+
+            if discretionary_surplus_month.is_negative:
+                withdrawals, unmet_shortfall = withdraw_shortfall(
+                    plan.accounts, account_balances, -discretionary_surplus_month, plan.withdrawal_strategy
+                )
+                contributions_this_month = _merge(monthly_fixed_contributions, _negate(withdrawals))
+                unallocated_delta = -unmet_shortfall
+            else:
+                already_contributed_this_year = _merge(fixed_plan.contributions, discretionary_contributed_this_year)
+                discretionary_contributions, unallocated_leftover = allocate_discretionary_surplus(
+                    plan.accounts,
+                    account_balances,
+                    lifetime_contributions,
+                    already_contributed_this_year,
+                    discretionary_surplus_month,
+                    plan.contribution_strategy,
+                    portfolio_rules,
+                )
+                contributions_this_month = _merge(monthly_fixed_contributions, discretionary_contributions)
+                unallocated_delta = unallocated_leftover
+                discretionary_contributed_this_year = _merge(
+                    discretionary_contributed_this_year, discretionary_contributions
+                )
+
+            account_balances = {
+                account_id: _floor_zero(
+                    _grow(balance, growth_rate) + contributions_this_month.get(account_id, Money.zero())
+                )
+                for account_id, balance in account_balances.items()
+            }
+            lifetime_contributions = {
+                account_id: lifetime_contributions[account_id] + contributions_this_month.get(account_id, Money.zero())
+                for account_id in lifetime_contributions
+            }
+            surplus_reserve = _grow(surplus_reserve, growth_rate) + unallocated_delta
+
+            balances_snapshot = {**account_balances, UNALLOCATED_SURPLUS_KEY: surplus_reserve}
+            networth = sum(balances_snapshot.values(), Money.zero())
+
+            monthly_projections.append(
+                MonthlyProjection(
+                    year=year,
+                    month=month,
+                    age_self=age,
+                    gross_income=monthly_gross_income,
+                    pension_income=monthly_pension_income,
+                    net_income=monthly_net_income,
+                    total_expense=monthly_expense,
+                    net_cashflow=net_cashflow_month,
+                    account_balances=dict(balances_snapshot),
+                    networth=networth,
+                )
+            )
 
         yearly_projections.append(
             YearlyProjection(
                 year=year,
                 age_self=age,
-                gross_income=gross_income,
-                pension_income=pension_income,
+                gross_income=gross_income_annual,
+                pension_income=pension_income_annual,
                 income_tax=tax_result.income_tax,
                 resident_tax=tax_result.resident_tax,
                 social_insurance=tax_result.social_insurance,
                 net_income=tax_result.net_income,
-                total_expense=total_expense,
-                net_cashflow=net_cashflow,
+                total_expense=total_expense_annual,
+                net_cashflow=tax_result.net_income - total_expense_annual,
                 account_balances=balances_snapshot,
                 networth=networth,
             )
@@ -131,7 +179,11 @@ def run_projection(
 
     milestone_outcomes = evaluate_milestones(plan, yearly_projections)
 
-    return SimulationResult(yearly_projections=yearly_projections, milestone_outcomes=milestone_outcomes)
+    return SimulationResult(
+        yearly_projections=yearly_projections,
+        monthly_projections=monthly_projections,
+        milestone_outcomes=milestone_outcomes,
+    )
 
 
 def _initial_balance(portfolio: Optional[Portfolio]) -> Money:
@@ -141,6 +193,10 @@ def _initial_balance(portfolio: Optional[Portfolio]) -> Money:
     for holding in portfolio.holdings:
         total = total + holding.cost_basis
     return total
+
+
+def _divide_by_12(amount: Money) -> Money:
+    return Money.of(amount.amount / MONTHS_PER_YEAR)
 
 
 def _total(amounts: dict[str, Money]) -> Money:

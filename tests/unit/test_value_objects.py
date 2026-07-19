@@ -43,6 +43,18 @@ class RateTest(unittest.TestCase):
         rate = Rate.of("0.1")
         self.assertEqual(rate.apply_to(Money.of(10_000)).amount, Decimal("1000"))
 
+    def test_monthly_equivalent_compounds_back_to_annual_rate(self) -> None:
+        annual = Rate.from_percent(5)
+        monthly = annual.monthly_equivalent()
+
+        compounded = Decimal(1)
+        for _ in range(12):
+            compounded *= Decimal(1) + monthly.value
+        self.assertAlmostEqual(float(compounded), float(Decimal(1) + annual.value), places=9)
+
+    def test_monthly_equivalent_of_zero_is_zero(self) -> None:
+        self.assertEqual(Rate.zero().monthly_equivalent().value, Decimal(0))
+
 
 class AgeAtTest(unittest.TestCase):
     def test_years_before_birthday(self) -> None:

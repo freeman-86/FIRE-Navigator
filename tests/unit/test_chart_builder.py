@@ -81,8 +81,10 @@ class ChartBuilderTest(unittest.TestCase):
 
         first_year_totals = {series["name"]: series["values"][0] for series in chart["series"]}
         self.assertEqual(first_year_totals["taxable"], 1_050_000)
-        self.assertEqual(first_year_totals["nisa_growth"], 525_000)
-        self.assertEqual(first_year_totals["unallocated_surplus"], 1_000_000)
+        # 月次複利を12回繰り返す過程での円未満丸めにより、単純な年率複利(525,000円)と1円だけずれうる
+        self.assertEqual(first_year_totals["nisa_growth"], 524_999)
+        # 毎月の余剰(1,000,000/12)がその都度残り月数分だけ月次複利で増えるため、単純合計より大きくなる
+        self.assertEqual(first_year_totals["unallocated_surplus"], 1_022_711)
 
     def test_series_values_sum_to_networth(self) -> None:
         plan, portfolios = _plan_with_two_account_types()

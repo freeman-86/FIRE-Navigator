@@ -1,5 +1,6 @@
 import unittest
 from datetime import date
+from decimal import Decimal
 
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.asset import Asset
@@ -12,9 +13,10 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
-from core.simulation.montecarlo.distribution import distributions_from_historical_dataset
+from core.simulation.montecarlo.distribution import distributions_from_historical_dataset, to_monthly_distributions
 from core.simulation.montecarlo.correlation_matrix import compute_correlation_matrix
-from core.simulation.montecarlo.montecarlo_engine import run_montecarlo
+from core.simulation.montecarlo.montecarlo_engine import _make_growth_rate_provider, run_montecarlo
+from core.simulation.montecarlo.random_seed import create_rng
 from tests.market_data_test_fixtures import small_dataset
 from tests.pension_test_fixtures import zero_pension_rules
 from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_contribution_strategy
@@ -88,6 +90,22 @@ class RunMontecarloTest(unittest.TestCase):
         self.assertGreaterEqual(result.success_rate, 0.0)
         self.assertLessEqual(result.success_rate, 1.0)
         self.assertIn(2026, result.percentile_networth_by_year)
+
+    def test_samples_a_fresh_return_every_month_not_once_per_year(self) -> None:
+        # Sprint12 月次化: growth_rate_providerは月次オフセットで毎回呼び出され、
+        # 同じ年の12ヶ月すべてに同一の値を使い回すことはない（サンプリングの分散が失われていないか確認）。
+        dataset = small_dataset()
+        distributions = distributions_from_historical_dataset(dataset)
+        correlation_matrix = compute_correlation_matrix(dataset)
+        asset_classes = list(distributions.keys())
+        weights = {ac: Decimal("1") / len(asset_classes) for ac in asset_classes}
+
+        provider = _make_growth_rate_provider(
+            asset_classes, to_monthly_distributions(distributions), correlation_matrix, weights, create_rng(7)
+        )
+        monthly_rates = [provider(offset).value for offset in range(12)]
+
+        self.assertEqual(len(set(monthly_rates)), 12)
 
 
 if __name__ == "__main__":

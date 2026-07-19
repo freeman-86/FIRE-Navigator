@@ -107,6 +107,11 @@ class Rate:
     def apply_to(self, money: Money) -> Money:
         return money * self
 
+    def monthly_equivalent(self) -> "Rate":
+        """年率としての自分自身と等価な複利になる月率を返す((1+r)^(1/12) - 1)。"""
+
+        return Rate((Decimal(1) + self.value) ** (Decimal(1) / Decimal(12)) - Decimal(1))
+
     def __add__(self, other: "Rate") -> "Rate":
         return Rate(self.value + other.value)
 
