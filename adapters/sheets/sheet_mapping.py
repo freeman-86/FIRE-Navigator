@@ -11,6 +11,9 @@ EXPENSES_SHEET = "入力_支出"
 SCENARIOS_SHEET = "入力_シナリオ"
 PROGRESS_SHEET = "入力_実績"
 ALLOCATION_POLICY_SHEET = "入力_配分方針"
+CHILDREN_SHEET = "入力_子供"
+EDUCATION_EXPENSES_SHEET = "入力_教育費"
+ONE_TIME_EXPENSES_SHEET = "入力_大型支出"
 OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
 OUTPUT_NETWORTH_BREAKDOWN_SHEET = "出力_純資産内訳"
 OUTPUT_SCENARIO_COMPARISON_SHEET = "出力_シナリオ比較"
@@ -76,6 +79,19 @@ RETIREMENT_AGE_HEADER = "退職年齢"
 # （ギャップ分析3.7。プラン全体で1つ、口座横断の目標配分比率テーブル）。
 AGE_HEADER = "年齢"
 TARGET_WEIGHT_HEADER = "目標比率"
+
+# Input_子供
+CHILD_ID_HEADER = "子供ID"
+
+# Input_教育費: 子供ID×年齢帯×カテゴリごとに1行（ギャップ分析3.2）。
+EDUCATION_BAND_ID_HEADER = "教育費ID"
+START_AGE_HEADER = "開始年齢"
+END_AGE_HEADER = "終了年齢"
+MONTHLY_AMOUNT_HEADER = "月額"
+
+# Input_大型支出: 単発支出1件=1行（ギャップ分析3.3）。発生条件はInput_収入と同じ
+# タイプ/値の形式（today/plan_start/age/date）で、START_TYPE_HEADER/START_VALUE_HEADERを流用する。
+ONE_TIME_AMOUNT_HEADER = "金額"
 
 # Input_実績 / Output_純資産推移等で共通
 YEAR_HEADER = "西暦年"
@@ -150,6 +166,31 @@ ALLOCATION_POLICY_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (AGE_HEADER, "plan.allocation_policy.targets[].age", "int"),
     (ASSET_CLASS_HEADER, "plan.allocation_policy.targets[].weights{}", "asset_class"),
     (TARGET_WEIGHT_HEADER, "plan.allocation_policy.targets[].weights{}", "rate"),
+)
+
+# Input_子供: ヘッダー行付きテーブル。1行=1子供。任意入力。
+CHILDREN_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    (CHILD_ID_HEADER, "plan.children[].child_id", "str"),
+    (BIRTH_DATE_HEADER, "plan.children[].birth_date", "date"),
+)
+
+# Input_教育費: ヘッダー行付きテーブル。1行=1教育費バンド。任意入力。
+EDUCATION_EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    (EDUCATION_BAND_ID_HEADER, "plan.education_expenses[].band_id", "str"),
+    (CHILD_ID_HEADER, "plan.education_expenses[].child_id", "str"),
+    (CATEGORY_HEADER, "plan.education_expenses[].category", "str"),
+    (START_AGE_HEADER, "plan.education_expenses[].start_age", "int"),
+    (END_AGE_HEADER, "plan.education_expenses[].end_age", "int"),
+    (MONTHLY_AMOUNT_HEADER, "plan.education_expenses[].monthly_amount", "money"),
+)
+
+# Input_大型支出: ヘッダー行付きテーブル。1行=1単発支出。任意入力。
+ONE_TIME_EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    (EXPENSE_ID_HEADER, "plan.one_time_expenses[].expense_id", "str"),
+    (CATEGORY_HEADER, "plan.one_time_expenses[].category", "str"),
+    (ONE_TIME_AMOUNT_HEADER, "plan.one_time_expenses[].amount", "money"),
+    (START_TYPE_HEADER, "plan.one_time_expenses[].trigger.type", "condition_type"),
+    (START_VALUE_HEADER, "plan.one_time_expenses[].trigger.value", "condition_value"),
 )
 
 # Input_収入: ヘッダー行付きテーブル。

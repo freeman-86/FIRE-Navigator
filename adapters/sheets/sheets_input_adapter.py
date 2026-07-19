@@ -19,7 +19,12 @@ from adapters.sheets.sheet_mapping import (
     BALANCE_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
+    CHILD_ID_HEADER,
+    CHILDREN_SHEET,
+    EDUCATION_BAND_ID_HEADER,
+    EDUCATION_EXPENSES_SHEET,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
+    END_AGE_HEADER,
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
@@ -31,8 +36,11 @@ from adapters.sheets.sheet_mapping import (
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
+    MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
+    ONE_TIME_EXPENSES_SHEET,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -47,6 +55,7 @@ from adapters.sheets.sheet_mapping import (
     SCENARIOS_SHEET,
     SOURCE_HEADER,
     SPREADSHEET_NAME,
+    START_AGE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
@@ -57,12 +66,15 @@ from adapters.sheets.sheet_mapping import (
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.allocation import AllocationPolicy, AllocationTarget
 from core.domain.asset import Asset, AssetClass
+from core.domain.child import Child
 from core.domain.contribution_strategy import ContributionStrategy
+from core.domain.education_expense import EducationExpenseBand
 from core.domain.errors import StructuralInputError
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
 from core.domain.milestone import Milestone, MilestoneType
+from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
@@ -376,6 +388,101 @@ def _build_allocation_policy(
     return AllocationPolicy(targets=targets)
 
 
+def _build_children(spreadsheet: gspread.Spreadsheet) -> list[Child]:
+    """子供の一覧を入力_子供シートから組み立てる（ギャップ分析3.2）。
+
+    入力_子供シートが存在しない場合は空リストを返す（教育費機能はオプション機能）。
+    """
+
+    try:
+        worksheet = spreadsheet.worksheet(CHILDREN_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    children = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{CHILDREN_SHEET}!row{row_number}"
+        children.append(
+            Child(
+                child_id=str(_require(record, CHILD_ID_HEADER, f"{row_prefix}.{CHILD_ID_HEADER}")),
+                birth_date=_parse_date_field(
+                    _require(record, BIRTH_DATE_HEADER, f"{row_prefix}.{BIRTH_DATE_HEADER}"),
+                    f"{row_prefix}.{BIRTH_DATE_HEADER}",
+                ),
+            )
+        )
+    return children
+
+
+def _build_education_expenses(spreadsheet: gspread.Spreadsheet) -> list[EducationExpenseBand]:
+    """年齢帯別の教育費を入力_教育費シートから組み立てる（ギャップ分析3.2）。
+
+    入力_教育費シートが存在しない場合は空リストを返す（オプション機能）。
+    """
+
+    try:
+        worksheet = spreadsheet.worksheet(EDUCATION_EXPENSES_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    bands = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{EDUCATION_EXPENSES_SHEET}!row{row_number}"
+        bands.append(
+            EducationExpenseBand(
+                band_id=str(_require(record, EDUCATION_BAND_ID_HEADER, f"{row_prefix}.{EDUCATION_BAND_ID_HEADER}")),
+                child_id=str(_require(record, CHILD_ID_HEADER, f"{row_prefix}.{CHILD_ID_HEADER}")),
+                category=str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}")),
+                start_age=_parse_int(
+                    _require(record, START_AGE_HEADER, f"{row_prefix}.{START_AGE_HEADER}"),
+                    f"{row_prefix}.{START_AGE_HEADER}",
+                ),
+                end_age=_parse_int(
+                    _require(record, END_AGE_HEADER, f"{row_prefix}.{END_AGE_HEADER}"),
+                    f"{row_prefix}.{END_AGE_HEADER}",
+                ),
+                monthly_amount=_parse_money(
+                    _require(record, MONTHLY_AMOUNT_HEADER, f"{row_prefix}.{MONTHLY_AMOUNT_HEADER}"),
+                    f"{row_prefix}.{MONTHLY_AMOUNT_HEADER}",
+                ),
+            )
+        )
+    return bands
+
+
+def _build_one_time_expenses(spreadsheet: gspread.Spreadsheet) -> list[OneTimeExpense]:
+    """車・旅行・住宅購入等の単発支出を入力_大型支出シートから組み立てる（ギャップ分析3.3）。
+
+    入力_大型支出シートが存在しない場合は空リストを返す（オプション機能）。
+    """
+
+    try:
+        worksheet = spreadsheet.worksheet(ONE_TIME_EXPENSES_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    expenses = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{ONE_TIME_EXPENSES_SHEET}!row{row_number}"
+        trigger = _build_event_condition(
+            record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
+        )
+        if trigger is None:
+            raise StructuralInputError(f"{START_TYPE_HEADER}が必須です", f"{row_prefix}.{START_TYPE_HEADER}")
+        expenses.append(
+            OneTimeExpense(
+                expense_id=str(_require(record, EXPENSE_ID_HEADER, f"{row_prefix}.{EXPENSE_ID_HEADER}")),
+                category=str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}")),
+                amount=_parse_money(
+                    _require(record, ONE_TIME_AMOUNT_HEADER, f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}"),
+                    f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}",
+                ),
+                trigger=trigger,
+            )
+        )
+    return expenses
+
+
 def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     worksheet = spreadsheet.worksheet(INCOMES_SHEET)
     incomes = []
@@ -554,6 +661,9 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         expenses=_build_expenses(spreadsheet),
         milestones=_build_milestones(settings),
         allocation_policy=_build_allocation_policy(spreadsheet),
+        children=_build_children(spreadsheet),
+        education_expenses=_build_education_expenses(spreadsheet),
+        one_time_expenses=_build_one_time_expenses(spreadsheet),
     )
 
 

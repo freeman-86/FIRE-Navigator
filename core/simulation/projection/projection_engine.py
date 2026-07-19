@@ -5,9 +5,12 @@ from decimal import Decimal
 from typing import Callable, Optional
 
 from core.domain.asset import AssetClass
+from core.domain.child import Child
+from core.domain.education_expense import EducationExpenseBand
 from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.milestone import MilestoneType
+from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import PensionRules
 from core.domain.plan import Plan, StartConditionType
 from core.domain.portfolio import Portfolio
@@ -18,7 +21,7 @@ from core.domain.value_objects import EventCondition, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
 from core.simulation.portfolio.rebalance_engine import rebalance
-from core.simulation.projection.event_conditions import resolve_condition_year
+from core.simulation.projection.event_conditions import resolve_condition_month, resolve_condition_year
 from core.simulation.projection.milestone_evaluation import evaluate_milestones
 from core.simulation.tax.tax_engine import calculate_tax
 from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
@@ -64,10 +67,14 @@ def run_projection(
     """
 
     start_year = resolve_start_year(plan)
+    start_month = resolve_start_month(plan)
     end_year = _resolve_end_year(plan, start_year)
     birth_date = plan.user.birth_date
     has_spouse = plan.user.spouse is not None
     default_monthly_rate = plan.assumptions.investment_growth_rate.monthly_equivalent()
+    one_time_expenses_by_month_offset = _one_time_expenses_by_month_offset(
+        plan.one_time_expenses, start_year, start_month, birth_date
+    )
 
     account_balances = {
         account.account_id: _initial_balance(portfolios.get(account.account_id)) for account in plan.accounts
@@ -85,7 +92,8 @@ def run_projection(
         age = year - birth_date.year
         gross_income_annual = _active_income_total(plan.incomes, year, start_year, birth_date, offset_year)
         pension_income_annual = calculate_pension_income(age, plan.pension, pension_rules)
-        total_expense_annual = _expense_total(plan.expenses, offset_year)
+        education_expense_monthly = _education_expense_monthly_total(plan.children, plan.education_expenses, year)
+        total_expense_annual = _expense_total(plan.expenses, offset_year) + education_expense_monthly * 12
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
         tax_result = calculate_tax(
@@ -96,20 +104,26 @@ def run_projection(
         monthly_gross_income = _divide_by_12(gross_income_annual)
         monthly_pension_income = _divide_by_12(pension_income_annual)
         monthly_net_income = _divide_by_12(tax_result.net_income)
-        monthly_expense = _divide_by_12(total_expense_annual)
+        monthly_recurring_expense = _divide_by_12(total_expense_annual)
         monthly_fixed_contributions = {
             account_id: _divide_by_12(amount) for account_id, amount in fixed_plan.contributions.items()
         }
         discretionary_contributed_this_year: dict[str, Money] = {}
         capital_gains_tax_annual = Money.zero()
+        one_time_expense_annual = Money.zero()
 
         balances_snapshot: dict[str, Money] = {}
         networth = Money.zero()
         for month in range(1, MONTHS_PER_YEAR + 1):
             month_offset = offset_year * MONTHS_PER_YEAR + (month - 1)
+            calendar_year, calendar_month = _calendar_year_month(start_year, start_month, month_offset)
             growth_rate = (
                 growth_rate_provider(month_offset) if growth_rate_provider is not None else default_monthly_rate
             )
+
+            one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
+            one_time_expense_annual = one_time_expense_annual + one_time_expense_this_month
+            monthly_expense = monthly_recurring_expense + one_time_expense_this_month
 
             net_cashflow_month = monthly_net_income - monthly_expense
             discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
@@ -198,8 +212,8 @@ def run_projection(
 
             monthly_projections.append(
                 MonthlyProjection(
-                    year=year,
-                    month=month,
+                    year=calendar_year,
+                    month=calendar_month,
                     age_self=age,
                     gross_income=monthly_gross_income,
                     pension_income=monthly_pension_income,
@@ -212,6 +226,7 @@ def run_projection(
                 )
             )
 
+        total_expense_including_one_time = total_expense_annual + one_time_expense_annual
         yearly_projections.append(
             YearlyProjection(
                 year=year,
@@ -222,8 +237,8 @@ def run_projection(
                 resident_tax=tax_result.resident_tax,
                 social_insurance=tax_result.social_insurance,
                 net_income=tax_result.net_income,
-                total_expense=total_expense_annual,
-                net_cashflow=tax_result.net_income - total_expense_annual,
+                total_expense=total_expense_including_one_time,
+                net_cashflow=tax_result.net_income - total_expense_including_one_time,
                 capital_gains_tax=capital_gains_tax_annual,
                 account_balances=balances_snapshot,
                 networth=networth,
@@ -304,6 +319,26 @@ def resolve_start_year(plan: Plan) -> int:
     return date.today().year
 
 
+def resolve_start_month(plan: Plan) -> int:
+    condition = plan.start_condition
+    if condition.condition_type == StartConditionType.FIXED_DATE:
+        return condition.fixed_date.month
+    return date.today().month
+
+
+def _calendar_year_month(start_year: int, start_month: int, month_offset: int) -> tuple[int, int]:
+    """月次オフセット(0始まり)を実際の西暦年・月に変換する。
+
+    YearlyProjection.yearは「プラン開始からN年目」という単純な連番（start_year+offset_year）の
+    ままだが、MonthlyProjectionの年月はOneTimeExpense等の発生月と一致させる必要があるため、
+    start_monthが1月以外（例: StartConditionType.TODAYで年の途中から始まるプラン）でも
+    実際のカレンダー通りの年月になるようここで変換する。
+    """
+
+    total_months = (start_month - 1) + month_offset
+    return start_year + total_months // MONTHS_PER_YEAR, total_months % MONTHS_PER_YEAR + 1
+
+
 def _resolve_end_year(plan: Plan, start_year: int) -> int:
     retirement_year = _retirement_year(plan, start_year)
     if retirement_year is not None:
@@ -352,3 +387,37 @@ def _expense_total(expenses: list[Expense], offset: int) -> Money:
     for expense in expenses:
         total = total + _grown_amount(expense.amount, expense.growth_rate, offset)
     return total
+
+
+def _education_expense_monthly_total(
+    children: list[Child], bands: list[EducationExpenseBand], year: int
+) -> Money:
+    """その年に該当する子供の年齢に基づき、教育費バンド（小学校・塾等）の月額合計を返す
+    （ギャップ分析3.2）。物価上昇は考慮しない（既存のinflation_rate同様、現時点では未対応）。
+    """
+
+    age_by_child_id = {child.child_id: year - child.birth_date.year for child in children}
+    total = Money.zero()
+    for band in bands:
+        age = age_by_child_id.get(band.child_id)
+        if age is not None and band.applies_to_age(age):
+            total = total + band.monthly_amount
+    return total
+
+
+def _one_time_expenses_by_month_offset(
+    one_time_expenses: list[OneTimeExpense], start_year: int, start_month: int, birth_date: date
+) -> dict[int, Money]:
+    """車・旅行・住宅購入等の単発支出（ギャップ分析3.3）を、発生する月次オフセットごとに
+    集計する。同じ月に複数の単発支出が重なる場合は合算する。
+    """
+
+    result: dict[int, Money] = {}
+    for expense in one_time_expenses:
+        resolved = resolve_condition_month(expense.trigger, start_year, start_month, birth_date)
+        if resolved is None:
+            continue
+        target_year, target_month = resolved
+        target_offset = (target_year - start_year) * MONTHS_PER_YEAR + (target_month - start_month)
+        result[target_offset] = result.get(target_offset, Money.zero()) + expense.amount
+    return result

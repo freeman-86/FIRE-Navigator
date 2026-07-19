@@ -466,5 +466,125 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
 
 
+class EducationExpenseIntegrationTest(unittest.TestCase):
+    def test_education_expense_is_added_only_during_applicable_age_band(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import EducationExpenseBand
+
+        # _minimal_planはstart_year=2026固定。子供が2020年生まれなら2026年に6歳(小学校入学)。
+        child = Child(child_id="child_001", birth_date=date(2020, 4, 1))
+        band = EducationExpenseBand(
+            band_id="band_elementary",
+            child_id="child_001",
+            category="小学校",
+            start_age=6,
+            end_age=6,
+            monthly_amount=Money.of(30_000),
+        )
+        plan = _minimal_plan(children=[child], education_expenses=[band])
+
+        result = _run(plan)
+
+        # 2026年(6歳、対象年): 月30,000円 x 12 = 360,000円が支出に加算される
+        year_2026 = next(p for p in result.yearly_projections if p.year == 2026)
+        self.assertEqual(year_2026.total_expense, Money.of(360_000))
+        # 2027年(7歳、対象外): 加算されない
+        year_2027 = next(p for p in result.yearly_projections if p.year == 2027)
+        self.assertEqual(year_2027.total_expense, Money.zero())
+
+
+class OneTimeExpenseIntegrationTest(unittest.TestCase):
+    def test_one_time_expense_is_charged_only_in_the_triggering_month(self) -> None:
+        from core.domain.one_time_expense import OneTimeExpense
+
+        # _minimal_planはstart_condition=FIXED_DATE(2026-01-01) -> start_year=2026, start_month=1
+        car_purchase = OneTimeExpense(
+            expense_id="expense_car",
+            category="車",
+            amount=Money.of(3_000_000),
+            trigger=EventCondition.at_date(date(2027, 6, 1)),
+        )
+        plan = _minimal_plan(one_time_expenses=[car_purchase])
+
+        result = _run(plan)
+
+        # 2027年6月(month_offset=17: 2年目の6ヶ月目)にのみ全額計上される
+        triggering_month = next(
+            p for p in result.monthly_projections if p.year == 2027 and p.month == 6
+        )
+        self.assertEqual(triggering_month.total_expense, Money.of(3_000_000))
+
+        other_month = next(
+            p for p in result.monthly_projections if p.year == 2027 and p.month == 5
+        )
+        self.assertEqual(other_month.total_expense, Money.zero())
+
+        # 年次集計にも反映される
+        year_2027 = next(p for p in result.yearly_projections if p.year == 2027)
+        self.assertEqual(year_2027.total_expense, Money.of(3_000_000))
+
+    def test_age_triggered_one_time_expense_fires_in_birthday_month(self) -> None:
+        from core.domain.one_time_expense import OneTimeExpense
+
+        user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+        pension = Pension(
+            national_pension=PensionEntitlement(estimate_annual=Money.zero()),
+            employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
+            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        )
+        trip = OneTimeExpense(
+            expense_id="expense_trip", category="旅行", amount=Money.of(500_000), trigger=EventCondition.at_age(37)
+        )
+        plan = Plan(
+            plan_id="plan_test",
+            name="テストプラン",
+            user=user,
+            start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
+            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
+            accounts=[],
+            tax_config=TaxConfig(residence=Prefecture.TOKYO),
+            pension=pension,
+            withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
+            contribution_strategy=no_allocation_contribution_strategy(),
+            one_time_expenses=[trip],
+        )
+
+        result = _run(plan)
+
+        # 1990-04-01生まれが37歳になるのは2027年4月
+        triggering_month = next(
+            p for p in result.monthly_projections if p.year == 2027 and p.month == 4
+        )
+        self.assertEqual(triggering_month.total_expense, Money.of(500_000))
+
+    def test_one_time_expense_labels_real_calendar_month_when_plan_starts_mid_year(self) -> None:
+        from core.domain.one_time_expense import OneTimeExpense
+
+        # プラン開始が7月(1月始まりではない)でも、MonthlyProjection.year/monthは
+        # 実際のカレンダー通りの年月になる（year=start_year+offset_yearという単純な連番にはしない）。
+        plan = _minimal_plan(
+            start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 7, 1)),
+            one_time_expenses=[
+                OneTimeExpense(
+                    expense_id="expense_car",
+                    category="車",
+                    amount=Money.of(3_000_000),
+                    trigger=EventCondition.at_date(date(2027, 6, 1)),
+                )
+            ],
+        )
+
+        result = _run(plan)
+
+        triggering_month = next(
+            p for p in result.monthly_projections if p.year == 2027 and p.month == 6
+        )
+        self.assertEqual(triggering_month.total_expense, Money.of(3_000_000))
+
+        # 開始月(2026年7月)はmonth_offset=0で、実際のカレンダー通りに(2026,7)とラベル付けされる
+        first_month = result.monthly_projections[0]
+        self.assertEqual((first_month.year, first_month.month), (2026, 7))
+
+
 if __name__ == "__main__":
     unittest.main()

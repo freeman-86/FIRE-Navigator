@@ -7,12 +7,15 @@ from typing import Optional
 
 from core.domain.account import Account
 from core.domain.allocation import AllocationPolicy
+from core.domain.child import Child
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.debt import Debt
+from core.domain.education_expense import EducationExpenseBand
 from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.loan import Loan
 from core.domain.milestone import Milestone
+from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import Pension
 from core.domain.tax_config import TaxConfig
 from core.domain.user import User
@@ -60,3 +63,6 @@ class Plan:
     incomes: list[Income] = field(default_factory=list)
     expenses: list[Expense] = field(default_factory=list)
     allocation_policy: Optional[AllocationPolicy] = None
+    children: list[Child] = field(default_factory=list)
+    education_expenses: list[EducationExpenseBand] = field(default_factory=list)
+    one_time_expenses: list[OneTimeExpense] = field(default_factory=list)
