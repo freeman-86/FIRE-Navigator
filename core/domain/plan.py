@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Optional
 
 from core.domain.account import Account
+from core.domain.allocation import AllocationPolicy
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.debt import Debt
 from core.domain.expense import Expense
@@ -58,3 +59,4 @@ class Plan:
     loans: list[Loan] = field(default_factory=list)
     incomes: list[Income] = field(default_factory=list)
     expenses: list[Expense] = field(default_factory=list)
+    allocation_policy: Optional[AllocationPolicy] = None

@@ -3,7 +3,7 @@ import unittest
 from core.domain.account import Account, AccountType, OwnerType
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.portfolio_rules import AccountRules, PortfolioRules
-from core.domain.value_objects import Money
+from core.domain.value_objects import Money, Rate
 from core.simulation.portfolio.account_rules import cap_contribution
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
 
@@ -131,6 +131,75 @@ class AllocateDiscretionarySurplusTest(unittest.TestCase):
 
         self.assertEqual(contributions["acc_nisa"], Money.of(100_000))
         self.assertEqual(leftover, Money.of(200_000))
+
+
+class AllocateDiscretionarySurplusDriftAwareTest(unittest.TestCase):
+    """AllocationPolicy設定時、CASH以外の口座はcontribution_strategy.orderの固定順ではなく
+    資産クラスの乖離が大きい口座を優先する（ギャップ分析3.7）。
+    """
+
+    def test_prefers_underweight_asset_class_over_fixed_order(self) -> None:
+        accounts = [
+            _account("acc_nisa_equity", AccountType.NISA_GROWTH),
+            _account("acc_taxable_bond", AccountType.TAXABLE),
+        ]
+        # 現在: 株式90%(900,000)・債券10%(100,000)。目標は株式50%・債券50%のため債券が過小。
+        account_balances = {"acc_nisa_equity": Money.of(900_000), "acc_taxable_bond": Money.of(100_000)}
+        portfolio_rules = PortfolioRules(
+            rules_by_account_type={
+                AccountType.NISA_GROWTH: AccountRules(annual_limit=None, lifetime_limit=None, tax_free=True),
+                AccountType.TAXABLE: AccountRules(annual_limit=None, lifetime_limit=None, tax_free=False),
+            }
+        )
+        # 順序上はNISA(株式)が先だが、乖離ベースだと債券(taxable)が優先されるはず
+        strategy = ContributionStrategy(order=[AccountType.NISA_GROWTH, AccountType.TAXABLE])
+        asset_class_by_account_id = {"acc_nisa_equity": "equity_sp500", "acc_taxable_bond": "bond_us_treasury"}
+        target_weights = {"equity_sp500": Rate.of("0.5"), "bond_us_treasury": Rate.of("0.5")}
+
+        contributions, leftover = allocate_discretionary_surplus(
+            accounts,
+            account_balances,
+            {"acc_nisa_equity": Money.zero(), "acc_taxable_bond": Money.zero()},
+            {},
+            Money.of(100_000),
+            strategy,
+            portfolio_rules,
+            asset_class_by_account_id=asset_class_by_account_id,
+            target_weights=target_weights,
+        )
+
+        # 乖離が大きい債券(taxable)側に全額が優先配分される
+        self.assertEqual(contributions.get("acc_taxable_bond"), Money.of(100_000))
+        self.assertNotIn("acc_nisa_equity", contributions)
+        self.assertEqual(leftover, Money.zero())
+
+    def test_falls_back_to_fixed_order_when_allocation_policy_not_provided(self) -> None:
+        accounts = [
+            _account("acc_nisa_equity", AccountType.NISA_GROWTH),
+            _account("acc_taxable_bond", AccountType.TAXABLE),
+        ]
+        account_balances = {"acc_nisa_equity": Money.of(900_000), "acc_taxable_bond": Money.of(100_000)}
+        portfolio_rules = PortfolioRules(
+            rules_by_account_type={
+                AccountType.NISA_GROWTH: AccountRules(annual_limit=None, lifetime_limit=None, tax_free=True),
+                AccountType.TAXABLE: AccountRules(annual_limit=None, lifetime_limit=None, tax_free=False),
+            }
+        )
+        strategy = ContributionStrategy(order=[AccountType.NISA_GROWTH, AccountType.TAXABLE])
+
+        contributions, _leftover = allocate_discretionary_surplus(
+            accounts,
+            account_balances,
+            {"acc_nisa_equity": Money.zero(), "acc_taxable_bond": Money.zero()},
+            {},
+            Money.of(100_000),
+            strategy,
+            portfolio_rules,
+        )
+
+        # asset_class_by_account_id/target_weights省略時は従来通りorder通りNISAが優先される
+        self.assertEqual(contributions.get("acc_nisa_equity"), Money.of(100_000))
+        self.assertNotIn("acc_taxable_bond", contributions)
 
 
 if __name__ == "__main__":

@@ -13,9 +13,10 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
+from core.domain.allocation import AllocationPolicy, AllocationTarget
 from core.simulation.montecarlo.distribution import distributions_from_historical_dataset, to_monthly_distributions
 from core.simulation.montecarlo.correlation_matrix import compute_correlation_matrix
-from core.simulation.montecarlo.montecarlo_engine import _make_growth_rate_provider, run_montecarlo
+from core.simulation.montecarlo.montecarlo_engine import build_weight_lookup, _make_growth_rate_provider, run_montecarlo
 from core.simulation.montecarlo.random_seed import create_rng
 from tests.market_data_test_fixtures import small_dataset
 from tests.pension_test_fixtures import zero_pension_rules
@@ -101,11 +102,44 @@ class RunMontecarloTest(unittest.TestCase):
         weights = {ac: Decimal("1") / len(asset_classes) for ac in asset_classes}
 
         provider = _make_growth_rate_provider(
-            asset_classes, to_monthly_distributions(distributions), correlation_matrix, weights, create_rng(7)
+            asset_classes, to_monthly_distributions(distributions), correlation_matrix, lambda offset: weights, create_rng(7)
         )
         monthly_rates = [provider(offset).value for offset in range(12)]
 
         self.assertEqual(len(set(monthly_rates)), 12)
+
+
+class BuildWeightLookupTest(unittest.TestCase):
+    def test_uses_allocation_policy_weights_and_switches_at_age_boundary(self) -> None:
+        import dataclasses
+
+        # _plan()はstart_year=2026, birth_date=1990-04-01 -> offset0時点でage=36
+        plan = dataclasses.replace(
+            _plan(),
+            allocation_policy=AllocationPolicy(
+                targets=[
+                    AllocationTarget(age=36, weights={"domestic_equity": Rate.of("1.0")}),
+                    AllocationTarget(age=37, weights={"domestic_bond": Rate.of("1.0")}),
+                ]
+            ),
+        )
+
+        weight_lookup = build_weight_lookup(plan, _portfolios())
+
+        # offset0-11(2026年、age36): 株式100%
+        self.assertEqual(weight_lookup(0).get("domestic_equity"), Decimal("1.0"))
+        self.assertEqual(weight_lookup(11).get("domestic_equity"), Decimal("1.0"))
+        # offset12(2027年、age37): 債券100%に切り替わる
+        self.assertEqual(weight_lookup(12).get("domestic_bond"), Decimal("1.0"))
+        self.assertNotIn("domestic_equity", weight_lookup(12))
+
+    def test_falls_back_to_static_portfolio_weights_without_allocation_policy(self) -> None:
+        weight_lookup = build_weight_lookup(_plan(), _portfolios())
+
+        weights_at_0 = weight_lookup(0)
+        weights_at_100 = weight_lookup(100)
+        self.assertEqual(weights_at_0, weights_at_100)
+        self.assertIn("domestic_equity", weights_at_0)
 
 
 if __name__ == "__main__":

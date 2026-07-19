@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Callable
 
 from core.domain.asset import AssetClass
 from core.domain.market_data import HistoricalDataset
@@ -23,7 +24,7 @@ def run_all_windows(
     portfolio_rules: PortfolioRules,
     pension_rules: PensionRules,
     dataset: HistoricalDataset,
-    asset_class_weights: dict[AssetClass, Decimal],
+    weight_lookup: Callable[[int], dict[AssetClass, Decimal]],
     window_length: int,
 ) -> dict[int, SimulationResult]:
     """過去データセットの各「窓」（開始年をずらした実績リターン系列）についてProjection Engineを
@@ -33,7 +34,7 @@ def run_all_windows(
     results: dict[int, SimulationResult] = {}
     for window_start_year in generate_windows(dataset, window_length):
         return_series = build_return_series(dataset, window_start_year, window_length)
-        growth_rate_provider = build_growth_rate_provider(return_series, asset_class_weights)
+        growth_rate_provider = build_growth_rate_provider(return_series, weight_lookup)
         results[window_start_year] = run_projection(
             plan, portfolios, tax_rules, portfolio_rules, pension_rules, growth_rate_provider=growth_rate_provider
         )

@@ -1,4 +1,5 @@
 from core.domain.tax_config import (
+    CapitalGainsTaxRules,
     EmploymentIncomeDeductionBracket,
     IncomeTaxRules,
     ResidentTaxRules,
@@ -26,4 +27,5 @@ def zero_tax_rules() -> TaxRules:
             pension_insurance_rate=Rate.zero(),
             employment_insurance_rate=Rate.zero(),
         ),
+        capital_gains=CapitalGainsTaxRules(rate=Rate.zero()),
     )

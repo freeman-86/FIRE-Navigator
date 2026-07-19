@@ -10,6 +10,7 @@ INCOMES_SHEET = "入力_収入"
 EXPENSES_SHEET = "入力_支出"
 SCENARIOS_SHEET = "入力_シナリオ"
 PROGRESS_SHEET = "入力_実績"
+ALLOCATION_POLICY_SHEET = "入力_配分方針"
 OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
 OUTPUT_NETWORTH_BREAKDOWN_SHEET = "出力_純資産内訳"
 OUTPUT_SCENARIO_COMPARISON_SHEET = "出力_シナリオ比較"
@@ -71,10 +72,16 @@ SCENARIO_ID_HEADER = "シナリオID"
 SCENARIO_NAME_HEADER = "シナリオ名"
 RETIREMENT_AGE_HEADER = "退職年齢"
 
+# Input_配分方針: 年齢×資産クラスごとに1行。同じ年齢の行をまとめて1つのAllocationTargetとする
+# （ギャップ分析3.7。プラン全体で1つ、口座横断の目標配分比率テーブル）。
+AGE_HEADER = "年齢"
+TARGET_WEIGHT_HEADER = "目標比率"
+
 # Input_実績 / Output_純資産推移等で共通
 YEAR_HEADER = "西暦年"
 ACTUAL_NETWORTH_HEADER = "実績純資産"
 NETWORTH_HEADER = "純資産"
+CAPITAL_GAINS_TAX_HEADER = "譲渡税"
 
 # Output_モンテカルロ / Output_ヒストリカルバックテスト
 P10_HEADER = "下位10%値"
@@ -138,6 +145,13 @@ PROGRESS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (ACTUAL_NETWORTH_HEADER, "progress_record.actual_networth", "money"),
 )
 
+# Input_配分方針: ヘッダー行付きテーブル。1行=(年齢, 資産クラス, 目標比率)。任意入力。
+ALLOCATION_POLICY_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
+    (AGE_HEADER, "plan.allocation_policy.targets[].age", "int"),
+    (ASSET_CLASS_HEADER, "plan.allocation_policy.targets[].weights{}", "asset_class"),
+    (TARGET_WEIGHT_HEADER, "plan.allocation_policy.targets[].weights{}", "rate"),
+)
+
 # Input_収入: ヘッダー行付きテーブル。
 INCOMES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (INCOME_ID_HEADER, "plan.incomes[].income_id", "str"),
@@ -159,10 +173,11 @@ EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (IS_FLEXIBLE_HEADER, "plan.expenses[].is_flexible", "bool"),
 )
 
-# Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース数値のみを書き戻す最小版。
+# Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース・譲渡税を書き戻す。
 OUTPUT_NETWORTH_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (YEAR_HEADER, "simulation_result.yearly_projections[].year", "int"),
     (NETWORTH_HEADER, "simulation_result.yearly_projections[].networth", "money"),
+    (CAPITAL_GAINS_TAX_HEADER, "simulation_result.yearly_projections[].capital_gains_tax", "money"),
 )
 
 # Output_純資産内訳: ヘッダー行付きテーブル。1列目=year、以降は口座種別（+unallocated_surplus）ごとの残高。

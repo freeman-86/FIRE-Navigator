@@ -4,6 +4,7 @@ import gspread
 
 from adapters.sheets import sheets_output_adapter as output_adapter
 from adapters.sheets.sheet_mapping import (
+    CAPITAL_GAINS_TAX_HEADER,
     DASHBOARD_CURRENT_NETWORTH_LABEL,
     DASHBOARD_DEPLETION_AGE_LABEL,
     DASHBOARD_NO_DEPLETION_TEXT,
@@ -174,7 +175,12 @@ class WriteNetworthTableTest(unittest.TestCase):
 
         worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_SHEET)
         self.assertEqual(
-            worksheet.last_values, [[YEAR_HEADER, NETWORTH_HEADER], [2026, 1_000_000], [2027, 2_000_000]]
+            worksheet.last_values,
+            [
+                [YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER],
+                [2026, 1_000_000, 0],
+                [2027, 2_000_000, 0],
+            ],
         )
 
 

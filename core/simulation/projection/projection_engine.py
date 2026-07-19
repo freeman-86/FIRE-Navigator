@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Callable, Optional
 
+from core.domain.asset import AssetClass
 from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.milestone import MilestoneType
@@ -16,6 +17,7 @@ from core.domain.tax_config import TaxRules
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
+from core.simulation.portfolio.rebalance_engine import rebalance
 from core.simulation.projection.event_conditions import resolve_condition_year
 from core.simulation.projection.milestone_evaluation import evaluate_milestones
 from core.simulation.tax.tax_engine import calculate_tax
@@ -61,7 +63,7 @@ def run_projection(
     （設計書v1.1 ⑥⑦）。
     """
 
-    start_year = _resolve_start_year(plan)
+    start_year = resolve_start_year(plan)
     end_year = _resolve_end_year(plan, start_year)
     birth_date = plan.user.birth_date
     has_spouse = plan.user.spouse is not None
@@ -70,8 +72,12 @@ def run_projection(
     account_balances = {
         account.account_id: _initial_balance(portfolios.get(account.account_id)) for account in plan.accounts
     }
+    # 取り崩し時の譲渡税計算（平均取得原価方式）に使う累計取得原価。シミュレーション開始時点の
+    # 残高をそのまま初期取得原価とする（開始前の含み益は追跡しない簡易化）。
+    cost_basis_balances = dict(account_balances)
     lifetime_contributions = {account.account_id: Money.zero() for account in plan.accounts}
     surplus_reserve = Money.zero()
+    asset_class_by_account_id = _asset_class_by_account_id(portfolios)
 
     yearly_projections: list[YearlyProjection] = []
     monthly_projections: list[MonthlyProjection] = []
@@ -95,6 +101,7 @@ def run_projection(
             account_id: _divide_by_12(amount) for account_id, amount in fixed_plan.contributions.items()
         }
         discretionary_contributed_this_year: dict[str, Money] = {}
+        capital_gains_tax_annual = Money.zero()
 
         balances_snapshot: dict[str, Money] = {}
         networth = Money.zero()
@@ -106,13 +113,28 @@ def run_projection(
 
             net_cashflow_month = monthly_net_income - monthly_expense
             discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
+            target_weights_this_month = (
+                plan.allocation_policy.weights_for_age(age) if plan.allocation_policy is not None else {}
+            )
 
             if discretionary_surplus_month.is_negative:
-                withdrawals, unmet_shortfall = withdraw_shortfall(
-                    plan.accounts, account_balances, -discretionary_surplus_month, plan.withdrawal_strategy
+                withdrawal_outcome = withdraw_shortfall(
+                    plan.accounts,
+                    account_balances,
+                    cost_basis_balances,
+                    -discretionary_surplus_month,
+                    plan.withdrawal_strategy,
+                    portfolio_rules,
+                    tax_rules.capital_gains,
                 )
-                contributions_this_month = _merge(monthly_fixed_contributions, _negate(withdrawals))
-                unallocated_delta = -unmet_shortfall
+                contributions_this_month = _merge(monthly_fixed_contributions, _negate(withdrawal_outcome.withdrawals))
+                unallocated_delta = -withdrawal_outcome.remaining_shortfall
+                capital_gains_tax_month = withdrawal_outcome.capital_gains_tax
+                cost_basis_balances = {
+                    account_id: withdrawal_outcome.updated_cost_basis.get(account_id, Money.zero())
+                    + monthly_fixed_contributions.get(account_id, Money.zero())
+                    for account_id in account_balances
+                }
             else:
                 already_contributed_this_year = _merge(fixed_plan.contributions, discretionary_contributed_this_year)
                 discretionary_contributions, unallocated_leftover = allocate_discretionary_surplus(
@@ -123,12 +145,20 @@ def run_projection(
                     discretionary_surplus_month,
                     plan.contribution_strategy,
                     portfolio_rules,
+                    asset_class_by_account_id=asset_class_by_account_id,
+                    target_weights=target_weights_this_month,
                 )
                 contributions_this_month = _merge(monthly_fixed_contributions, discretionary_contributions)
                 unallocated_delta = unallocated_leftover
+                capital_gains_tax_month = Money.zero()
                 discretionary_contributed_this_year = _merge(
                     discretionary_contributed_this_year, discretionary_contributions
                 )
+                cost_basis_balances = {
+                    account_id: cost_basis_balances.get(account_id, Money.zero())
+                    + contributions_this_month.get(account_id, Money.zero())
+                    for account_id in account_balances
+                }
 
             account_balances = {
                 account_id: _floor_zero(
@@ -141,6 +171,27 @@ def run_projection(
                 for account_id in lifetime_contributions
             }
             surplus_reserve = _grow(surplus_reserve, growth_rate) + unallocated_delta
+
+            if target_weights_this_month:
+                # 新規拠出(discretionary配分のドリフト考慮)で埋めきれなかった乖離を、
+                # 過大な口座の売却→過小な口座への再投資で解消する（ギャップ分析3.7）。
+                rebalance_outcome = rebalance(
+                    plan,
+                    account_balances,
+                    cost_basis_balances,
+                    lifetime_contributions,
+                    asset_class_by_account_id,
+                    target_weights_this_month,
+                    portfolio_rules,
+                    tax_rules.capital_gains,
+                )
+                account_balances = rebalance_outcome.account_balances
+                cost_basis_balances = rebalance_outcome.cost_basis_balances
+                lifetime_contributions = rebalance_outcome.lifetime_contributions
+                capital_gains_tax_month = capital_gains_tax_month + rebalance_outcome.capital_gains_tax
+                surplus_reserve = surplus_reserve + rebalance_outcome.unreinvested_proceeds
+
+            capital_gains_tax_annual = capital_gains_tax_annual + capital_gains_tax_month
 
             balances_snapshot = {**account_balances, UNALLOCATED_SURPLUS_KEY: surplus_reserve}
             networth = sum(balances_snapshot.values(), Money.zero())
@@ -155,6 +206,7 @@ def run_projection(
                     net_income=monthly_net_income,
                     total_expense=monthly_expense,
                     net_cashflow=net_cashflow_month,
+                    capital_gains_tax=capital_gains_tax_month,
                     account_balances=dict(balances_snapshot),
                     networth=networth,
                 )
@@ -172,6 +224,7 @@ def run_projection(
                 net_income=tax_result.net_income,
                 total_expense=total_expense_annual,
                 net_cashflow=tax_result.net_income - total_expense_annual,
+                capital_gains_tax=capital_gains_tax_annual,
                 account_balances=balances_snapshot,
                 networth=networth,
             )
@@ -193,6 +246,19 @@ def _initial_balance(portfolio: Optional[Portfolio]) -> Money:
     for holding in portfolio.holdings:
         total = total + holding.cost_basis
     return total
+
+
+def _asset_class_by_account_id(portfolios: dict[str, Portfolio]) -> dict[str, AssetClass]:
+    """口座ごとの資産クラスを解決する（現状のSheets入力モデルは1口座=1資産クラスの前提。
+    複数保有がある場合は先頭のholdingを代表として扱う）。AllocationPolicyによる
+    ドリフト考慮の拠出配分・月次リバランスで、口座がどの資産クラスに属するかを引くのに使う。
+    """
+
+    result: dict[str, AssetClass] = {}
+    for account_id, portfolio in portfolios.items():
+        if portfolio.holdings:
+            result[account_id] = portfolio.holdings[0].asset.asset_class
+    return result
 
 
 def _divide_by_12(amount: Money) -> Money:
@@ -231,7 +297,7 @@ def _grown_amount(amount: Money, growth_rate: Rate, offset: int) -> Money:
     return amount * factor
 
 
-def _resolve_start_year(plan: Plan) -> int:
+def resolve_start_year(plan: Plan) -> int:
     condition = plan.start_condition
     if condition.condition_type == StartConditionType.FIXED_DATE:
         return condition.fixed_date.year

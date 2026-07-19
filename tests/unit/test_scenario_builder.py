@@ -13,7 +13,7 @@ class BuildGrowthRateProviderTest(unittest.TestCase):
         }
         weights = {"domestic_equity": Decimal("0.6"), "domestic_bond": Decimal("0.4")}
 
-        provider = build_growth_rate_provider(return_series, weights)
+        provider = build_growth_rate_provider(return_series, lambda offset: weights)
 
         # 1年目(month_offset 0-11): 0.10*0.6 + 0.02*0.4 = 0.068 の月率換算値が12ヶ月続く
         expected_year0_monthly = Rate.of("0.068").monthly_equivalent()
@@ -29,11 +29,28 @@ class BuildGrowthRateProviderTest(unittest.TestCase):
         return_series = {"domestic_equity": [Rate.of("0.10"), Rate.of("0.20")]}
         weights = {"domestic_equity": Decimal("1")}
 
-        provider = build_growth_rate_provider(return_series, weights)
+        provider = build_growth_rate_provider(return_series, lambda offset: weights)
 
         # window_length=2年=24ヶ月分のデータしかないため、それを超えるとオフセットが先頭へ巻き戻る
         self.assertEqual(provider(24), provider(0))
         self.assertEqual(provider(36), provider(12))
+
+    def test_weight_lookup_is_called_per_offset_supporting_time_varying_weights(self) -> None:
+        # AllocationPolicyのように年齢で比率が変わるweight_lookupにも対応できることを確認する。
+        return_series = {
+            "domestic_equity": [Rate.of("0.10")],
+            "domestic_bond": [Rate.of("0.02")],
+        }
+
+        def weight_lookup(month_offset: int) -> dict:
+            if month_offset < 12:
+                return {"domestic_equity": Decimal("1")}
+            return {"domestic_bond": Decimal("1")}
+
+        provider = build_growth_rate_provider(return_series, weight_lookup)
+
+        self.assertEqual(provider(0).value, Rate.of("0.10").monthly_equivalent().value)
+        self.assertEqual(provider(12).value, Rate.of("0.02").monthly_equivalent().value)
 
 
 if __name__ == "__main__":

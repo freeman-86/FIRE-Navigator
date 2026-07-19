@@ -54,3 +54,8 @@ social_insurance:
   health_insurance_rate: 0.05
   pension_insurance_rate: 0.0915
   employment_insurance_rate: 0.006
+
+# 譲渡税。課税口座(特定口座/TAXABLE)からの取り崩し時、平均取得原価方式で算出した譲渡益に課税する。
+# 申告分離課税の実際の税率(所得税15%+復興特別所得税0.315%+住民税5% = 20.315%)。
+capital_gains:
+  rate: 0.20315

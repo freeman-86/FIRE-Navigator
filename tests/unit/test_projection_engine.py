@@ -16,6 +16,7 @@ from core.domain.user import Prefecture, User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import DEFAULT_LIFE_EXPECTANCY_AGE, run_projection
+from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
 from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
 from tests.pension_test_fixtures import zero_pension_rules
 from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_contribution_strategy
@@ -361,6 +362,108 @@ class MonthlyProjectionsTest(unittest.TestCase):
 
         # 追加拠出のない口座は、月次複利12回でも単純な年率複利と一致する
         self.assertEqual(result.yearly_projections[0].account_balances["acc_taxable"], Money.of(1_050_000))
+
+
+class CapitalGainsTaxIntegrationTest(unittest.TestCase):
+    def test_no_gain_no_growth_withdrawal_is_not_taxed(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        expense = Expense(
+            expense_id="expense_001", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero()
+        )
+        plan = _minimal_plan(
+            accounts=[account],
+            expenses=[expense],
+            withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
+        )
+        portfolios = {"acc_taxable": _portfolio(5_000_000, "cash")}
+
+        result = run_projection(plan, portfolios, load_tax_rules(), load_portfolio_rules(), zero_pension_rules())
+        first_year = result.yearly_projections[0]
+
+        # 成長率0%・拠出なしなので取り崩しても含み益が生じず、譲渡税は発生しない
+        self.assertEqual(first_year.capital_gains_tax, Money.zero())
+
+    def test_growth_then_withdrawal_from_taxable_account_incurs_capital_gains_tax(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        expense = Expense(
+            expense_id="expense_001", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero()
+        )
+        plan = _minimal_plan(
+            accounts=[account],
+            expenses=[expense],
+            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
+        )
+        portfolios = {"acc_taxable": _portfolio(5_000_000, "cash")}
+
+        result = run_projection(plan, portfolios, load_tax_rules(), load_portfolio_rules(), zero_pension_rules())
+        first_year = result.yearly_projections[0]
+
+        # 成長率5%で口座が値上がりした状態から取り崩しが発生するため、含み益に譲渡税がかかる
+        self.assertGreater(first_year.capital_gains_tax.amount, 0)
+
+    def test_withdraw_shortfall_reports_capital_gains_tax_for_realized_gain(self) -> None:
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        portfolio_rules = load_portfolio_rules()
+        tax_rules = load_tax_rules()
+
+        outcome = withdraw_shortfall(
+            [account],
+            {"acc_taxable": Money.of(2_000_000)},
+            {"acc_taxable": Money.of(1_000_000)},
+            Money.of(500_000),
+            WithdrawalStrategy(order=[AccountType.TAXABLE]),
+            portfolio_rules,
+            tax_rules.capital_gains,
+        )
+
+        self.assertGreater(outcome.capital_gains_tax.amount, 0)
+
+
+class AllocationPolicyIntegrationTest(unittest.TestCase):
+    def test_initial_drift_is_corrected_toward_target_weights_within_first_month(self) -> None:
+        from core.domain.allocation import AllocationPolicy, AllocationTarget
+
+        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
+        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        allocation_policy = AllocationPolicy(
+            targets=[AllocationTarget(age=0, weights={"equity_sp500": Rate.of("0.5"), "bond_us_treasury": Rate.of("0.5")})]
+        )
+        plan = _minimal_plan(
+            accounts=[equity_account, bond_account],
+            allocation_policy=allocation_policy,
+        )
+        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
+        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
+        portfolios = {
+            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, cost_basis=Money.of(900_000))]),
+            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, cost_basis=Money.of(100_000))]),
+        }
+
+        result = run_projection(
+            plan, portfolios, load_tax_rules(), load_portfolio_rules(), zero_pension_rules()
+        )
+
+        first_month = result.monthly_projections[0]
+        self.assertEqual(first_month.account_balances["acc_equity"], Money.of(500_000))
+        self.assertEqual(first_month.account_balances["acc_bond"], Money.of(500_000))
+
+    def test_no_allocation_policy_leaves_initial_imbalance_untouched(self) -> None:
+        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
+        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        plan = _minimal_plan(accounts=[equity_account, bond_account])
+        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
+        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
+        portfolios = {
+            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, cost_basis=Money.of(900_000))]),
+            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, cost_basis=Money.of(100_000))]),
+        }
+
+        result = _run(plan, portfolios)
+
+        first_month = result.monthly_projections[0]
+        self.assertEqual(first_month.account_balances["acc_equity"], Money.of(900_000))
+        self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
 
 
 if __name__ == "__main__":

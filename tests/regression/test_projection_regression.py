@@ -44,6 +44,7 @@ def serialize_result(plan, simulation_result) -> dict:
             "net_income": int(projection.net_income.amount),
             "total_expense": int(projection.total_expense.amount),
             "net_cashflow": int(projection.net_cashflow.amount),
+            "capital_gains_tax": int(projection.capital_gains_tax.amount),
             "account_balances": {
                 account_id: int(balance.amount) for account_id, balance in projection.account_balances.items()
             },
@@ -56,7 +57,7 @@ def serialize_result(plan, simulation_result) -> dict:
         for outcome in simulation_result.milestone_outcomes
     ]
     return {
-        "config_version": "sprint10-tax_2026_portfolio_2026_pension_2026",
+        "config_version": "sprint13-capital_gains_tax_2026_portfolio_2026_pension_2026",
         "yearly_projections": yearly_projections,
         "milestone_outcomes": milestone_outcomes,
         "networth_chart": build_networth_chart(plan, simulation_result),

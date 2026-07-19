@@ -5,6 +5,7 @@ from typing import Optional
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    CAPITAL_GAINS_TAX_HEADER,
     DASHBOARD_CURRENT_NETWORTH_LABEL,
     DASHBOARD_DEPLETION_AGE_LABEL,
     DASHBOARD_ENDING_NETWORTH_LABEL,
@@ -39,9 +40,9 @@ HISTORICAL_BACKTEST_CHART_TITLE = "ヒストリカル・バックテスト（p10
 
 
 def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: SimulationResult) -> None:
-    rows: list[list[object]] = [[YEAR_HEADER, NETWORTH_HEADER]]
+    rows: list[list[object]] = [[YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER]]
     rows += [
-        [projection.year, int(projection.networth.amount)]
+        [projection.year, int(projection.networth.amount), int(projection.capital_gains_tax.amount)]
         for projection in simulation_result.yearly_projections
     ]
     worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_NETWORTH_SHEET, rows)

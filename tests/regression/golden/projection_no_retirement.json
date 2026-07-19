@@ -1,5 +1,5 @@
 {
-  "config_version": "sprint10-tax_2026_portfolio_2026_pension_2026",
+  "config_version": "sprint13-capital_gains_tax_2026_portfolio_2026_pension_2026",
   "yearly_projections": [
     {
       "year": 2026,
@@ -12,6 +12,7 @@
       "net_income": 4140450,
       "total_expense": 3000000,
       "net_cashflow": 1140450,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1491855,
         "acc_nisa_growth_001": 1516123,
@@ -31,6 +32,7 @@
       "net_income": 4216625,
       "total_expense": 3045000,
       "net_cashflow": 1171625,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1515235,
         "acc_nisa_growth_001": 2593213,
@@ -50,6 +52,7 @@
       "net_income": 4286147,
       "total_expense": 3090675,
       "net_cashflow": 1195472,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1564523,
         "acc_nisa_growth_001": 3734927,
@@ -69,6 +72,7 @@
       "net_income": 4356244,
       "total_expense": 3137035,
       "net_cashflow": 1219209,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1641137,
         "acc_nisa_growth_001": 4945146,
@@ -88,6 +92,7 @@
       "net_income": 4427744,
       "total_expense": 3184091,
       "net_cashflow": 1243653,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1747469,
         "acc_nisa_growth_001": 6227977,
@@ -107,6 +112,7 @@
       "net_income": 4500672,
       "total_expense": 3231852,
       "net_cashflow": 1268820,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1886031,
         "acc_nisa_growth_001": 7587779,
@@ -126,6 +132,7 @@
       "net_income": 4575060,
       "total_expense": 3280330,
       "net_cashflow": 1294730,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2039799,
         "acc_nisa_growth_001": 9048888,
@@ -145,6 +152,7 @@
       "net_income": 4650935,
       "total_expense": 3329535,
       "net_cashflow": 1321400,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2162188,
         "acc_nisa_growth_001": 10665670,
@@ -164,6 +172,7 @@
       "net_income": 4728328,
       "total_expense": 3379478,
       "net_cashflow": 1348850,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2291919,
         "acc_nisa_growth_001": 12407652,
@@ -183,6 +192,7 @@
       "net_income": 4807268,
       "total_expense": 3430170,
       "net_cashflow": 1377098,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2429434,
         "acc_nisa_growth_001": 14283169,
@@ -202,6 +212,7 @@
       "net_income": 4884654,
       "total_expense": 3481622,
       "net_cashflow": 1403032,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2575200,
         "acc_nisa_growth_001": 16297866,
@@ -221,6 +232,7 @@
       "net_income": 4962761,
       "total_expense": 3533847,
       "net_cashflow": 1428914,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2729712,
         "acc_nisa_growth_001": 18420112,
@@ -240,6 +252,7 @@
       "net_income": 5042430,
       "total_expense": 3586855,
       "net_cashflow": 1455575,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 2893496,
         "acc_nisa_growth_001": 19525317,
@@ -259,6 +272,7 @@
       "net_income": 5123693,
       "total_expense": 3640657,
       "net_cashflow": 1483036,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 3067105,
         "acc_nisa_growth_001": 20696834,
@@ -278,6 +292,7 @@
       "net_income": 5206580,
       "total_expense": 3695267,
       "net_cashflow": 1511313,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 3251130,
         "acc_nisa_growth_001": 21938643,
@@ -297,6 +312,7 @@
       "net_income": 5291125,
       "total_expense": 3750696,
       "net_cashflow": 1540429,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 3446196,
         "acc_nisa_growth_001": 23254961,
@@ -316,6 +332,7 @@
       "net_income": 5377362,
       "total_expense": 3806957,
       "net_cashflow": 1570405,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 3652969,
         "acc_nisa_growth_001": 24650259,
@@ -335,6 +352,7 @@
       "net_income": 5465323,
       "total_expense": 3864061,
       "net_cashflow": 1601262,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 3872149,
         "acc_nisa_growth_001": 26129273,
@@ -354,6 +372,7 @@
       "net_income": 5555043,
       "total_expense": 3922022,
       "net_cashflow": 1633021,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 4104479,
         "acc_nisa_growth_001": 27697031,
@@ -373,6 +392,7 @@
       "net_income": 5646558,
       "total_expense": 3980852,
       "net_cashflow": 1665706,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 4350749,
         "acc_nisa_growth_001": 29358853,
@@ -392,6 +412,7 @@
       "net_income": 5739904,
       "total_expense": 4040565,
       "net_cashflow": 1699339,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 4611794,
         "acc_nisa_growth_001": 31120383,
@@ -411,6 +432,7 @@
       "net_income": 5835116,
       "total_expense": 4101173,
       "net_cashflow": 1733943,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 4888501,
         "acc_nisa_growth_001": 32987605,
@@ -430,6 +452,7 @@
       "net_income": 5932145,
       "total_expense": 4162691,
       "net_cashflow": 1769454,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 5181812,
         "acc_nisa_growth_001": 34966862,
@@ -449,6 +472,7 @@
       "net_income": 6026102,
       "total_expense": 4225131,
       "net_cashflow": 1800971,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 5492722,
         "acc_nisa_growth_001": 37064874,
@@ -468,6 +492,7 @@
       "net_income": 6121938,
       "total_expense": 4288508,
       "net_cashflow": 1833430,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 5822282,
         "acc_nisa_growth_001": 39288767,
@@ -487,6 +512,7 @@
       "net_income": 6219691,
       "total_expense": 4352836,
       "net_cashflow": 1866855,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 6171618,
         "acc_nisa_growth_001": 41646093,
@@ -506,6 +532,7 @@
       "net_income": 6319399,
       "total_expense": 4418129,
       "net_cashflow": 1901270,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 6541916,
         "acc_nisa_growth_001": 44144857,
@@ -525,6 +552,7 @@
       "net_income": 6421101,
       "total_expense": 4484401,
       "net_cashflow": 1936700,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 6934430,
         "acc_nisa_growth_001": 46793549,
@@ -544,6 +572,7 @@
       "net_income": 6524837,
       "total_expense": 4551667,
       "net_cashflow": 1973170,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 7350497,
         "acc_nisa_growth_001": 49601164,
@@ -563,6 +592,7 @@
       "net_income": 6627313,
       "total_expense": 4619942,
       "net_cashflow": 2007371,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 7791527,
         "acc_nisa_growth_001": 52577234,

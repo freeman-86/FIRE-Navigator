@@ -20,6 +20,7 @@ class YearlyProjection:
     net_cashflow: Money
     account_balances: dict[str, Money]
     networth: Money
+    capital_gains_tax: Money = field(default_factory=Money.zero)
 
 
 @dataclass
@@ -27,6 +28,7 @@ class MonthlyProjection:
     """年末時点の集計であるYearlyProjectionとは別に、月次の資金の動き（FIRE後の毎月の取り崩し等）を
     追跡するための明細（Sprint12 月次化）。gross_income/pension_income/net_income/total_expenseは
     年額を12等分した値（税額は年1回の確定計算をそのまま月割りする簡略化。設計書v1.1採用ロードマップ）。
+    capital_gains_taxは課税口座からの取り崩し時に発生した譲渡税（Sprint13 譲渡税・取得原価管理）。
     """
 
     year: int
@@ -39,6 +41,7 @@ class MonthlyProjection:
     net_cashflow: Money
     account_balances: dict[str, Money]
     networth: Money
+    capital_gains_tax: Money = field(default_factory=Money.zero)
 
 
 @dataclass

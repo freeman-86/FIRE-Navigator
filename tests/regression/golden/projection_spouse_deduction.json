@@ -1,5 +1,5 @@
 {
-  "config_version": "sprint10-tax_2026_portfolio_2026_pension_2026",
+  "config_version": "sprint13-capital_gains_tax_2026_portfolio_2026_pension_2026",
   "yearly_projections": [
     {
       "year": 2026,
@@ -12,6 +12,7 @@
       "net_income": 5088000,
       "total_expense": 4000000,
       "net_cashflow": 1088000,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 3187809,
         "unallocated_surplus": 0
@@ -29,6 +30,7 @@
       "net_income": 5128775,
       "total_expense": 4080000,
       "net_cashflow": 1048775,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 4383188,
         "unallocated_surplus": 0
@@ -46,6 +48,7 @@
       "net_income": 5169958,
       "total_expense": 4161600,
       "net_cashflow": 1008358,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 5585231,
         "unallocated_surplus": 0
@@ -63,6 +66,7 @@
       "net_income": 5211552,
       "total_expense": 4244832,
       "net_cashflow": 966720,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 6792958,
         "unallocated_surplus": 0
@@ -80,6 +84,7 @@
       "net_income": 5253562,
       "total_expense": 4329729,
       "net_cashflow": 923833,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 8005324,
         "unallocated_surplus": 0
@@ -97,6 +102,7 @@
       "net_income": 5295993,
       "total_expense": 4416323,
       "net_cashflow": 879670,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 9221222,
         "unallocated_surplus": 0
@@ -114,6 +120,7 @@
       "net_income": 5338848,
       "total_expense": 4504650,
       "net_cashflow": 834198,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 10439447,
         "unallocated_surplus": 0
@@ -131,6 +138,7 @@
       "net_income": 5382132,
       "total_expense": 4594743,
       "net_cashflow": 787389,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 11658749,
         "unallocated_surplus": 0
@@ -148,6 +156,7 @@
       "net_income": 5425848,
       "total_expense": 4686638,
       "net_cashflow": 739210,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 12877769,
         "unallocated_surplus": 0
@@ -165,6 +174,7 @@
       "net_income": 5470002,
       "total_expense": 4780370,
       "net_cashflow": 689632,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 14095075,
         "unallocated_surplus": 0
@@ -182,6 +192,7 @@
       "net_income": 5514597,
       "total_expense": 4875978,
       "net_cashflow": 638619,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 15309120,
         "unallocated_surplus": 0
@@ -199,6 +210,7 @@
       "net_income": 5559637,
       "total_expense": 4973497,
       "net_cashflow": 586140,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 16518294,
         "unallocated_surplus": 0
@@ -216,6 +228,7 @@
       "net_income": 5605129,
       "total_expense": 5072967,
       "net_cashflow": 532162,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 17720878,
         "unallocated_surplus": 0
@@ -233,6 +246,7 @@
       "net_income": 5651075,
       "total_expense": 5174427,
       "net_cashflow": 476648,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 18915044,
         "unallocated_surplus": 0
@@ -250,6 +264,7 @@
       "net_income": 5697481,
       "total_expense": 5277915,
       "net_cashflow": 419566,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 20098852,
         "unallocated_surplus": 0
@@ -267,6 +282,7 @@
       "net_income": 5744351,
       "total_expense": 5383473,
       "net_cashflow": 360878,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 21270250,
         "unallocated_surplus": 0
@@ -284,6 +300,7 @@
       "net_income": 5791689,
       "total_expense": 5491143,
       "net_cashflow": 300546,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 22427081,
         "unallocated_surplus": 0
@@ -301,6 +318,7 @@
       "net_income": 5839501,
       "total_expense": 5600966,
       "net_cashflow": 238535,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 23567043,
         "unallocated_surplus": 0
@@ -318,6 +336,7 @@
       "net_income": 5887791,
       "total_expense": 5712985,
       "net_cashflow": 174806,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 24687711,
         "unallocated_surplus": 0
@@ -335,6 +354,7 @@
       "net_income": 5936564,
       "total_expense": 5827245,
       "net_cashflow": 109319,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 25786530,
         "unallocated_surplus": 0
@@ -352,6 +372,7 @@
       "net_income": 5984585,
       "total_expense": 5943790,
       "net_cashflow": 40795,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_taxable_001": 26859522,
         "unallocated_surplus": 0
@@ -369,11 +390,12 @@
       "net_income": 6031776,
       "total_expense": 6062665,
       "net_cashflow": -30889,
+      "capital_gains_tax": 3162,
       "account_balances": {
-        "acc_taxable_001": 27902451,
+        "acc_taxable_001": 27899232,
         "unallocated_surplus": 0
       },
-      "networth": 27902451
+      "networth": 27899232
     },
     {
       "year": 2048,
@@ -386,11 +408,12 @@
       "net_income": 6079439,
       "total_expense": 6183919,
       "net_cashflow": -104480,
+      "capital_gains_tax": 11239,
       "account_balances": {
-        "acc_taxable_001": 28912163,
+        "acc_taxable_001": 28897374,
         "unallocated_surplus": 0
       },
-      "networth": 28912163
+      "networth": 28897374
     },
     {
       "year": 2049,
@@ -403,11 +426,12 @@
       "net_income": 6127578,
       "total_expense": 6307597,
       "net_cashflow": -180019,
+      "capital_gains_tax": 20268,
       "account_balances": {
-        "acc_taxable_001": 29885361,
+        "acc_taxable_001": 29849347,
         "unallocated_surplus": 0
       },
-      "networth": 29885361
+      "networth": 29849347
     },
     {
       "year": 2050,
@@ -420,11 +444,12 @@
       "net_income": 6176199,
       "total_expense": 6433749,
       "net_cashflow": -257550,
+      "capital_gains_tax": 30254,
       "account_balances": {
-        "acc_taxable_001": 30818530,
+        "acc_taxable_001": 30750277,
         "unallocated_surplus": 0
       },
-      "networth": 30818530
+      "networth": 30750277
     },
     {
       "year": 2051,
@@ -437,11 +462,12 @@
       "net_income": 6225306,
       "total_expense": 6562424,
       "net_cashflow": -337118,
+      "capital_gains_tax": 41197,
       "account_balances": {
-        "acc_taxable_001": 31708019,
+        "acc_taxable_001": 31595092,
         "unallocated_surplus": 0
       },
-      "networth": 31708019
+      "networth": 31595092
     },
     {
       "year": 2052,
@@ -454,11 +480,12 @@
       "net_income": 6274904,
       "total_expense": 6693672,
       "net_cashflow": -418768,
+      "capital_gains_tax": 53097,
       "account_balances": {
-        "acc_taxable_001": 32549952,
+        "acc_taxable_001": 32378452,
         "unallocated_surplus": 0
       },
-      "networth": 32549952
+      "networth": 32378452
     },
     {
       "year": 2053,
@@ -471,11 +498,12 @@
       "net_income": 6324998,
       "total_expense": 6827546,
       "net_cashflow": -502548,
+      "capital_gains_tax": 65954,
       "account_balances": {
-        "acc_taxable_001": 33340254,
+        "acc_taxable_001": 33094747,
         "unallocated_surplus": 0
       },
-      "networth": 33340254
+      "networth": 33094747
     },
     {
       "year": 2054,
@@ -488,11 +516,12 @@
       "net_income": 6375593,
       "total_expense": 6964097,
       "net_cashflow": -588504,
+      "capital_gains_tax": 79772,
       "account_balances": {
-        "acc_taxable_001": 34074648,
+        "acc_taxable_001": 33738102,
         "unallocated_surplus": 0
       },
-      "networth": 34074648
+      "networth": 33738102
     },
     {
       "year": 2055,
@@ -505,11 +534,12 @@
       "net_income": 6426694,
       "total_expense": 7103379,
       "net_cashflow": -676685,
+      "capital_gains_tax": 94553,
       "account_balances": {
-        "acc_taxable_001": 34748635,
+        "acc_taxable_001": 34302363,
         "unallocated_surplus": 0
       },
-      "networth": 34748635
+      "networth": 34302363
     }
   ],
   "milestone_outcomes": [],
@@ -572,15 +602,15 @@
           24687711,
           25786530,
           26859522,
-          27902451,
-          28912163,
-          29885361,
-          30818530,
-          31708019,
-          32549952,
-          33340254,
-          34074648,
-          34748635
+          27899232,
+          28897374,
+          29849347,
+          30750277,
+          31595092,
+          32378452,
+          33094747,
+          33738102,
+          34302363
         ]
       },
       {

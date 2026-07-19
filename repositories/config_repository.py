@@ -9,6 +9,7 @@ from core.domain.account import AccountType
 from core.domain.pension import PensionRules
 from core.domain.portfolio_rules import AccountRules, PortfolioRules
 from core.domain.tax_config import (
+    CapitalGainsTaxRules,
     EmploymentIncomeDeductionBracket,
     IncomeTaxBracket,
     IncomeTaxRules,
@@ -67,10 +68,14 @@ def load_tax_rules(config_path: Union[str, Path] = DEFAULT_TAX_CONFIG_PATH) -> T
         employment_insurance_rate=Rate.of(social_insurance_raw["employment_insurance_rate"]),
     )
 
+    capital_gains_raw = raw["capital_gains"]
+    capital_gains_rules = CapitalGainsTaxRules(rate=Rate.of(capital_gains_raw["rate"]))
+
     return TaxRules(
         income_tax=income_tax_rules,
         resident_tax=resident_tax_rules,
         social_insurance=social_insurance_rules,
+        capital_gains=capital_gains_rules,
     )
 
 

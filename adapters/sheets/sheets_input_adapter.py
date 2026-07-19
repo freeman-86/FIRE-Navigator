@@ -12,6 +12,8 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
     ACTUAL_NETWORTH_HEADER,
+    AGE_HEADER,
+    ALLOCATION_POLICY_SHEET,
     AMOUNT_ANNUAL_HEADER,
     ASSET_CLASS_HEADER,
     BALANCE_HEADER,
@@ -48,10 +50,12 @@ from adapters.sheets.sheet_mapping import (
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
+    TARGET_WEIGHT_HEADER,
     VOLATILITY_HEADER,
     YEAR_HEADER,
 )
 from core.domain.account import Account, AccountType, OwnerType
+from core.domain.allocation import AllocationPolicy, AllocationTarget
 from core.domain.asset import Asset, AssetClass
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.errors import StructuralInputError
@@ -333,6 +337,45 @@ def _build_progress_records(spreadsheet: gspread.Spreadsheet) -> list[ProgressRe
     return records
 
 
+def _build_allocation_policy(
+    spreadsheet: gspread.Spreadsheet, asset_class_registry: Optional[dict[AssetClass, str]] = None
+) -> Optional[AllocationPolicy]:
+    """年齢別の目標配分比率（プラン全体で1つ、口座横断）を入力_配分方針シートから組み立てる。
+
+    入力_配分方針シートが存在しない場合はNoneを返す（資産配分比率の可変対応・月次リバランスは
+    オプション機能。ギャップ分析3.7）。1行=(年齢, 資産クラス, 目標比率)で、同じ年齢の行をまとめて
+    1つのAllocationTargetにする。
+    """
+
+    try:
+        worksheet = spreadsheet.worksheet(ALLOCATION_POLICY_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return None
+
+    if asset_class_registry is None:
+        asset_class_registry = load_asset_class_registry()
+
+    weights_by_age: dict[int, dict[AssetClass, Rate]] = {}
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{ALLOCATION_POLICY_SHEET}!row{row_number}"
+        age = _parse_int(_require(record, AGE_HEADER, f"{row_prefix}.{AGE_HEADER}"), f"{row_prefix}.{AGE_HEADER}")
+        asset_class = _parse_asset_class(
+            _require(record, ASSET_CLASS_HEADER, f"{row_prefix}.{ASSET_CLASS_HEADER}"),
+            f"{row_prefix}.{ASSET_CLASS_HEADER}",
+            asset_class_registry,
+        )
+        weight = _parse_rate(
+            _require(record, TARGET_WEIGHT_HEADER, f"{row_prefix}.{TARGET_WEIGHT_HEADER}"),
+            f"{row_prefix}.{TARGET_WEIGHT_HEADER}",
+        )
+        weights_by_age.setdefault(age, {})[asset_class] = weight
+
+    targets = [
+        AllocationTarget(age=age, weights=weights) for age, weights in sorted(weights_by_age.items())
+    ]
+    return AllocationPolicy(targets=targets)
+
+
 def _build_incomes(spreadsheet: gspread.Spreadsheet) -> list[Income]:
     worksheet = spreadsheet.worksheet(INCOMES_SHEET)
     incomes = []
@@ -510,6 +553,7 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         incomes=_build_incomes(spreadsheet),
         expenses=_build_expenses(spreadsheet),
         milestones=_build_milestones(settings),
+        allocation_policy=_build_allocation_policy(spreadsheet),
     )
 
 

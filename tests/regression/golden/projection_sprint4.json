@@ -1,5 +1,5 @@
 {
-  "config_version": "sprint10-tax_2026_portfolio_2026_pension_2026",
+  "config_version": "sprint13-capital_gains_tax_2026_portfolio_2026_pension_2026",
   "yearly_projections": [
     {
       "year": 2026,
@@ -12,6 +12,7 @@
       "net_income": 4456300,
       "total_expense": 3600000,
       "net_cashflow": 856300,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1029848,
         "acc_nisa_growth_001": 3763628,
@@ -32,6 +33,7 @@
       "net_income": 4493050,
       "total_expense": 3672000,
       "net_cashflow": 821050,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 1025144,
         "acc_nisa_growth_001": 4565439,
@@ -52,6 +54,7 @@
       "net_income": 4530167,
       "total_expense": 3745440,
       "net_cashflow": 784727,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 983057,
         "acc_nisa_growth_001": 5407340,
@@ -72,6 +75,7 @@
       "net_income": 4567656,
       "total_expense": 3820349,
       "net_cashflow": 747307,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 900599,
         "acc_nisa_growth_001": 6291336,
@@ -92,6 +96,7 @@
       "net_income": 4605519,
       "total_expense": 3896756,
       "net_cashflow": 708763,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 774586,
         "acc_nisa_growth_001": 7219532,
@@ -112,6 +117,7 @@
       "net_income": 4643761,
       "total_expense": 3974691,
       "net_cashflow": 669070,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 601687,
         "acc_nisa_growth_001": 8194138,
@@ -132,6 +138,7 @@
       "net_income": 4682387,
       "total_expense": 4054185,
       "net_cashflow": 628202,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 378343,
         "acc_nisa_growth_001": 9217474,
@@ -152,6 +159,7 @@
       "net_income": 4721397,
       "total_expense": 4135268,
       "net_cashflow": 586129,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 100805,
         "acc_nisa_growth_001": 10291977,
@@ -172,14 +180,15 @@
       "net_income": 4760799,
       "total_expense": 4217974,
       "net_cashflow": 542825,
+      "capital_gains_tax": 17354,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 11420205,
         "acc_ideco_001": 5439453,
-        "acc_taxable_001": 540760,
+        "acc_taxable_001": 523147,
         "unallocated_surplus": 0
       },
-      "networth": 17400418
+      "networth": 17382805
     },
     {
       "year": 2035,
@@ -192,14 +201,15 @@
       "net_income": 4800593,
       "total_expense": 4302333,
       "net_cashflow": 498260,
+      "capital_gains_tax": 30877,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 12604844,
         "acc_ideco_001": 5993694,
-        "acc_taxable_001": 181469,
+        "acc_taxable_001": 131410,
         "unallocated_surplus": 0
       },
-      "networth": 18780007
+      "networth": 18729948
     },
     {
       "year": 2036,
@@ -212,14 +222,15 @@
       "net_income": 4839954,
       "total_expense": 4388380,
       "net_cashflow": 451574,
+      "capital_gains_tax": 10682,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 13605202,
+        "acc_nisa_growth_001": 13541528,
         "acc_ideco_001": 6575648,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 20180850
+      "networth": 20117176
     },
     {
       "year": 2037,
@@ -232,14 +243,15 @@
       "net_income": 4878561,
       "total_expense": 4476148,
       "net_cashflow": 402413,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 14414754,
+        "acc_nisa_growth_001": 14347895,
         "acc_ideco_001": 7186700,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 21601454
+      "networth": 21534595
     },
     {
       "year": 2038,
@@ -252,14 +264,15 @@
       "net_income": 4917553,
       "total_expense": 4565670,
       "net_cashflow": 351883,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 15213091,
+        "acc_nisa_growth_001": 15142888,
         "acc_ideco_001": 7828306,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 23041397
+      "networth": 22971194
     },
     {
       "year": 2039,
@@ -272,14 +285,15 @@
       "net_income": 4956936,
       "total_expense": 4656984,
       "net_cashflow": 299952,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 15998241,
+        "acc_nisa_growth_001": 15924529,
         "acc_ideco_001": 8501989,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 24500230
+      "networth": 24426518
     },
     {
       "year": 2040,
@@ -292,14 +306,15 @@
       "net_income": 4996712,
       "total_expense": 4750124,
       "net_cashflow": 246588,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 16768074,
+        "acc_nisa_growth_001": 16690676,
         "acc_ideco_001": 9209359,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 25977433
+      "networth": 25900035
     },
     {
       "year": 2041,
@@ -312,14 +327,15 @@
       "net_income": 5036886,
       "total_expense": 4845126,
       "net_cashflow": 191760,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 17520325,
+        "acc_nisa_growth_001": 17439056,
         "acc_ideco_001": 9952096,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 27472421
+      "networth": 27391152
     },
     {
       "year": 2042,
@@ -332,14 +348,15 @@
       "net_income": 5077462,
       "total_expense": 4942029,
       "net_cashflow": 135433,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 18252580,
+        "acc_nisa_growth_001": 18167248,
         "acc_ideco_001": 10731970,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 28984550
+      "networth": 28899218
     },
     {
       "year": 2043,
@@ -352,14 +369,15 @@
       "net_income": 5118445,
       "total_expense": 5040869,
       "net_cashflow": 77576,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 18962281,
+        "acc_nisa_growth_001": 18872684,
         "acc_ideco_001": 11550836,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 30513117
+      "networth": 30423520
     },
     {
       "year": 2044,
@@ -372,14 +390,15 @@
       "net_income": 5159835,
       "total_expense": 5141686,
       "net_cashflow": 18149,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 19646682,
+        "acc_nisa_growth_001": 19552605,
         "acc_ideco_001": 12410648,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 32057330
+      "networth": 31963253
     },
     {
       "year": 2045,
@@ -392,14 +411,15 @@
       "net_income": 5201641,
       "total_expense": 5244520,
       "net_cashflow": -42879,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 20302898,
+        "acc_nisa_growth_001": 20204116,
         "acc_ideco_001": 13313449,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 33616347
+      "networth": 33517565
     },
     {
       "year": 2046,
@@ -412,14 +432,15 @@
       "net_income": 5243864,
       "total_expense": 5349411,
       "net_cashflow": -105547,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 20927836,
+        "acc_nisa_growth_001": 20824116,
         "acc_ideco_001": 14261391,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 35189227
+      "networth": 35085507
     },
     {
       "year": 2047,
@@ -432,14 +453,15 @@
       "net_income": 5286510,
       "total_expense": 5456399,
       "net_cashflow": -169889,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 21518217,
+        "acc_nisa_growth_001": 21409310,
         "acc_ideco_001": 15256729,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 36774946
+      "networth": 36666039
     },
     {
       "year": 2048,
@@ -452,14 +474,15 @@
       "net_income": 5329581,
       "total_expense": 5565527,
       "net_cashflow": -235946,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 22070553,
+        "acc_nisa_growth_001": 21956202,
         "acc_ideco_001": 16301836,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 38372389
+      "networth": 38258038
     },
     {
       "year": 2049,
@@ -472,14 +495,15 @@
       "net_income": 5373085,
       "total_expense": 5676837,
       "net_cashflow": -303752,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 22581157,
+        "acc_nisa_growth_001": 22461086,
         "acc_ideco_001": 17399198,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 39980355
+      "networth": 39860284
     },
     {
       "year": 2050,
@@ -492,14 +516,15 @@
       "net_income": 0,
       "total_expense": 5790374,
       "net_cashflow": -5790374,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 17506046,
+        "acc_nisa_growth_001": 17379971,
         "acc_ideco_001": 18551428,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 36057474
+      "networth": 35931399
     },
     {
       "year": 2051,
@@ -512,14 +537,15 @@
       "net_income": 0,
       "total_expense": 5906182,
       "net_cashflow": -5906182,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 12058738,
+        "acc_nisa_growth_001": 11926358,
         "acc_ideco_001": 19761269,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 31820007
+      "networth": 31687627
     },
     {
       "year": 2052,
@@ -532,14 +558,15 @@
       "net_income": 0,
       "total_expense": 6024305,
       "net_cashflow": -6024305,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 6218265,
+        "acc_nisa_growth_001": 6079267,
         "acc_ideco_001": 21031602,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 27249867
+      "networth": 27110869
     },
     {
       "year": 2053,
@@ -552,14 +579,15 @@
       "net_income": 0,
       "total_expense": 6144791,
       "net_cashflow": -6144791,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
-        "acc_nisa_growth_001": 52019,
-        "acc_ideco_001": 22275968,
+        "acc_nisa_growth_001": 51427,
+        "acc_ideco_001": 22130615,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 22327987
+      "networth": 22182042
     },
     {
       "year": 2054,
@@ -572,14 +600,15 @@
       "net_income": 0,
       "total_expense": 6267687,
       "net_cashflow": -6267687,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
-        "acc_ideco_001": 16984133,
+        "acc_ideco_001": 16830890,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 17034338
+      "networth": 16881095
     },
     {
       "year": 2055,
@@ -592,14 +621,15 @@
       "net_income": 1892500,
       "total_expense": 6393041,
       "net_cashflow": -4500541,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
-        "acc_ideco_001": 13233086,
+        "acc_ideco_001": 13072180,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 13283291
+      "networth": 13122385
     },
     {
       "year": 2056,
@@ -612,14 +642,15 @@
       "net_income": 1892500,
       "total_expense": 6520902,
       "net_cashflow": -4628402,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
-        "acc_ideco_001": 9163710,
+        "acc_ideco_001": 8994758,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 9213915
+      "networth": 9044963
     },
     {
       "year": 2057,
@@ -632,14 +663,15 @@
       "net_income": 1892500,
       "total_expense": 6651320,
       "net_cashflow": -4758820,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
-        "acc_ideco_001": 4757488,
+        "acc_ideco_001": 4580088,
         "acc_taxable_001": 0,
         "unallocated_surplus": 0
       },
-      "networth": 4807693
+      "networth": 4630293
     },
     {
       "year": 2058,
@@ -652,14 +684,15 @@
       "net_income": 1892500,
       "total_expense": 6784346,
       "net_cashflow": -4891846,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
-        "acc_ideco_001": 24633,
+        "acc_ideco_001": 23877,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -29719
+        "unallocated_surplus": -215232
       },
-      "networth": 45119
+      "networth": -141150
     },
     {
       "year": 2059,
@@ -672,14 +705,15 @@
       "net_income": 1892500,
       "total_expense": 6920033,
       "net_cashflow": -5027533,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -5167651
+        "unallocated_surplus": -5363234
       },
-      "networth": -5094352
+      "networth": -5289935
     },
     {
       "year": 2060,
@@ -692,14 +726,15 @@
       "net_income": 1892500,
       "total_expense": 7058434,
       "net_cashflow": -5165934,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -10705647
+        "unallocated_surplus": -10911008
       },
-      "networth": -10632348
+      "networth": -10837709
     },
     {
       "year": 2061,
@@ -712,14 +747,15 @@
       "net_income": 1892500,
       "total_expense": 7199602,
       "net_cashflow": -5307102,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -16664918
+        "unallocated_surplus": -16880546
       },
-      "networth": -16591619
+      "networth": -16807247
     },
     {
       "year": 2062,
@@ -732,14 +768,15 @@
       "net_income": 1892500,
       "total_expense": 7343594,
       "net_cashflow": -5451094,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -23069410
+        "unallocated_surplus": -23295820
       },
-      "networth": -22996111
+      "networth": -23222521
     },
     {
       "year": 2063,
@@ -752,14 +789,15 @@
       "net_income": 1892500,
       "total_expense": 7490466,
       "net_cashflow": -5597966,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -29944342
+        "unallocated_surplus": -30182074
       },
-      "networth": -29871043
+      "networth": -30108775
     },
     {
       "year": 2064,
@@ -772,14 +810,15 @@
       "net_income": 1892500,
       "total_expense": 7640276,
       "net_cashflow": -5747776,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -37316233
+        "unallocated_surplus": -37565853
       },
-      "networth": -37242934
+      "networth": -37492554
     },
     {
       "year": 2065,
@@ -792,14 +831,15 @@
       "net_income": 1892500,
       "total_expense": 7793081,
       "net_cashflow": -5900581,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -45212985
+        "unallocated_surplus": -45475086
       },
-      "networth": -45139686
+      "networth": -45401787
     },
     {
       "year": 2066,
@@ -812,14 +852,15 @@
       "net_income": 1892500,
       "total_expense": 7948943,
       "net_cashflow": -6056443,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -53663984
+        "unallocated_surplus": -53939190
       },
-      "networth": -53590685
+      "networth": -53865891
     },
     {
       "year": 2067,
@@ -832,14 +873,15 @@
       "net_income": 1892500,
       "total_expense": 8107922,
       "net_cashflow": -6215422,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -62700118
+        "unallocated_surplus": -62989087
       },
-      "networth": -62626819
+      "networth": -62915788
     },
     {
       "year": 2068,
@@ -852,14 +894,15 @@
       "net_income": 1892500,
       "total_expense": 8270080,
       "net_cashflow": -6377580,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -72353901
+        "unallocated_surplus": -72657318
       },
-      "networth": -72280602
+      "networth": -72584019
     },
     {
       "year": 2069,
@@ -872,14 +915,15 @@
       "net_income": 1892500,
       "total_expense": 8435482,
       "net_cashflow": -6542982,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -82659537
+        "unallocated_surplus": -82978125
       },
-      "networth": -82586238
+      "networth": -82904826
     },
     {
       "year": 2070,
@@ -892,14 +936,15 @@
       "net_income": 1892500,
       "total_expense": 8604191,
       "net_cashflow": -6711691,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -93652995
+        "unallocated_surplus": -93987512
       },
-      "networth": -93579696
+      "networth": -93914213
     },
     {
       "year": 2071,
@@ -912,14 +957,15 @@
       "net_income": 1892500,
       "total_expense": 8776275,
       "net_cashflow": -6883775,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -105372115
+        "unallocated_surplus": -105723358
       },
-      "networth": -105298816
+      "networth": -105650059
     },
     {
       "year": 2072,
@@ -932,14 +978,15 @@
       "net_income": 1892500,
       "total_expense": 8951801,
       "net_cashflow": -7059301,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -117856703
+        "unallocated_surplus": -118225507
       },
-      "networth": -117783404
+      "networth": -118152208
     },
     {
       "year": 2073,
@@ -952,14 +999,15 @@
       "net_income": 1892500,
       "total_expense": 9130837,
       "net_cashflow": -7238337,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -131148625
+        "unallocated_surplus": -131535870
       },
-      "networth": -131075326
+      "networth": -131462571
     },
     {
       "year": 2074,
@@ -972,14 +1020,15 @@
       "net_income": 1892500,
       "total_expense": 9313453,
       "net_cashflow": -7420953,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -145291908
+        "unallocated_surplus": -145698517
       },
-      "networth": -145218609
+      "networth": -145625218
     },
     {
       "year": 2075,
@@ -992,14 +1041,15 @@
       "net_income": 1892500,
       "total_expense": 9499722,
       "net_cashflow": -7607222,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -160332862
+        "unallocated_surplus": -160759803
       },
-      "networth": -160259563
+      "networth": -160686504
     },
     {
       "year": 2076,
@@ -1012,14 +1062,15 @@
       "net_income": 1892500,
       "total_expense": 9689717,
       "net_cashflow": -7797217,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -176320164
+        "unallocated_surplus": -176768453
       },
-      "networth": -176246865
+      "networth": -176695154
     },
     {
       "year": 2077,
@@ -1032,14 +1083,15 @@
       "net_income": 1892500,
       "total_expense": 9883511,
       "net_cashflow": -7991011,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -193305032
+        "unallocated_surplus": -193775736
       },
-      "networth": -193231733
+      "networth": -193702437
     },
     {
       "year": 2078,
@@ -1052,14 +1104,15 @@
       "net_income": 1892500,
       "total_expense": 10081181,
       "net_cashflow": -8188681,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -211341297
+        "unallocated_surplus": -211835539
       },
-      "networth": -211267998
+      "networth": -211762240
     },
     {
       "year": 2079,
@@ -1072,14 +1125,15 @@
       "net_income": 1892500,
       "total_expense": 10282805,
       "net_cashflow": -8390305,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -230485581
+        "unallocated_surplus": -231004533
       },
-      "networth": -230412282
+      "networth": -230931234
     },
     {
       "year": 2080,
@@ -1092,14 +1146,15 @@
       "net_income": 1892500,
       "total_expense": 10488461,
       "net_cashflow": -8595961,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -250797407
+        "unallocated_surplus": -251342306
       },
-      "networth": -250724108
+      "networth": -251269007
     },
     {
       "year": 2081,
@@ -1112,14 +1167,15 @@
       "net_income": 1892500,
       "total_expense": 10698230,
       "net_cashflow": -8805730,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -272339361
+        "unallocated_surplus": -272911504
       },
-      "networth": -272266062
+      "networth": -272838205
     },
     {
       "year": 2082,
@@ -1132,14 +1188,15 @@
       "net_income": 1892500,
       "total_expense": 10912195,
       "net_cashflow": -9019695,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -295177244
+        "unallocated_surplus": -295777994
       },
-      "networth": -295103945
+      "networth": -295704695
     },
     {
       "year": 2083,
@@ -1152,14 +1209,15 @@
       "net_income": 1892500,
       "total_expense": 11130439,
       "net_cashflow": -9237939,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -319380222
+        "unallocated_surplus": -320011009
       },
-      "networth": -319306923
+      "networth": -319937710
     },
     {
       "year": 2084,
@@ -1172,14 +1230,15 @@
       "net_income": 1892500,
       "total_expense": 11353048,
       "net_cashflow": -9460548,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -345021008
+        "unallocated_surplus": -345683331
       },
-      "networth": -344947709
+      "networth": -345610032
     },
     {
       "year": 2085,
@@ -1192,14 +1251,15 @@
       "net_income": 1892500,
       "total_expense": 11580109,
       "net_cashflow": -9687609,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -372176052
+        "unallocated_surplus": -372871492
       },
-      "networth": -372102753
+      "networth": -372798193
     },
     {
       "year": 2086,
@@ -1212,14 +1272,15 @@
       "net_income": 1892500,
       "total_expense": 11811711,
       "net_cashflow": -9919211,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -400925709
+        "unallocated_surplus": -401655922
       },
-      "networth": -400852410
+      "networth": -401582623
     },
     {
       "year": 2087,
@@ -1232,14 +1293,15 @@
       "net_income": 1892500,
       "total_expense": 12047945,
       "net_cashflow": -10155445,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -431354446
+        "unallocated_surplus": -432121170
       },
-      "networth": -431281147
+      "networth": -432047871
     },
     {
       "year": 2088,
@@ -1252,14 +1314,15 @@
       "net_income": 1892500,
       "total_expense": 12288904,
       "net_cashflow": -10396404,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -463551055
+        "unallocated_surplus": -464356116
       },
-      "networth": -463477756
+      "networth": -464282817
     },
     {
       "year": 2089,
@@ -1272,14 +1335,15 @@
       "net_income": 1892500,
       "total_expense": 12534682,
       "net_cashflow": -10642182,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -497608861
+        "unallocated_surplus": -498454174
       },
-      "networth": -497535562
+      "networth": -498380875
     },
     {
       "year": 2090,
@@ -1292,14 +1356,15 @@
       "net_income": 1892500,
       "total_expense": 12785376,
       "net_cashflow": -10892876,
+      "capital_gains_tax": 0,
       "account_balances": {
         "acc_cash_001": 0,
         "acc_nisa_growth_001": 50205,
         "acc_ideco_001": 23094,
         "acc_taxable_001": 0,
-        "unallocated_surplus": -533625944
+        "unallocated_surplus": -534513523
       },
-      "networth": -533552645
+      "networth": -534440224
     }
   ],
   "milestone_outcomes": [
@@ -1462,24 +1527,24 @@
           10291977,
           11420205,
           12604844,
-          13605202,
-          14414754,
-          15213091,
-          15998241,
-          16768074,
-          17520325,
-          18252580,
-          18962281,
-          19646682,
-          20302898,
-          20927836,
-          21518217,
-          22070553,
-          22581157,
-          17506046,
-          12058738,
-          6218265,
-          52019,
+          13541528,
+          14347895,
+          15142888,
+          15924529,
+          16690676,
+          17439056,
+          18167248,
+          18872684,
+          19552605,
+          20204116,
+          20824116,
+          21409310,
+          21956202,
+          22461086,
+          17379971,
+          11926358,
+          6079267,
+          51427,
           50205,
           50205,
           50205,
@@ -1549,12 +1614,12 @@
           18551428,
           19761269,
           21031602,
-          22275968,
-          16984133,
-          13233086,
-          9163710,
-          4757488,
-          24633,
+          22130615,
+          16830890,
+          13072180,
+          8994758,
+          4580088,
+          23877,
           23094,
           23094,
           23094,
@@ -1600,8 +1665,8 @@
           670048,
           703551,
           738727,
-          540760,
-          181469,
+          523147,
+          131410,
           0,
           0,
           0,
@@ -1694,39 +1759,39 @@
           0,
           0,
           0,
-          -29719,
-          -5167651,
-          -10705647,
-          -16664918,
-          -23069410,
-          -29944342,
-          -37316233,
-          -45212985,
-          -53663984,
-          -62700118,
-          -72353901,
-          -82659537,
-          -93652995,
-          -105372115,
-          -117856703,
-          -131148625,
-          -145291908,
-          -160332862,
-          -176320164,
-          -193305032,
-          -211341297,
-          -230485581,
-          -250797407,
-          -272339361,
-          -295177244,
-          -319380222,
-          -345021008,
-          -372176052,
-          -400925709,
-          -431354446,
-          -463551055,
-          -497608861,
-          -533625944
+          -215232,
+          -5363234,
+          -10911008,
+          -16880546,
+          -23295820,
+          -30182074,
+          -37565853,
+          -45475086,
+          -53939190,
+          -62989087,
+          -72657318,
+          -82978125,
+          -93987512,
+          -105723358,
+          -118225507,
+          -131535870,
+          -145698517,
+          -160759803,
+          -176768453,
+          -193775736,
+          -211835539,
+          -231004533,
+          -251342306,
+          -272911504,
+          -295777994,
+          -320011009,
+          -345683331,
+          -372871492,
+          -401655922,
+          -432121170,
+          -464356116,
+          -498454174,
+          -534513523
         ]
       }
     ]
