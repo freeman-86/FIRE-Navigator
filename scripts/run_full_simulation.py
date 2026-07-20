@@ -20,7 +20,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "secrets" / "gsheets_credentials.json"
-DEFAULT_MONTECARLO_TRIALS = 200
+DEFAULT_MONTECARLO_TRIALS = 1000
 
 
 def main() -> None:
