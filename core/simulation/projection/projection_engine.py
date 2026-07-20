@@ -113,9 +113,10 @@ def run_projection(
             fixed_plan.tax_deductible_amount, is_65_or_older,
         )
 
-        monthly_gross_income = _divide_by_12(gross_income_annual)
-        monthly_pension_income = _divide_by_12(pension_income_annual)
-        monthly_net_income = _divide_by_12(tax_result.net_income)
+        # 税額は年次確定のため月ごとには変えられないが（既存の簡略化）、収入・年金は月ごとに
+        # 実際に有効かどうかで満額/0円が決まるため、その月の収入+年金からこの月割り税額を
+        # 差し引いた額を手取り収入とする（年間合計は従来通りtax_result.net_incomeと一致する）。
+        monthly_total_tax = _divide_by_12(gross_income_annual + pension_income_annual - tax_result.net_income)
         monthly_recurring_expense = _divide_by_12(total_expense_annual)
         monthly_fixed_contributions = {
             account_id: _divide_by_12(amount) for account_id, amount in fixed_plan.contributions.items()
@@ -142,6 +143,14 @@ def run_projection(
             )
             education_expense_annual = education_expense_annual + education_expense_this_month
             monthly_expense = monthly_recurring_expense + one_time_expense_this_month + education_expense_this_month
+
+            monthly_gross_income = _active_income_for_month(
+                plan.incomes, calendar_year, calendar_month, start_year, start_month, birth_date, offset_year
+            )
+            monthly_pension_income = _pension_income_for_month(
+                birth_date, plan.pension, pension_rules, calendar_year, calendar_month
+            )
+            monthly_net_income = monthly_gross_income + monthly_pension_income - monthly_total_tax
 
             net_cashflow_month = monthly_net_income - monthly_expense
             discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
@@ -412,6 +421,36 @@ def _is_active_in_month(
     return True
 
 
+def _active_income_for_month(
+    incomes: list[Income],
+    calendar_year: int,
+    calendar_month: int,
+    start_year: int,
+    start_month: int,
+    birth_date: date,
+    offset: int,
+) -> Money:
+    """その月に実際に有効な収入だけを合算した、その月の収入額を返す（月精度）。
+
+    有効な収入は月割り額（成長後の年額/12）をそのまま満額計上し、無効な収入は0円とする。
+    年間合計を按分してから12等分する方式だと、開始/終了条件の月と無関係に全12ヶ月へ
+    均等に影響してしまい実際のお金の動きと合わなくなる（例: 年度途中の12月で収入が
+    終了する場合でも、7月時点で既に減額された金額になってしまう）ため、月ごとに
+    _is_active_in_month()で有効性を判定し、満額/0円の二値で積み上げる。
+    """
+
+    total = Money.zero()
+    for income in incomes:
+        if not _is_active_in_month(
+            income.start_condition, income.end_condition, calendar_year, calendar_month, start_year, start_month,
+            birth_date,
+        ):
+            continue
+        full_year_amount = _grown_amount(income.amount, income.growth_rate, offset)
+        total = total + _divide_by_12(full_year_amount)
+    return total
+
+
 def _active_months_in_year(
     start_condition: EventCondition,
     end_condition: Optional[EventCondition],
@@ -439,6 +478,12 @@ def _active_income_total(
 ) -> Money:
     """月精度で開始/終了条件を判定し、年間のうち条件を満たす月数分だけ按分した年間収入合計を返す
     （「西暦年」だけでの判定だと、年の途中で開始/終了する収入が最大11ヶ月分ずれるため）。
+
+    _active_income_for_month（月ごとの表示・キャッシュフロー計算用）とは独立して、按分前の
+    年額に直接月数比率を掛けて計算する（月ごとに月割り額を12回丸めてから合算すると、
+    端数の丸め誤差が積み重なって年間合計がわずかにずれるため。例:
+    5,000,000/12を四捨五入すると416,667円になり、12ヶ月分を単純合算すると5,000,004円に
+    なってしまう）。
     """
 
     total = Money.zero()
@@ -477,17 +522,28 @@ def age_at(birth_date: date, calendar_year: int, calendar_month: int) -> int:
     return AgeAt(birth_date, reference_date).years
 
 
-def _pension_eligible_months(birth_date: date, claim_age: int, month_pairs: list[tuple[int, int]]) -> int:
-    """month_pairs（その年にループが実際に処理する(西暦年,月)の一覧）のうち、
-    年金受給資格年齢(claim_age)に達している月数を返す（0〜12）。
+def _pension_income_for_month(
+    birth_date: date, pension: Pension, pension_rules: PensionRules, calendar_year: int, calendar_month: int
+) -> Money:
+    """その月時点で年金受給資格があれば月割り額（満額/12）を、なければ0円を返す（月精度）。
 
     誕生日を迎えた月から資格を得ると仮定する簡略化（実際の支給開始月の厳密な制度計算は行わない）。
     「西暦年-生年」だけで判定すると、誕生日がまだ来ていない月も受給資格ありと誤判定してしまうため
-    （最大11ヶ月分の年金を早く計上してしまう）、月ごとにAgeAtで正確な年齢を確認する。
-    month_pairsは_calendar_year_month()で解決した実際のカレンダー年月を渡す必要がある
-    （プランがTODAY開始で年度途中から始まる場合、ループの名目上のyearとは一致しないため）。
+    （最大11ヶ月分の年金を早く計上してしまう）、AgeAtで正確な年齢を確認する。受給開始タイミングに
+    よる増減率(繰上げ/繰下げ)はcalculate_pension_income内で固定額として決まるため、
+    まず満額(claim_timing.age時点の額)を求めてから月割りする。
     """
 
+    reference_date = date(calendar_year, calendar_month, 1)
+    if reference_date < birth_date:
+        return Money.zero()
+    if AgeAt(birth_date, reference_date).years < pension.claim_timing.age:
+        return Money.zero()
+    full_year_amount = calculate_pension_income(pension.claim_timing.age, pension, pension_rules)
+    return _divide_by_12(full_year_amount)
+
+
+def _pension_eligible_months(birth_date: date, claim_age: int, month_pairs: list[tuple[int, int]]) -> int:
     count = 0
     for calendar_year, calendar_month in month_pairs:
         reference_date = date(calendar_year, calendar_month, 1)
@@ -503,9 +559,10 @@ def _pension_income_for_year(
 ) -> Money:
     """その年の年金収入を、受給資格を得た月数で按分して返す（受給資格を得る年の按分計算）。
 
-    受給開始タイミングによる増減率(繰上げ/繰下げ)はcalculate_pension_income内で固定額として
-    決まるため、まず満額(claim_timing.age時点の額)を求め、その年のうち資格がある月数分だけ
-    按分する。年金は所得税・住民税と同様に年1回のみ確定する既存の設計を維持する。
+    _pension_income_for_month（月ごとの表示・キャッシュフロー計算用）とは独立して、満額に
+    直接月数比率を掛けて計算する（月ごとに月割り額を12回丸めてから合算すると端数の丸め誤差が
+    積み重なるため。_active_income_totalと同じ理由）。年金は所得税・住民税と同様に
+    年1回のみ確定する既存の設計を維持する。
     """
 
     eligible_months = _pension_eligible_months(birth_date, pension.claim_timing.age, month_pairs)
