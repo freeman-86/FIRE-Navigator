@@ -37,6 +37,7 @@ from adapters.sheets.sheet_mapping import (
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
+    LIFE_EXPECTANCY_HEADER,
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
@@ -77,7 +78,7 @@ from core.domain.income import Income
 from core.domain.milestone import Milestone, MilestoneType
 from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
-from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
+from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE, Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.progress_record import ProgressRecord
 from core.domain.scenario import Scenario
@@ -614,6 +615,15 @@ def _build_milestones(settings: dict[str, str]) -> list[Milestone]:
     ]
 
 
+def _build_life_expectancy_age(settings: dict[str, str]) -> int:
+    """入力_プラン設定の想定寿命（任意入力）を読み込む。未入力ならDEFAULT_LIFE_EXPECTANCY_AGE(100歳)。"""
+
+    raw = settings.get(LIFE_EXPECTANCY_HEADER, "").strip()
+    if not raw:
+        return DEFAULT_LIFE_EXPECTANCY_AGE
+    return _parse_int(raw, f"{PLAN_SHEET}!{LIFE_EXPECTANCY_HEADER}")
+
+
 def read_target_ending_networth(spreadsheet: gspread.Spreadsheet) -> Money:
     """入力_プラン設定の目標資産（想定寿命時点、任意入力）を読み込む。未入力なら0円。
 
@@ -681,6 +691,7 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         children=children,
         education_expenses=education_expenses,
         one_time_expenses=one_time_expenses,
+        life_expectancy_age=_build_life_expectancy_age(settings),
     )
 
 

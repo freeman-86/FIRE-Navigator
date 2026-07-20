@@ -94,6 +94,25 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
         self.assertEqual(result.yearly_projections[-1].age_self, DEFAULT_LIFE_EXPECTANCY_AGE)
 
+    def test_horizon_uses_plans_own_life_expectancy_age_when_set(self) -> None:
+        # 入力_プラン設定の想定寿命(Plan.life_expectancy_age)が設定されている場合、
+        # DEFAULT_LIFE_EXPECTANCY_AGE(100)ではなくその値まで計算する。
+        plan = _minimal_plan(
+            milestones=[
+                Milestone(
+                    milestone_id="milestone_retire_001",
+                    milestone_type=MilestoneType.RETIREMENT,
+                    trigger=EventCondition.at_age(60),
+                )
+            ],
+            life_expectancy_age=85,
+        )
+        result = _run(plan)
+
+        expected_last_year = 1990 + 85
+        self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
+        self.assertEqual(result.yearly_projections[-1].age_self, 85)
+
     def test_surplus_and_growth_compound_networth(self) -> None:
         account = Account(account_id="acc_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         income = Income(

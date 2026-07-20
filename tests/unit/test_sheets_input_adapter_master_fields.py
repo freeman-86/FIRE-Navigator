@@ -2,6 +2,7 @@ import unittest
 
 from adapters.sheets.sheet_mapping import (
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
+    LIFE_EXPECTANCY_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -10,6 +11,7 @@ from adapters.sheets.sheet_mapping import (
     TARGET_ENDING_NETWORTH_HEADER,
 )
 from adapters.sheets.sheets_input_adapter import (
+    _build_life_expectancy_age,
     _build_milestones,
     _build_pension,
     read_target_ending_networth,
@@ -17,6 +19,7 @@ from adapters.sheets.sheets_input_adapter import (
 from core.domain.errors import StructuralInputError
 from core.domain.milestone import MilestoneType
 from core.domain.pension import ClaimTimingType
+from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE
 from core.domain.value_objects import EventConditionType, Money
 
 
@@ -85,6 +88,19 @@ class BuildMilestonesTest(unittest.TestCase):
         with self.assertRaises(StructuralInputError) as ctx:
             _build_milestones({RETIREMENT_AGE_HEADER: "sixty"})
         self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{RETIREMENT_AGE_HEADER}")
+
+
+class BuildLifeExpectancyAgeTest(unittest.TestCase):
+    def test_blank_defaults_to_default_life_expectancy_age(self) -> None:
+        self.assertEqual(_build_life_expectancy_age({}), DEFAULT_LIFE_EXPECTANCY_AGE)
+
+    def test_reads_specified_value(self) -> None:
+        self.assertEqual(_build_life_expectancy_age({LIFE_EXPECTANCY_HEADER: "85"}), 85)
+
+    def test_non_numeric_value_raises_structural_input_error(self) -> None:
+        with self.assertRaises(StructuralInputError) as ctx:
+            _build_life_expectancy_age({LIFE_EXPECTANCY_HEADER: "hundred"})
+        self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{LIFE_EXPECTANCY_HEADER}")
 
 
 class ReadTargetEndingNetworthTest(unittest.TestCase):

@@ -12,7 +12,7 @@ from core.domain.income import Income
 from core.domain.milestone import MilestoneType
 from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import Pension, PensionRules
-from core.domain.plan import Plan, StartConditionType
+from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE, Plan, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import PortfolioRules
 from core.domain.simulation_result import MonthlyProjection, SimulationResult, YearlyProjection
@@ -26,7 +26,6 @@ from core.simulation.tax.tax_engine import calculate_tax
 from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
 
 DEFAULT_PROJECTION_YEARS = 30
-DEFAULT_LIFE_EXPECTANCY_AGE = 100
 UNALLOCATED_SURPLUS_KEY = "unallocated_surplus"
 MONTHS_PER_YEAR = 12
 
@@ -44,7 +43,8 @@ def run_projection(
     milestone評価・感応度分析・チャート・Monte Carlo/Historical Engine等の年次インターフェースは
     無改修で動作する。月次の明細はSimulationResult.monthly_projectionsに別途保持する。
 
-    退職(RETIREMENT)マイルストーンがある場合、想定寿命(DEFAULT_LIFE_EXPECTANCY_AGE)まで
+    退職(RETIREMENT)マイルストーンがある場合、想定寿命(plan.life_expectancy_age。
+    入力_プラン設定の想定寿命、未入力ならDEFAULT_LIFE_EXPECTANCY_AGE)まで
     退職後フェーズを含めて計算する。手取り収入(給与+年金)が生活費・確定拠出を上回る月は
     contribution_strategyの優先順位で口座へ自動配分し、下回る月（退職後の取り崩し局面等）は
     withdrawal_strategyの優先順位で口座残高を取り崩す。
@@ -381,7 +381,7 @@ def calendar_year_month(start_year: int, start_month: int, month_offset: int) ->
 def _resolve_end_year(plan: Plan, start_year: int) -> int:
     retirement_year = _retirement_year(plan, start_year)
     if retirement_year is not None:
-        life_expectancy_year = plan.user.birth_date.year + DEFAULT_LIFE_EXPECTANCY_AGE
+        life_expectancy_year = plan.user.birth_date.year + plan.life_expectancy_age
         return max(retirement_year, life_expectancy_year, start_year)
     return start_year + DEFAULT_PROJECTION_YEARS - 1
 

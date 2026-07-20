@@ -70,6 +70,8 @@ def main() -> None:
 
 
 def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
+    from datetime import date
+
     from adapters.sheets.sheets_error_writer import write_errors, write_warnings
     from adapters.sheets.sheets_input_adapter import (
         build_plan_from_spreadsheet,
@@ -89,6 +91,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
         write_sensitivity_table,
     )
     from core.domain.scenario import apply_scenario
+    from core.domain.value_objects import AgeAt
     from core.services.validation_service import validate_plan
     from core.simulation.montecarlo.correlation_matrix import compute_correlation_matrix
     from core.simulation.montecarlo.distribution import distributions_from_historical_dataset
@@ -186,8 +189,14 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
     else:
         print("\n[9/9] ヒストリカルバックテスト（過去の実績データ再生）を実行しています...")
         dataset = load_historical_dataset()
+        # 窓の長さ(何年分バックテストするか)を、想定寿命と現在の年齢から算出する
+        # （固定30年ではなく、モンテカルロ等と同様に想定寿命と連動させる）。
+        current_age = AgeAt(plan.user.birth_date, date.today()).years
+        window_length = max(plan.life_expectancy_age - current_age, 1)
         started = time.time()
-        historical_result, _ = run_historical_backtest(plan, portfolios, tax_rules, portfolio_rules, pension_rules, dataset)
+        historical_result, _ = run_historical_backtest(
+            plan, portfolios, tax_rules, portfolio_rules, pension_rules, dataset, window_length
+        )
         historical_entry = (historical_result, build_percentile_band_chart(historical_result))
         elapsed = time.time() - started
         print(f"      完了（成功確率: {historical_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")

@@ -39,6 +39,8 @@ EMPLOYEE_PENSION_ESTIMATE_HEADER = "厚生年金見込額（年額）"
 PENSION_CLAIM_TIMING_HEADER = "年金受給タイミング"
 PENSION_CLAIM_AGE_HEADER = "年金受給開始年齢"
 TARGET_ENDING_NETWORTH_HEADER = "目標資産（想定寿命時点）"
+# 想定寿命: 任意入力。未入力の場合はcore.domain.plan.DEFAULT_LIFE_EXPECTANCY_AGE(100歳)を既定値とする。
+LIFE_EXPECTANCY_HEADER = "想定寿命"
 
 # Input_口座
 ACCOUNT_ID_HEADER = "口座ID"
@@ -82,7 +84,9 @@ SCENARIO_NAME_HEADER = "シナリオ名"
 # 旧名称「退職年齢」は、実際には収入を止める機能ではなく、シミュレーション期間を想定寿命まで
 # 延長するかどうかだけを制御する（未入力時は30年間で計算する）ため、誤解を招く名称だった。
 # Input_プラン設定・Input_シナリオの両方でこの定数を共有するため、名称変更が両方に反映される。
-RETIREMENT_AGE_HEADER = "シミュレーション終了年齢（想定寿命まで計算したい場合に入力／空欄なら30年間で計算）"
+RETIREMENT_AGE_HEADER = (
+    "シミュレーション終了年齢（設定すると、その年齢以降は想定寿命まで自動で計算を続けます／空欄なら30年間で計算）"
+)
 
 # Input_配分方針: 年齢×資産クラスごとに1行。同じ年齢の行をまとめて1つのAllocationTargetとする
 # （ギャップ分析3.7。プラン全体で1つ、口座横断の目標配分比率テーブル）。

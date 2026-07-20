@@ -23,6 +23,9 @@ from core.domain.value_objects import Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
 
+DEFAULT_LIFE_EXPECTANCY_AGE = 100
+
+
 class StartConditionType(str, Enum):
     TODAY = "today"
     FIXED_DATE = "fixed_date"
@@ -66,3 +69,4 @@ class Plan:
     children: list[Child] = field(default_factory=list)
     education_expenses: list[EducationExpenseBand] = field(default_factory=list)
     one_time_expenses: list[OneTimeExpense] = field(default_factory=list)
+    life_expectancy_age: int = DEFAULT_LIFE_EXPECTANCY_AGE
