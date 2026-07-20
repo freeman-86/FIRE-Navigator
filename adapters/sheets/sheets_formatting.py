@@ -116,6 +116,7 @@ NUMERIC_HEADERS = {
     MONTHLY_CONTRIBUTION_HEADER,
     AMOUNT_ANNUAL_HEADER,
     ONE_TIME_AMOUNT_HEADER,
+    GROWTH_RATE_HEADER,
     START_AGE_HEADER,
     END_AGE_HEADER,
     MONTHLY_AMOUNT_HEADER,
@@ -131,6 +132,14 @@ NUMERIC_HEADERS = {
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
 }
+
+# 開始/終了条件値は、対応する条件タイプの値が"age"の行に限り数値変換する（"date"等の行は
+# 文字列の日付が入っている可能性があるため、列全体を一律には数値化しない）。
+CONDITIONAL_NUMERIC_VALUE_COLUMNS: dict[str, str] = {
+    START_VALUE_HEADER: START_TYPE_HEADER,
+    END_VALUE_HEADER: END_TYPE_HEADER,
+}
+AGE_CONDITION_TYPE_VALUE = "age"
 
 # チェックボックスにする列（TRUE/FALSEの自由入力によるタイプミスを防ぐ）。
 CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER, IS_FLEXIBLE_HEADER}
@@ -384,6 +393,60 @@ def _numeric_cell_requests(sheet_id: int, col_idx: int, data_values: list[str]) 
     return requests
 
 
+def _to_bool(raw: str) -> bool:
+    return str(raw).strip().upper() in ("TRUE", "1", "YES")
+
+
+def _boolean_single_cell_request(sheet_id: int, row_idx: int, col_idx: int, value: bool) -> dict:
+    return {
+        "updateCells": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": row_idx,
+                "endRowIndex": row_idx + 1,
+                "startColumnIndex": col_idx,
+                "endColumnIndex": col_idx + 1,
+            },
+            "rows": [{"values": [{"userEnteredValue": {"boolValue": value}}]}],
+            "fields": "userEnteredValue",
+        }
+    }
+
+
+def _boolean_cell_requests(sheet_id: int, col_idx: int, data_values: list[str]) -> list[dict]:
+    """チェックボックス列の既存セルを、実際のbooleanとして書き込み直すリクエストを作る。
+
+    BOOLEAN型のデータの入力規則を設定しても、既存の文字列値("TRUE"/"FALSE"等)が必ずしも
+    実際のbooleanへ自動変換されるとは限らない（変換されないとチェックボックスとして
+    描画されず、文字列のままに見える）ため、明示的に書き込み直して確実にする。
+    """
+
+    return [
+        _boolean_single_cell_request(sheet_id, row_offset, col_idx, _to_bool(raw))
+        for row_offset, raw in enumerate(data_values, start=1)
+    ]
+
+
+def _conditional_age_value_requests(sheet_id: int, header: list[str], values: list[list[str]]) -> list[dict]:
+    """開始/終了条件値のうち、対応する条件タイプが"age"の行だけを数値変換するリクエストを作る。"""
+
+    requests = []
+    for value_header, type_header in CONDITIONAL_NUMERIC_VALUE_COLUMNS.items():
+        if value_header not in header or type_header not in header:
+            continue
+        value_col_idx = header.index(value_header)
+        type_col_idx = header.index(type_header)
+        for row_offset, row in enumerate(values[1:], start=1):
+            type_value = row[type_col_idx] if type_col_idx < len(row) else ""
+            if str(type_value).strip().lower() != AGE_CONDITION_TYPE_VALUE:
+                continue
+            raw = row[value_col_idx] if value_col_idx < len(row) else ""
+            request = _numeric_single_cell_request(sheet_id, row_offset, value_col_idx, raw)
+            if request is not None:
+                requests.append(request)
+    return requests
+
+
 def _clear_range_requests(sheet_id: int, end_row: int, end_col: int) -> list[dict]:
     return [
         {
@@ -466,6 +529,8 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
             # 再度セットアップを実行するとチェックボックスが効くようになる。
             if data_row_count > 0:
                 requests.append(_checkbox_request(sheet_id, 1, first_future_row, col_idx, col_idx + 1))
+                data_values = [row[col_idx] if col_idx < len(row) else "" for row in values[1:]]
+                requests.extend(_boolean_cell_requests(sheet_id, col_idx, data_values))
         elif column_header in spec.dropdowns:
             requests.append(
                 _data_validation_request(sheet_id, 1, FORMAT_ROW_COUNT, col_idx, col_idx + 1, spec.dropdowns[column_header])
@@ -474,6 +539,8 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
         if column_header in NUMERIC_HEADERS:
             data_values = [row[col_idx] if col_idx < len(row) else "" for row in values[1:]]
             requests.extend(_numeric_cell_requests(sheet_id, col_idx, data_values))
+
+    requests.extend(_conditional_age_value_requests(sheet_id, header, values))
 
     # 入力_支出: 単発フラグの値に応じて使われない列をグレーアウトする。
     # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視され、

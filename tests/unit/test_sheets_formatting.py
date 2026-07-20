@@ -298,6 +298,59 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         self.assertEqual(by_column[2]["rule"]["condition"]["type"], "BOOLEAN")  # 単発フラグ
         self.assertEqual(by_column[6]["rule"]["condition"]["type"], "BOOLEAN")  # 柔軟支出フラグ
 
+    def test_existing_checkbox_column_values_are_rewritten_as_actual_booleans(self):
+        # BOOLEAN型の入力規則を設定しても、既存の文字列"TRUE"/"FALSE"が自動でbooleanに変換される
+        # とは限らないため、明示的にboolValueとして書き込み直すことを確認する。
+        sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
+
+        bool_requests = [
+            r["updateCells"]
+            for body in self.spreadsheet.batch_updates
+            for r in body["requests"]
+            if "updateCells" in r
+            and r["updateCells"]["range"]["sheetId"] == self.worksheet.id
+            and r["updateCells"]["rows"][0]["values"][0].get("userEnteredValue", {}).get("boolValue") is not None
+        ]
+        by_column = {r["range"]["startColumnIndex"]: r for r in bool_requests}
+
+        self.assertIn(2, by_column)  # 単発フラグ
+        self.assertEqual(by_column[2]["rows"][0]["values"][0]["userEnteredValue"]["boolValue"], False)
+        self.assertIn(6, by_column)  # 柔軟支出フラグ
+        self.assertEqual(by_column[6]["rows"][0]["values"][0]["userEnteredValue"]["boolValue"], False)
+
+    def test_start_value_is_converted_to_number_only_when_start_type_is_age(self):
+        spreadsheet = _FakeSpreadsheet()
+        header = [
+            EXPENSE_ID_HEADER,
+            CATEGORY_HEADER,
+            ONE_TIME_FLAG_HEADER,
+            AMOUNT_ANNUAL_HEADER,
+            ONE_TIME_AMOUNT_HEADER,
+            GROWTH_RATE_HEADER,
+            IS_FLEXIBLE_HEADER,
+            START_TYPE_HEADER,
+            START_VALUE_HEADER,
+        ]
+        age_row = ["expense_car", "車", "TRUE", "", "3000000", "", "FALSE", "age", "45"]
+        date_row = ["expense_trip", "旅行", "TRUE", "", "500000", "", "FALSE", "date", "2030-05-01"]
+        worksheet = spreadsheet.add_sheet(EXPENSES_SHEET, [header, age_row, date_row])
+
+        sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
+
+        numeric_requests = [
+            r["updateCells"]
+            for body in spreadsheet.batch_updates
+            for r in body["requests"]
+            if "updateCells" in r
+            and r["updateCells"]["range"]["sheetId"] == worksheet.id
+            and r["updateCells"]["range"]["startColumnIndex"] == 8  # START_VALUE_HEADER
+        ]
+        by_row = {r["range"]["startRowIndex"]: r for r in numeric_requests}
+
+        self.assertIn(1, by_row)  # age行は数値変換される
+        self.assertEqual(by_row[1]["rows"][0]["values"][0]["userEnteredValue"]["numberValue"], 45.0)
+        self.assertNotIn(2, by_row)  # date行は文字列のまま(数値変換しない)
+
     def test_checkbox_validation_is_scoped_to_existing_data_rows_only(self):
         # BOOLEAN型のデータの入力規則には「未入力」状態がなく、値のないセルにもGoogle Sheets側が
         # 自動でFALSEを書き込んでしまう(値だけを空に戻しても入力規則が残っていれば復活する)ため、
