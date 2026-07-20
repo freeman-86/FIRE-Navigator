@@ -17,6 +17,7 @@ from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import (
     DEFAULT_LIFE_EXPECTANCY_AGE,
+    UNALLOCATED_SURPLUS_KEY,
     age_at,
     _pension_eligible_months,
     _school_year_age,
@@ -480,13 +481,14 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
             WithdrawalStrategy(order=[AccountType.TAXABLE]),
             portfolio_rules,
             tax_rules.capital_gains,
+            65,
         )
 
         self.assertGreater(outcome.capital_gains_tax.amount, 0)
 
 
 class AllocationPolicyIntegrationTest(unittest.TestCase):
-    def test_initial_drift_is_corrected_toward_target_weights_within_first_month(self) -> None:
+    def test_initial_overweight_is_sold_down_to_target_but_not_reinvested(self) -> None:
         from core.domain.allocation import AllocationPolicy, AllocationTarget
 
         equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
@@ -510,8 +512,11 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         )
 
         first_month = result.monthly_projections[0]
+        # 株式が目標比率まで売却される（900,000→500,000）が、その代金で債券を買い直すことは
+        # しないため、売却代金はすべて未配分の現金(surplus_reserve)としてプールされる
         self.assertEqual(first_month.account_balances["acc_equity"], Money.of(500_000))
-        self.assertEqual(first_month.account_balances["acc_bond"], Money.of(500_000))
+        self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
+        self.assertEqual(first_month.account_balances[UNALLOCATED_SURPLUS_KEY], Money.of(400_000))
 
     def test_no_allocation_policy_leaves_initial_imbalance_untouched(self) -> None:
         equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)

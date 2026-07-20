@@ -26,6 +26,7 @@ def withdraw_shortfall(
     withdrawal_strategy: WithdrawalStrategy,
     portfolio_rules: PortfolioRules,
     capital_gains_tax_rules: CapitalGainsTaxRules,
+    age: int,
 ) -> WithdrawalOutcome:
     """収入だけでは賄えない不足額(net_shortfall、手取りベース)を、withdrawal_strategy.orderの
     優先順位で口座残高から取り崩す。口座残高を超えて取り崩すことはない。
@@ -35,6 +36,10 @@ def withdraw_shortfall(
     課税する。含み損（実現益がマイナス）の場合は課税しない（損益通算・繰越控除は対象外という
     簡易化。ギャップ分析6章で確定）。net_shortfallは手取りベースの目標額のため、課税口座からは
     税額を上乗せした総額を取り崩す（グロスアップ）。
+
+    ageがportfolio_rulesのmin_withdrawal_age未満の口座タイプ（iDeCo/企業型DC等）はそもそも
+    取り崩し対象から除外し、他の口座で不足分を賄う。それでも賄いきれない場合、その分は
+    remaining_shortfallとして残り続ける（口座を強制的に取り崩すことはしない）。
 
     戻り値のWithdrawalOutcome:
     - withdrawals: 口座ごとの取り崩し総額（税引き前）
@@ -55,7 +60,10 @@ def withdraw_shortfall(
     for account_type in withdrawal_strategy.order:
         if remaining_net == Money.zero():
             break
-        is_taxable = not portfolio_rules.rules_for(account_type).tax_free
+        rules = portfolio_rules.rules_for(account_type)
+        if rules.min_withdrawal_age is not None and age < rules.min_withdrawal_age:
+            continue
+        is_taxable = not rules.tax_free
         for account in accounts_by_type.get(account_type, []):
             if remaining_net == Money.zero():
                 break

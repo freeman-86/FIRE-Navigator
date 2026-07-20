@@ -6,6 +6,8 @@ config_year: 2026
 # lifetime_limit: 生涯を通じた非課税枠の上限額 (null = 制限なし)
 # tax_free: 運用益が非課税かどうか（現時点のシミュレーションでは含み益に課税していないため未使用。
 #           将来のWithdrawal Engine実装時に実現益課税の判定へ使う）
+# min_withdrawal_age: この年齢に達するまで取り崩し・リバランス売却できない口座タイプの下限年齢
+#                      (null/省略 = 制限なし)
 account_types:
   nisa_growth:
     annual_limit: 2400000
@@ -22,11 +24,15 @@ account_types:
     annual_limit: 276000
     lifetime_limit: null
     tax_free: true
+    # iDeCoは原則60歳まで引き出し(解約・売却)不可
+    min_withdrawal_age: 60
   company_dc:
     # 他の企業年金制度を併用しない場合の月額上限55,000円×12。制度併用時の減額は非対応。
     annual_limit: 660000
     lifetime_limit: null
     tax_free: true
+    # 企業型DCも原則60歳まで引き出し(解約・売却)不可
+    min_withdrawal_age: 60
   zaikei:
     # 財形住宅貯蓄・財形年金貯蓄（両方合算）の非課税上限（元利合計）。一般財形との区別は非対応。
     annual_limit: null

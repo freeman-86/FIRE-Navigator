@@ -12,6 +12,7 @@ class AccountRules:
     annual_limit: Optional[Money]
     lifetime_limit: Optional[Money]
     tax_free: bool
+    min_withdrawal_age: Optional[int] = None
 
 
 @dataclass

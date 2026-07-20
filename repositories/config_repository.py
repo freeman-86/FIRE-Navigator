@@ -89,6 +89,7 @@ def load_portfolio_rules(config_path: Union[str, Path] = DEFAULT_PORTFOLIO_CONFI
             annual_limit=_money_or_none(entry["annual_limit"]),
             lifetime_limit=_money_or_none(entry["lifetime_limit"]),
             tax_free=bool(entry["tax_free"]),
+            min_withdrawal_age=entry.get("min_withdrawal_age"),
         )
         for account_type_key, entry in raw["account_types"].items()
     }

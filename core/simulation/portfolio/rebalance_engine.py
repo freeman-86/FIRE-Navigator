@@ -8,7 +8,6 @@ from core.domain.plan import Plan
 from core.domain.portfolio_rules import PortfolioRules
 from core.domain.tax_config import CapitalGainsTaxRules
 from core.domain.value_objects import Money, Rate
-from core.simulation.portfolio.account_rules import cap_contribution
 from core.simulation.withdrawal.withdrawal_engine import (
     reduce_cost_basis_proportionally,
     withdraw_from_single_account,
@@ -33,16 +32,20 @@ def rebalance(
     target_weights: dict[AssetClass, Rate],
     portfolio_rules: PortfolioRules,
     capital_gains_tax_rules: CapitalGainsTaxRules,
+    age: int,
 ) -> RebalanceOutcome:
     """新規拠出（allocate_discretionary_surplusのドリフト考慮配分）で埋めきれなかった資産クラスの
-    乖離を、過大な口座から売却し過小な口座へ再投資することで解消する（ギャップ分析3.7
-    「新規拠出を優先、不足分のみ売却」の売却ステップ）。
+    乖離のうち、過大な資産クラスを目標比率まで売却することで解消する（ギャップ分析3.7
+    「新規拠出を優先、不足分のみ売却」の売却ステップ）。売却代金の買い直しは行わず、すべて
+    unreinvested_proceedsとして返す（呼び出し元でsurplus_reserveに合算される）。将来の新規拠出は
+    allocate_discretionary_surplusの目標比率配分ロジックでそのまま反映されるため、買い直しの
+    処理がなくても長期的には目標配分に近づく。
 
-    売却は非課税口座（NISA等）を優先し、それでも足りない場合のみ課税口座（TAXABLE）から売却する
-    （譲渡税の発生を最小化するため）。再投資は各口座のcap_contributionルール（年間/生涯枠）を
-    尊重する。ただし年間枠については、同じ月に発生する通常の拠出フローとは独立に判定する簡易化
-    （両者を跨いだ年間枠の厳密な合算管理はしない）。target_weightsが空の場合は何もしない
-    （AllocationPolicy未設定のPlanとの後方互換性）。
+    売却口座の優先順位は通常の取り崩し(withdraw_shortfall)と統一し、plan.withdrawal_strategy.order
+    の順（課税口座を先に、非課税口座を後に）に売却する。ageがportfolio_rulesのmin_withdrawal_age
+    未満の口座タイプ（iDeCo/企業型DC等）はそもそも売却対象から除外し、他の口座で賄う
+    （withdraw_shortfallと同様、口座を強制的に売却することはしない）。target_weightsが空の場合は
+    何もしない（AllocationPolicy未設定のPlanとの後方互換性）。
     """
 
     if not target_weights:
@@ -69,9 +72,10 @@ def rebalance(
         if asset_class is not None:
             accounts_by_asset_class.setdefault(asset_class, []).append(account)
 
+    order_index = {account_type: index for index, account_type in enumerate(plan.withdrawal_strategy.order)}
+
     balances = dict(account_balances)
     cost_basis = dict(cost_basis_balances)
-    lifetime = dict(lifetime_contributions)
     total_tax = Money.zero()
     proceeds = Money.zero()
 
@@ -79,10 +83,12 @@ def rebalance(
         if not drift.is_negative:
             continue
         excess = -drift
-        candidates = sorted(
-            accounts_by_asset_class.get(asset_class, []),
-            key=lambda a: not portfolio_rules.rules_for(a.account_type).tax_free,
-        )
+        eligible = [
+            account
+            for account in accounts_by_asset_class.get(asset_class, [])
+            if _is_withdrawal_eligible(account, portfolio_rules, age)
+        ]
+        candidates = sorted(eligible, key=lambda a: order_index.get(a.account_type, len(order_index)))
         for account in candidates:
             if excess == Money.zero():
                 break
@@ -104,33 +110,15 @@ def rebalance(
             proceeds = proceeds + take_net
             excess = excess - take_net
 
-    for asset_class, drift in drift_by_asset_class.items():
-        if drift.is_negative or drift == Money.zero() or proceeds == Money.zero():
-            continue
-        need = drift
-        for account in accounts_by_asset_class.get(asset_class, []):
-            if need == Money.zero() or proceeds == Money.zero():
-                break
-            rules = portfolio_rules.rules_for(account.account_type)
-            desired = need if need < proceeds else proceeds
-            take = cap_contribution(
-                desired,
-                rules,
-                contributed_this_year=Money.zero(),
-                lifetime_contributed=lifetime.get(account.account_id, Money.zero()),
-            )
-            if take == Money.zero():
-                continue
-            balances[account.account_id] = balances.get(account.account_id, Money.zero()) + take
-            cost_basis[account.account_id] = cost_basis.get(account.account_id, Money.zero()) + take
-            lifetime[account.account_id] = lifetime.get(account.account_id, Money.zero()) + take
-            proceeds = proceeds - take
-            need = need - take
-
     return RebalanceOutcome(
         account_balances=balances,
         cost_basis_balances=cost_basis,
-        lifetime_contributions=lifetime,
+        lifetime_contributions=lifetime_contributions,
         capital_gains_tax=total_tax,
         unreinvested_proceeds=proceeds,
     )
+
+
+def _is_withdrawal_eligible(account: Account, portfolio_rules: PortfolioRules, age: int) -> bool:
+    min_withdrawal_age = portfolio_rules.rules_for(account.account_type).min_withdrawal_age
+    return min_withdrawal_age is None or age >= min_withdrawal_age

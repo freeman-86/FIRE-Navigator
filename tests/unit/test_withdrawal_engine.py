@@ -25,6 +25,9 @@ def _rules(tax_free_by_type: dict[AccountType, bool]) -> PortfolioRules:
     )
 
 
+ANY_AGE = 65
+
+
 class WithdrawShortfallTest(unittest.TestCase):
     def test_withdraws_in_priority_order_across_multiple_accounts(self) -> None:
         accounts = [
@@ -36,7 +39,7 @@ class WithdrawShortfallTest(unittest.TestCase):
         strategy = WithdrawalStrategy(order=[AccountType.CASH, AccountType.TAXABLE])
         rules = _rules({AccountType.CASH: True, AccountType.TAXABLE: False})
 
-        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(2_000_000), strategy, rules, ZERO_TAX)
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(2_000_000), strategy, rules, ZERO_TAX, ANY_AGE)
 
         self.assertEqual(outcome.withdrawals["acc_cash"], Money.of(500_000))
         self.assertEqual(outcome.withdrawals["acc_taxable"], Money.of(1_500_000))
@@ -50,7 +53,7 @@ class WithdrawShortfallTest(unittest.TestCase):
         strategy = WithdrawalStrategy(order=[AccountType.CASH])
         rules = _rules({AccountType.CASH: True})
 
-        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(1_000_000), strategy, rules, ZERO_TAX)
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(1_000_000), strategy, rules, ZERO_TAX, ANY_AGE)
 
         self.assertEqual(outcome.withdrawals["acc_cash"], Money.of(300_000))
         self.assertEqual(outcome.remaining_shortfall, Money.of(700_000))
@@ -62,7 +65,7 @@ class WithdrawShortfallTest(unittest.TestCase):
         strategy = WithdrawalStrategy(order=[AccountType.CASH])
         rules = _rules({AccountType.CASH: True, AccountType.IDECO: True})
 
-        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(500_000), strategy, rules, ZERO_TAX)
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(500_000), strategy, rules, ZERO_TAX, ANY_AGE)
 
         self.assertEqual(outcome.withdrawals, {})
         self.assertEqual(outcome.remaining_shortfall, Money.of(500_000))
@@ -74,7 +77,7 @@ class WithdrawShortfallTest(unittest.TestCase):
         strategy = WithdrawalStrategy(order=[AccountType.CASH])
         rules = _rules({AccountType.CASH: True})
 
-        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.zero(), strategy, rules, ZERO_TAX)
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.zero(), strategy, rules, ZERO_TAX, ANY_AGE)
 
         self.assertEqual(outcome.withdrawals, {})
         self.assertEqual(outcome.remaining_shortfall, Money.zero())
@@ -88,7 +91,7 @@ class CapitalGainsTaxTest(unittest.TestCase):
         strategy = WithdrawalStrategy(order=[AccountType.NISA_GROWTH])
         rules = _rules({AccountType.NISA_GROWTH: True})
 
-        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(500_000), strategy, rules, STANDARD_RATE)
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(500_000), strategy, rules, STANDARD_RATE, ANY_AGE)
 
         self.assertEqual(outcome.withdrawals["acc_nisa"], Money.of(500_000))
         self.assertEqual(outcome.capital_gains_tax, Money.zero())
@@ -103,7 +106,7 @@ class CapitalGainsTaxTest(unittest.TestCase):
         rules = _rules({AccountType.TAXABLE: False})
         target_net = Money.of(500_000)
 
-        outcome = withdraw_shortfall(accounts, balances, cost_basis, target_net, strategy, rules, STANDARD_RATE)
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, target_net, strategy, rules, STANDARD_RATE, ANY_AGE)
 
         # 手取り50万円を満たすには、税込みでそれより多く取り崩す必要がある
         gross = outcome.withdrawals["acc_taxable"]
@@ -126,7 +129,7 @@ class CapitalGainsTaxTest(unittest.TestCase):
         rules = _rules({AccountType.TAXABLE: False})
 
         outcome = withdraw_shortfall(
-            accounts, balances, cost_basis, Money.of(300_000), strategy, rules, STANDARD_RATE
+            accounts, balances, cost_basis, Money.of(300_000), strategy, rules, STANDARD_RATE, ANY_AGE
         )
 
         self.assertEqual(outcome.withdrawals["acc_taxable"], Money.of(300_000))
@@ -140,7 +143,7 @@ class CapitalGainsTaxTest(unittest.TestCase):
         rules = _rules({AccountType.TAXABLE: False})
 
         outcome = withdraw_shortfall(
-            accounts, balances, cost_basis, Money.of(100_000), strategy, rules, ZERO_TAX
+            accounts, balances, cost_basis, Money.of(100_000), strategy, rules, ZERO_TAX, ANY_AGE
         )
 
         # 税率0%なので取り崩し額はそのまま10万円、残高の10%を取り崩したことになる
@@ -156,7 +159,7 @@ class CapitalGainsTaxTest(unittest.TestCase):
         rules = _rules({AccountType.TAXABLE: False})
         # 手取りベースで口座の最大手取り額を大きく超える不足額をぶつける
         outcome = withdraw_shortfall(
-            accounts, balances, cost_basis, Money.of(100_000_000), strategy, rules, STANDARD_RATE
+            accounts, balances, cost_basis, Money.of(100_000_000), strategy, rules, STANDARD_RATE, ANY_AGE
         )
 
         self.assertEqual(outcome.withdrawals["acc_taxable"], Money.of(1_000_000))
@@ -164,6 +167,56 @@ class CapitalGainsTaxTest(unittest.TestCase):
         self.assertEqual(outcome.capital_gains_tax, expected_tax)
         self.assertEqual(outcome.updated_cost_basis["acc_taxable"], Money.zero())
         self.assertGreater(outcome.remaining_shortfall, Money.zero())
+
+
+def _rules_with_min_age(entries: dict[AccountType, tuple[bool, "int | None"]]) -> PortfolioRules:
+    return PortfolioRules(
+        rules_by_account_type={
+            account_type: AccountRules(
+                annual_limit=None, lifetime_limit=None, tax_free=tax_free, min_withdrawal_age=min_age
+            )
+            for account_type, (tax_free, min_age) in entries.items()
+        }
+    )
+
+
+class MinWithdrawalAgeTest(unittest.TestCase):
+    def test_skips_age_restricted_account_and_uses_next_eligible_account(self) -> None:
+        accounts = [
+            _account("acc_ideco", AccountType.IDECO),
+            _account("acc_cash", AccountType.CASH),
+        ]
+        balances = {"acc_ideco": Money.of(10_000_000), "acc_cash": Money.of(500_000)}
+        cost_basis = {"acc_ideco": Money.of(10_000_000), "acc_cash": Money.of(500_000)}
+        strategy = WithdrawalStrategy(order=[AccountType.CASH, AccountType.IDECO])
+        rules = _rules_with_min_age({AccountType.CASH: (True, None), AccountType.IDECO: (True, 60)})
+
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(300_000), strategy, rules, ZERO_TAX, 45)
+
+        self.assertEqual(outcome.withdrawals, {"acc_cash": Money.of(300_000)})
+
+    def test_only_age_locked_balance_leaves_shortfall_unmet(self) -> None:
+        accounts = [_account("acc_ideco", AccountType.IDECO)]
+        balances = {"acc_ideco": Money.of(10_000_000)}
+        cost_basis = {"acc_ideco": Money.of(10_000_000)}
+        strategy = WithdrawalStrategy(order=[AccountType.IDECO])
+        rules = _rules_with_min_age({AccountType.IDECO: (True, 60)})
+
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(300_000), strategy, rules, ZERO_TAX, 45)
+
+        self.assertEqual(outcome.withdrawals, {})
+        self.assertEqual(outcome.remaining_shortfall, Money.of(300_000))
+
+    def test_age_restricted_account_is_usable_once_min_age_reached(self) -> None:
+        accounts = [_account("acc_ideco", AccountType.IDECO)]
+        balances = {"acc_ideco": Money.of(10_000_000)}
+        cost_basis = {"acc_ideco": Money.of(10_000_000)}
+        strategy = WithdrawalStrategy(order=[AccountType.IDECO])
+        rules = _rules_with_min_age({AccountType.IDECO: (True, 60)})
+
+        outcome = withdraw_shortfall(accounts, balances, cost_basis, Money.of(300_000), strategy, rules, ZERO_TAX, 60)
+
+        self.assertEqual(outcome.withdrawals, {"acc_ideco": Money.of(300_000)})
 
 
 if __name__ == "__main__":

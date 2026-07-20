@@ -15,6 +15,18 @@ from core.simulation.portfolio.rebalance_engine import rebalance
 
 ZERO_TAX = CapitalGainsTaxRules(rate=Rate.zero())
 STANDARD_RATE = CapitalGainsTaxRules(rate=Rate.of("0.20315"))
+ANY_AGE = 65
+
+# 通常の取り崩し(_default_withdrawal_strategy)と同じ優先順位。リバランスの売却順もこれに統一する。
+DEFAULT_ORDER = [
+    AccountType.CASH,
+    AccountType.TAXABLE,
+    AccountType.NISA_GROWTH,
+    AccountType.NISA_TSUMITATE,
+    AccountType.ZAIKEI,
+    AccountType.IDECO,
+    AccountType.COMPANY_DC,
+]
 
 
 def _plan(accounts: list[Account]) -> Plan:
@@ -33,7 +45,7 @@ def _plan(accounts: list[Account]) -> Plan:
         accounts=accounts,
         tax_config=TaxConfig(residence=Prefecture.TOKYO),
         pension=pension,
-        withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
+        withdrawal_strategy=WithdrawalStrategy(order=DEFAULT_ORDER),
         contribution_strategy=ContributionStrategy(order=[]),
     )
 
@@ -45,12 +57,14 @@ class RebalanceTest(unittest.TestCase):
         balances = {"acc_a": Money.of(1_000_000)}
         cost_basis = {"acc_a": Money.of(1_000_000)}
 
-        outcome = rebalance(plan, balances, cost_basis, {}, {"acc_a": "equity_sp500"}, {}, PortfolioRules(), ZERO_TAX)
+        outcome = rebalance(
+            plan, balances, cost_basis, {}, {"acc_a": "equity_sp500"}, {}, PortfolioRules(), ZERO_TAX, ANY_AGE
+        )
 
         self.assertEqual(outcome.account_balances, balances)
         self.assertEqual(outcome.capital_gains_tax, Money.zero())
 
-    def test_sells_overweight_and_buys_underweight_across_accounts(self) -> None:
+    def test_sells_overweight_down_to_target_and_pools_proceeds_without_reinvesting(self) -> None:
         equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
         bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         plan = _plan([equity_account, bond_account])
@@ -67,13 +81,14 @@ class RebalanceTest(unittest.TestCase):
         )
 
         outcome = rebalance(
-            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules, ZERO_TAX
+            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules, ZERO_TAX,
+            ANY_AGE,
         )
 
-        # 株式から400,000売却され債券へ再投資、結果的に50%/50%に近づく
+        # 株式が目標比率まで売却される（400,000）が、その代金で債券を買い直すことはしない
         self.assertEqual(outcome.account_balances["acc_equity"], Money.of(500_000))
-        self.assertEqual(outcome.account_balances["acc_bond"], Money.of(500_000))
-        self.assertEqual(outcome.unreinvested_proceeds, Money.zero())
+        self.assertEqual(outcome.account_balances["acc_bond"], Money.of(100_000))
+        self.assertEqual(outcome.unreinvested_proceeds, Money.of(400_000))
 
     def test_taxable_overweight_sale_incurs_capital_gains_tax(self) -> None:
         equity_account = Account(account_id="acc_equity", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
@@ -91,18 +106,21 @@ class RebalanceTest(unittest.TestCase):
         )
 
         outcome = rebalance(
-            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules, STANDARD_RATE
+            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules,
+            STANDARD_RATE, ANY_AGE,
         )
 
         self.assertGreater(outcome.capital_gains_tax.amount, 0)
 
-    def test_prefers_selling_tax_free_account_over_taxable_for_same_asset_class(self) -> None:
+    def test_prefers_selling_taxable_account_before_tax_free_for_same_asset_class(self) -> None:
+        # 通常の取り崩しと同じ優先順位に統一したため、同一資産クラスでは課税口座(TAXABLE)を
+        # 先に売却し、非課税口座(NISA等)は課税口座だけで賄いきれない場合のみ売却する。
         nisa_equity = Account(account_id="acc_nisa_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
         taxable_equity = Account(account_id="acc_taxable_equity", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
         plan = _plan([nisa_equity, taxable_equity, bond_account])
-        balances = {"acc_nisa_equity": Money.of(500_000), "acc_taxable_equity": Money.of(400_000), "acc_bond": Money.of(100_000)}
-        cost_basis = {"acc_nisa_equity": Money.of(200_000), "acc_taxable_equity": Money.of(100_000), "acc_bond": Money.of(100_000)}
+        balances = {"acc_nisa_equity": Money.of(500_000), "acc_taxable_equity": Money.of(600_000), "acc_bond": Money.of(100_000)}
+        cost_basis = {"acc_nisa_equity": Money.of(200_000), "acc_taxable_equity": Money.of(600_000), "acc_bond": Money.of(100_000)}
         asset_class_by_account_id = {
             "acc_nisa_equity": "equity_sp500", "acc_taxable_equity": "equity_sp500", "acc_bond": "bond_us_treasury",
         }
@@ -115,13 +133,61 @@ class RebalanceTest(unittest.TestCase):
         )
 
         outcome = rebalance(
-            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules, STANDARD_RATE
+            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules,
+            STANDARD_RATE, ANY_AGE,
         )
 
-        # 株式合計900,000のうち400,000を売却する必要があるが、非課税のNISA(500,000)だけで賄えるため
-        # 課税口座(acc_taxable_equity)は一切売却されず、譲渡税も発生しない
-        self.assertEqual(outcome.account_balances["acc_taxable_equity"], Money.of(400_000))
+        # 株式合計1,100,000のうち500,000を売却する必要があるが、課税口座(acc_taxable_equity)の
+        # 含み損益ゼロの残高だけで賄えるため、非課税のNISA(acc_nisa_equity)は一切売却されない
+        self.assertEqual(outcome.account_balances["acc_taxable_equity"], Money.of(100_000))
+        self.assertEqual(outcome.account_balances["acc_nisa_equity"], Money.of(500_000))
         self.assertEqual(outcome.capital_gains_tax, Money.zero())
+
+
+class MinWithdrawalAgeTest(unittest.TestCase):
+    def test_age_restricted_account_is_skipped_in_sell_step(self) -> None:
+        ideco_account = Account(account_id="acc_ideco", account_type=AccountType.IDECO, owner=OwnerType.SELF)
+        plan = _plan([ideco_account])
+        balances = {"acc_ideco": Money.of(900_000)}
+        cost_basis = {"acc_ideco": Money.of(900_000)}
+        asset_class_by_account_id = {"acc_ideco": "equity_sp500"}
+        target_weights = {"equity_sp500": Rate.of("0.5")}
+        portfolio_rules = PortfolioRules(
+            rules_by_account_type={
+                AccountType.IDECO: AccountRules(
+                    annual_limit=None, lifetime_limit=None, tax_free=True, min_withdrawal_age=60
+                ),
+            }
+        )
+
+        outcome = rebalance(
+            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules, ZERO_TAX, 45
+        )
+
+        self.assertEqual(outcome.account_balances["acc_ideco"], Money.of(900_000))
+        self.assertEqual(outcome.unreinvested_proceeds, Money.zero())
+
+    def test_age_restricted_account_is_sellable_once_min_age_reached(self) -> None:
+        ideco_account = Account(account_id="acc_ideco", account_type=AccountType.IDECO, owner=OwnerType.SELF)
+        plan = _plan([ideco_account])
+        balances = {"acc_ideco": Money.of(900_000)}
+        cost_basis = {"acc_ideco": Money.of(900_000)}
+        asset_class_by_account_id = {"acc_ideco": "equity_sp500"}
+        target_weights = {"equity_sp500": Rate.of("0.5")}
+        portfolio_rules = PortfolioRules(
+            rules_by_account_type={
+                AccountType.IDECO: AccountRules(
+                    annual_limit=None, lifetime_limit=None, tax_free=True, min_withdrawal_age=60
+                ),
+            }
+        )
+
+        outcome = rebalance(
+            plan, balances, cost_basis, {}, asset_class_by_account_id, target_weights, portfolio_rules, ZERO_TAX, 60
+        )
+
+        self.assertEqual(outcome.account_balances["acc_ideco"], Money.of(450_000))
+        self.assertEqual(outcome.unreinvested_proceeds, Money.of(450_000))
 
 
 if __name__ == "__main__":

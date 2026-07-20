@@ -156,6 +156,7 @@ def run_projection(
                     plan.withdrawal_strategy,
                     portfolio_rules,
                     tax_rules.capital_gains,
+                    age_this_month,
                 )
                 contributions_this_month = _merge(monthly_fixed_contributions, _negate(withdrawal_outcome.withdrawals))
                 unallocated_delta = -withdrawal_outcome.remaining_shortfall
@@ -220,6 +221,7 @@ def run_projection(
                     target_weights_this_month,
                     portfolio_rules,
                     tax_rules.capital_gains,
+                    age_this_month,
                 )
                 account_balances = rebalance_outcome.account_balances
                 cost_basis_balances = rebalance_outcome.cost_basis_balances
