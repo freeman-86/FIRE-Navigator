@@ -67,18 +67,24 @@ END_VALUE_HEADER = "終了条件値"
 
 # Input_支出: 経常支出（毎年発生・成長率あり）と単発支出（発生条件で1回のみ）を
 # ONE_TIME_FLAG_HEADERで区別し、1シートにまとめる（旧Input_大型支出を統合）。
-# 単発フラグ=TRUEの行はEXPENSE_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERを使い、
-# GROWTH_RATE_HEADER/IS_FLEXIBLE_HEADERは空欄でよい（経常支出専用）。
+# 単発フラグ=TRUEの行はONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERを使い、
+# AMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADER/IS_FLEXIBLE_HEADERは空欄でよい（経常支出専用）。
+# 逆に単発フラグ=FALSEの行はAMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADER/IS_FLEXIBLE_HEADERを使い、
+# ONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERは空欄でよい。
+# AMOUNT_ANNUAL_HEADER（"年間金額"）はInput_収入と同じ列名を共有する（値は年額で意味も揃う）。
 EXPENSE_ID_HEADER = "支出ID"
 CATEGORY_HEADER = "カテゴリ"
 IS_FLEXIBLE_HEADER = "柔軟支出フラグ"
 ONE_TIME_FLAG_HEADER = "単発フラグ"
-EXPENSE_AMOUNT_HEADER = "金額"
+ONE_TIME_AMOUNT_HEADER = "単発金額"
 
 # Input_シナリオ
 SCENARIO_ID_HEADER = "シナリオID"
 SCENARIO_NAME_HEADER = "シナリオ名"
-RETIREMENT_AGE_HEADER = "退職年齢"
+# 旧名称「退職年齢」は、実際には収入を止める機能ではなく、シミュレーション期間を想定寿命まで
+# 延長するかどうかだけを制御する（未入力時は30年間で計算する）ため、誤解を招く名称だった。
+# Input_プラン設定・Input_シナリオの両方でこの定数を共有するため、名称変更が両方に反映される。
+RETIREMENT_AGE_HEADER = "シミュレーション終了年齢（想定寿命まで計算したい場合に入力／空欄なら30年間で計算）"
 
 # Input_配分方針: 年齢×資産クラスごとに1行。同じ年齢の行をまとめて1つのAllocationTargetとする
 # （ギャップ分析3.7。プラン全体で1つ、口座横断の目標配分比率テーブル）。
@@ -209,7 +215,8 @@ EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (EXPENSE_ID_HEADER, "plan.expenses[].expense_id / plan.one_time_expenses[].expense_id", "str"),
     (CATEGORY_HEADER, "plan.expenses[].category / plan.one_time_expenses[].category", "str"),
     (ONE_TIME_FLAG_HEADER, "(振り分け用のみ、Plan本体には保持しない)", "bool"),
-    (EXPENSE_AMOUNT_HEADER, "plan.expenses[].amount / plan.one_time_expenses[].amount", "money"),
+    (AMOUNT_ANNUAL_HEADER, "plan.expenses[].amount（経常支出のみ）", "money"),
+    (ONE_TIME_AMOUNT_HEADER, "plan.one_time_expenses[].amount（単発支出のみ）", "money"),
     (GROWTH_RATE_HEADER, "plan.expenses[].growth_rate（経常支出のみ）", "rate"),
     (IS_FLEXIBLE_HEADER, "plan.expenses[].is_flexible（経常支出のみ）", "bool"),
     (START_TYPE_HEADER, "plan.one_time_expenses[].trigger.type（単発支出のみ）", "condition_type"),

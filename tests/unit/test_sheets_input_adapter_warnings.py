@@ -7,13 +7,13 @@ from adapters.sheets.sheet_mapping import (
     CATEGORY_HEADER,
     END_TYPE_HEADER,
     END_VALUE_HEADER,
-    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
     GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     IS_FLEXIBLE_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     SOURCE_HEADER,
     START_TYPE_HEADER,
@@ -50,7 +50,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_car",
                             CATEGORY_HEADER: "車",
                             ONE_TIME_FLAG_HEADER: "TRUE",
-                            EXPENSE_AMOUNT_HEADER: "3000000",
+                            ONE_TIME_AMOUNT_HEADER: "3000000",
                             GROWTH_RATE_HEADER: "0.02",
                             IS_FLEXIBLE_HEADER: "TRUE",
                             START_TYPE_HEADER: "age",
@@ -67,6 +67,53 @@ class CollectExpensesWarningsTest(unittest.TestCase):
         self.assertIn(f"{EXPENSES_SHEET}!row2.{GROWTH_RATE_HEADER}", field_paths)
         self.assertIn(f"{EXPENSES_SHEET}!row2.{IS_FLEXIBLE_HEADER}", field_paths)
 
+    def test_warns_when_one_time_row_has_annual_amount(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_car",
+                            CATEGORY_HEADER: "車",
+                            ONE_TIME_FLAG_HEADER: "TRUE",
+                            ONE_TIME_AMOUNT_HEADER: "3000000",
+                            AMOUNT_ANNUAL_HEADER: "3000000",
+                            START_TYPE_HEADER: "age",
+                            START_VALUE_HEADER: "45",
+                        }
+                    ]
+                )
+            }
+        )
+
+        warnings = collect_input_warnings(spreadsheet)
+
+        field_paths = {w.field_path for w in warnings}
+        self.assertIn(f"{EXPENSES_SHEET}!row2.{AMOUNT_ANNUAL_HEADER}", field_paths)
+
+    def test_warns_when_recurring_row_has_one_time_amount(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_living",
+                            CATEGORY_HEADER: "living",
+                            ONE_TIME_FLAG_HEADER: "FALSE",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
+                            ONE_TIME_AMOUNT_HEADER: "3600000",
+                            GROWTH_RATE_HEADER: "0.02",
+                        }
+                    ]
+                )
+            }
+        )
+
+        warnings = collect_input_warnings(spreadsheet)
+
+        field_paths = {w.field_path for w in warnings}
+        self.assertIn(f"{EXPENSES_SHEET}!row2.{ONE_TIME_AMOUNT_HEADER}", field_paths)
+
     def test_warns_when_recurring_row_has_start_condition(self) -> None:
         spreadsheet = _FakeSpreadsheet(
             {
@@ -76,7 +123,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_living",
                             CATEGORY_HEADER: "living",
                             ONE_TIME_FLAG_HEADER: "FALSE",
-                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "0.02",
                             START_TYPE_HEADER: "age",
                             START_VALUE_HEADER: "45",
@@ -101,7 +148,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_living",
                             CATEGORY_HEADER: "living",
                             ONE_TIME_FLAG_HEADER: "FALSE",
-                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "0.02",
                             START_TYPE_HEADER: "",
                             START_VALUE_HEADER: "",
@@ -110,7 +157,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_car",
                             CATEGORY_HEADER: "車",
                             ONE_TIME_FLAG_HEADER: "TRUE",
-                            EXPENSE_AMOUNT_HEADER: "3000000",
+                            ONE_TIME_AMOUNT_HEADER: "3000000",
                             GROWTH_RATE_HEADER: "",
                             START_TYPE_HEADER: "age",
                             START_VALUE_HEADER: "45",

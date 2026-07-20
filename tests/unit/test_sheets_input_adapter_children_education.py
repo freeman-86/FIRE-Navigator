@@ -4,17 +4,18 @@ from datetime import date
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    AMOUNT_ANNUAL_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
     END_AGE_HEADER,
-    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
     GROWTH_RATE_HEADER,
     MONTHLY_AMOUNT_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     START_AGE_HEADER,
     START_TYPE_HEADER,
@@ -133,7 +134,7 @@ class BuildExpensesTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_living",
                             CATEGORY_HEADER: "living",
                             ONE_TIME_FLAG_HEADER: "FALSE",
-                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "0.02",
                         }
                     ]
@@ -159,7 +160,7 @@ class BuildExpensesTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_living",
                             CATEGORY_HEADER: "living",
                             ONE_TIME_FLAG_HEADER: "FALSE",
-                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "",
                         }
                     ]
@@ -180,7 +181,7 @@ class BuildExpensesTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_living",
                             CATEGORY_HEADER: "living",
                             ONE_TIME_FLAG_HEADER: "FALSE",
-                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "0.03",
                         }
                     ]
@@ -200,7 +201,7 @@ class BuildExpensesTest(unittest.TestCase):
                         {
                             EXPENSE_ID_HEADER: "expense_living",
                             CATEGORY_HEADER: "living",
-                            EXPENSE_AMOUNT_HEADER: "3600000",
+                            AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "0.02",
                         }
                     ]
@@ -222,7 +223,7 @@ class BuildExpensesTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_car",
                             CATEGORY_HEADER: "車",
                             ONE_TIME_FLAG_HEADER: "TRUE",
-                            EXPENSE_AMOUNT_HEADER: "3000000",
+                            ONE_TIME_AMOUNT_HEADER: "3000000",
                             START_TYPE_HEADER: "age",
                             START_VALUE_HEADER: "45",
                         }
@@ -248,7 +249,7 @@ class BuildExpensesTest(unittest.TestCase):
                             EXPENSE_ID_HEADER: "expense_car",
                             CATEGORY_HEADER: "車",
                             ONE_TIME_FLAG_HEADER: "TRUE",
-                            EXPENSE_AMOUNT_HEADER: "3000000",
+                            ONE_TIME_AMOUNT_HEADER: "3000000",
                         }
                     ]
                 )

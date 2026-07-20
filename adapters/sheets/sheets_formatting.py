@@ -41,10 +41,11 @@ from adapters.sheets.sheet_mapping import (
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
     END_AGE_HEADER,
     END_TYPE_HEADER,
+    END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
-    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
+    GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
@@ -53,6 +54,7 @@ from adapters.sheets.sheet_mapping import (
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
@@ -113,7 +115,7 @@ NUMERIC_HEADERS = {
     VOLATILITY_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     AMOUNT_ANNUAL_HEADER,
-    EXPENSE_AMOUNT_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
     START_AGE_HEADER,
     END_AGE_HEADER,
     MONTHLY_AMOUNT_HEADER,
@@ -132,6 +134,14 @@ NUMERIC_HEADERS = {
 
 # チェックボックスにする列（TRUE/FALSEの自由入力によるタイプミスを防ぐ）。
 CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER, IS_FLEXIBLE_HEADER}
+
+# 列ヘッダーセルに付けるメモ（セルにマウスオーバーすると表示される補足説明）。
+HEADER_NOTES: dict[str, dict[str, str]] = {
+    INCOMES_SHEET: {
+        END_TYPE_HEADER: "給与収入などがいつ止まるかはこちらで設定してください（today/plan_start/age/dateのいずれか）。",
+        END_VALUE_HEADER: "給与収入などがいつ止まるかはこちらで設定してください（終了条件タイプに対応する値）。",
+    },
+}
 
 
 class TabularSheetSpec:
@@ -168,7 +178,7 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
         ),
         TabularSheetSpec(
             EXPENSES_SHEET,
-            [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER, EXPENSE_AMOUNT_HEADER],
+            [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER],
             {START_TYPE_HEADER: CONDITION_TYPE_CHOICES},
         ),
         TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER]),
@@ -278,27 +288,30 @@ def _checkbox_request(sheet_id: int, start_row: int, end_row: int, start_col: in
     }
 
 
-def _gray_out_when_one_time_flag_false_request(
-    sheet_id: int, flag_col_idx: int, target_col_start: int, target_col_end: int
+def _gray_out_when_one_time_flag_request(
+    sheet_id: int, flag_col_idx: int, target_col_indices: list[int], flag_value: bool, rule_index: int
 ) -> dict:
-    """単発フラグ=FALSEの行では開始条件タイプ/値は使われない（無視される）ため、
-    その行だけ条件付き書式でグレーアウトする（ギャップ分析対応: 使われない入力欄を視覚的に示す）。
+    """単発フラグの値に応じて使われない（無視される）列を条件付き書式でグレーアウトする
+    （ギャップ分析対応: 使われない入力欄を視覚的に示す）。target_col_indicesは連続していなくてもよい
+    （列ごとに個別のrangeを作る）。
     """
 
     flag_col_letter = _column_letter(flag_col_idx)
-    formula = f"=${flag_col_letter}2=FALSE"
+    formula = f"=${flag_col_letter}2={'TRUE' if flag_value else 'FALSE'}"
+    ranges = [
+        {
+            "sheetId": sheet_id,
+            "startRowIndex": 1,
+            "endRowIndex": FORMAT_ROW_COUNT,
+            "startColumnIndex": col_idx,
+            "endColumnIndex": col_idx + 1,
+        }
+        for col_idx in target_col_indices
+    ]
     return {
         "addConditionalFormatRule": {
             "rule": {
-                "ranges": [
-                    {
-                        "sheetId": sheet_id,
-                        "startRowIndex": 1,
-                        "endRowIndex": FORMAT_ROW_COUNT,
-                        "startColumnIndex": target_col_start,
-                        "endColumnIndex": target_col_end,
-                    }
-                ],
+                "ranges": ranges,
                 "booleanRule": {
                     "condition": {"type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": formula}]},
                     "format": {
@@ -307,7 +320,25 @@ def _gray_out_when_one_time_flag_false_request(
                     },
                 },
             },
-            "index": 0,
+            "index": rule_index,
+        }
+    }
+
+
+def _header_note_request(sheet_id: int, col_idx: int, note_text: str) -> dict:
+    """列ヘッダーのセルにメモ（マウスオーバーで表示される補足説明）を設定する。列の値は変更しない。"""
+
+    return {
+        "updateCells": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": 0,
+                "endRowIndex": 1,
+                "startColumnIndex": col_idx,
+                "endColumnIndex": col_idx + 1,
+            },
+            "rows": [{"values": [{"note": note_text}]}],
+            "fields": "note",
         }
     }
 
@@ -414,6 +445,7 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
 
     data_row_count = max(len(values) - 1, 0)  # ヘッダーを除いた実データ行数
     first_future_row = 1 + data_row_count  # 0-indexed。この行以降はまだ実データがない
+    notes_for_sheet = HEADER_NOTES.get(spec.sheet_name, {})
 
     # 必須/任意を問わず、ヘッダーに存在する列はすべて色を付ける（将来列が増えても漏れない）。
     for col_idx, column_header in enumerate(header):
@@ -421,6 +453,9 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
             continue
         color = REQUIRED_CELL_COLOR if column_header in spec.required_headers else OPTIONAL_CELL_COLOR
         requests.append(_repeat_cell_color_request(sheet_id, 1, FORMAT_ROW_COUNT, col_idx, col_idx + 1, color))
+
+        if column_header in notes_for_sheet:
+            requests.append(_header_note_request(sheet_id, col_idx, notes_for_sheet[column_header]))
 
         if column_header in CHECKBOX_HEADERS:
             # チェックボックス(BOOLEAN型のデータの入力規則)には「未入力」の状態がなく、
@@ -440,14 +475,23 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
             data_values = [row[col_idx] if col_idx < len(row) else "" for row in values[1:]]
             requests.extend(_numeric_cell_requests(sheet_id, col_idx, data_values))
 
-    # 入力_支出: 単発フラグ=FALSEの行は開始条件タイプ/値が無視されるため、グレーアウトする。
-    if spec.sheet_name == EXPENSES_SHEET and ONE_TIME_FLAG_HEADER in header and START_TYPE_HEADER in header:
+    # 入力_支出: 単発フラグの値に応じて使われない列をグレーアウトする。
+    # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視され、
+    # TRUE(単発支出)の行では年間金額・成長率・柔軟支出フラグが無視される。
+    if spec.sheet_name == EXPENSES_SHEET and ONE_TIME_FLAG_HEADER in header:
         flag_col_idx = header.index(ONE_TIME_FLAG_HEADER)
-        target_indices = [header.index(h) for h in (START_TYPE_HEADER, START_VALUE_HEADER) if h in header]
-        if target_indices:
+        unused_when_false = [h for h in (ONE_TIME_AMOUNT_HEADER, START_TYPE_HEADER, START_VALUE_HEADER) if h in header]
+        unused_when_true = [h for h in (AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER, IS_FLEXIBLE_HEADER) if h in header]
+        if unused_when_false:
             requests.append(
-                _gray_out_when_one_time_flag_false_request(
-                    sheet_id, flag_col_idx, min(target_indices), max(target_indices) + 1
+                _gray_out_when_one_time_flag_request(
+                    sheet_id, flag_col_idx, [header.index(h) for h in unused_when_false], False, 0
+                )
+            )
+        if unused_when_true:
+            requests.append(
+                _gray_out_when_one_time_flag_request(
+                    sheet_id, flag_col_idx, [header.index(h) for h in unused_when_true], True, 1
                 )
             )
 

@@ -29,7 +29,6 @@ from adapters.sheets.sheet_mapping import (
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
-    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
     GROWTH_RATE_HEADER,
@@ -41,6 +40,7 @@ from adapters.sheets.sheet_mapping import (
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
@@ -493,9 +493,10 @@ def _build_expenses(
 ) -> tuple[list[Expense], list[OneTimeExpense]]:
     """経常支出と単発支出（旧Input_大型支出）を入力_支出シートから組み立てる。
 
-    ONE_TIME_FLAG_HEADER=TRUEの行は単発支出（発生条件で1回のみ）、それ以外(既定FALSE)は
-    経常支出（毎年発生・成長率あり）として振り分ける。経常支出の成長率が未入力の行は、
-    プラン設定のインフレ率(default_growth_rate)を既定値として使う（入力済みの行はそちらを優先）。
+    ONE_TIME_FLAG_HEADER=TRUEの行は単発支出（発生条件で1回のみ、金額はONE_TIME_AMOUNT_HEADER）、
+    それ以外(既定FALSE)は経常支出（毎年発生・成長率あり、金額はAMOUNT_ANNUAL_HEADER）として
+    振り分ける。経常支出の成長率が未入力の行は、プラン設定のインフレ率(default_growth_rate)を
+    既定値として使う（入力済みの行はそちらを優先）。
     """
 
     worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
@@ -505,12 +506,12 @@ def _build_expenses(
         row_prefix = f"{EXPENSES_SHEET}!row{row_number}"
         expense_id = str(_require(record, EXPENSE_ID_HEADER, f"{row_prefix}.{EXPENSE_ID_HEADER}"))
         category = str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}"))
-        amount = _parse_money(
-            _require(record, EXPENSE_AMOUNT_HEADER, f"{row_prefix}.{EXPENSE_AMOUNT_HEADER}"),
-            f"{row_prefix}.{EXPENSE_AMOUNT_HEADER}",
-        )
 
         if _parse_bool(record.get(ONE_TIME_FLAG_HEADER, "FALSE")):
+            amount = _parse_money(
+                _require(record, ONE_TIME_AMOUNT_HEADER, f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}"),
+                f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}",
+            )
             trigger = _build_event_condition(
                 record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
             )
@@ -522,6 +523,10 @@ def _build_expenses(
                 OneTimeExpense(expense_id=expense_id, category=category, amount=amount, trigger=trigger)
             )
         else:
+            amount = _parse_money(
+                _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
+                f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
+            )
             growth_rate = _parse_growth_rate(record, f"{row_prefix}.{GROWTH_RATE_HEADER}", default_growth_rate)
             expenses.append(
                 Expense(
@@ -576,11 +581,13 @@ def _build_pension(settings: dict[str, str]) -> Pension:
 
 
 def _build_milestones(settings: dict[str, str]) -> list[Milestone]:
-    """入力_プラン設定の退職年齢（任意入力）からRETIREMENTマイルストーンを組み立てる。
+    """入力_プラン設定のシミュレーション終了年齢（RETIREMENT_AGE_HEADER、任意入力）から
+    RETIREMENTマイルストーンを組み立てる。
 
-    未入力ならマイルストーンなし（退職を仮定しない従来通りの挙動）。
-    退職年齢が設定されると、Projection Engineは想定寿命まで自動的にシミュレーション期間を延長する
-    （既存のprojection_engine._resolve_end_yearのロジック）。
+    この値は収入を止める機能ではなく、シミュレーション期間をどこまで計算するかだけを制御する
+    （未入力なら30年間、入力するとその年齢に達する年以降・想定寿命まで自動延長する。
+    既存のprojection_engine._resolve_end_yearのロジック）。給与収入等がいつ止まるかは
+    入力_収入の終了条件タイプ/値で個別に設定する。
     """
 
     retirement_age_raw = settings.get(RETIREMENT_AGE_HEADER, "").strip()
@@ -692,6 +699,10 @@ def collect_input_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarnin
     return warnings
 
 
+_UNUSED_WHEN_ONE_TIME = (GROWTH_RATE_HEADER, IS_FLEXIBLE_HEADER, AMOUNT_ANNUAL_HEADER)
+_UNUSED_WHEN_RECURRING = (START_TYPE_HEADER, START_VALUE_HEADER, ONE_TIME_AMOUNT_HEADER)
+
+
 def _collect_expenses_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
     try:
         worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
@@ -702,34 +713,14 @@ def _collect_expenses_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWa
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{EXPENSES_SHEET}!row{row_number}"
         is_one_time = _parse_bool(record.get(ONE_TIME_FLAG_HEADER, "FALSE"))
-        if is_one_time:
-            if str(record.get(GROWTH_RATE_HEADER, "")).strip():
+        unused_headers = _UNUSED_WHEN_ONE_TIME if is_one_time else _UNUSED_WHEN_RECURRING
+        flag_value = "TRUE" if is_one_time else "FALSE"
+        for header in unused_headers:
+            if str(record.get(header, "")).strip():
                 warnings.append(
                     InputWarning(
-                        f"{row_prefix}.{GROWTH_RATE_HEADER}",
-                        f"{ONE_TIME_FLAG_HEADER}=TRUEの行では{GROWTH_RATE_HEADER}は使われません（無視されます）",
-                    )
-                )
-            if str(record.get(IS_FLEXIBLE_HEADER, "")).strip():
-                warnings.append(
-                    InputWarning(
-                        f"{row_prefix}.{IS_FLEXIBLE_HEADER}",
-                        f"{ONE_TIME_FLAG_HEADER}=TRUEの行では{IS_FLEXIBLE_HEADER}は使われません（無視されます）",
-                    )
-                )
-        else:
-            if str(record.get(START_TYPE_HEADER, "")).strip():
-                warnings.append(
-                    InputWarning(
-                        f"{row_prefix}.{START_TYPE_HEADER}",
-                        f"{ONE_TIME_FLAG_HEADER}=FALSEの行では{START_TYPE_HEADER}は使われません（無視されます）",
-                    )
-                )
-            if str(record.get(START_VALUE_HEADER, "")).strip():
-                warnings.append(
-                    InputWarning(
-                        f"{row_prefix}.{START_VALUE_HEADER}",
-                        f"{ONE_TIME_FLAG_HEADER}=FALSEの行では{START_VALUE_HEADER}は使われません（無視されます）",
+                        f"{row_prefix}.{header}",
+                        f"{ONE_TIME_FLAG_HEADER}={flag_value}の行では{header}は使われません（無視されます）",
                     )
                 )
     return warnings

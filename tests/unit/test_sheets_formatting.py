@@ -7,16 +7,22 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
+    AMOUNT_ANNUAL_HEADER,
     ASSET_CLASS_HEADER,
     BALANCE_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
+    END_TYPE_HEADER,
+    END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
-    EXPENSE_AMOUNT_HEADER,
     EXPENSE_ID_HEADER,
     EXPENSES_SHEET,
+    GROWTH_RATE_HEADER,
+    INCOME_ID_HEADER,
+    INCOMES_SHEET,
     IS_FLEXIBLE_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
+    ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -222,6 +228,43 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         self.assertNotIn(1, by_column)
 
 
+class ApplyInputFormattingIncomesSheetTest(unittest.TestCase):
+    def test_adds_note_explaining_end_condition_columns(self):
+        spreadsheet = _FakeSpreadsheet()
+        header = [
+            INCOME_ID_HEADER,
+            "収入源",
+            AMOUNT_ANNUAL_HEADER,
+            START_TYPE_HEADER,
+            START_VALUE_HEADER,
+            END_TYPE_HEADER,
+            END_VALUE_HEADER,
+        ]
+        worksheet = spreadsheet.add_sheet(INCOMES_SHEET, [header])
+
+        sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
+
+        note_requests = [
+            r["updateCells"]
+            for body in spreadsheet.batch_updates
+            for r in body["requests"]
+            if "updateCells" in r
+            and r["updateCells"]["range"]["sheetId"] == worksheet.id
+            and r["updateCells"].get("fields") == "note"
+        ]
+        by_column = {r["range"]["startColumnIndex"]: r for r in note_requests}
+
+        self.assertIn(5, by_column)  # END_TYPE_HEADER
+        self.assertIn(6, by_column)  # END_VALUE_HEADER
+        for col in (5, 6):
+            note = by_column[col]["rows"][0]["values"][0]["note"]
+            self.assertIn("給与収入", note)
+        # ヘッダー行(row0)のみが対象
+        self.assertTrue(all(r["range"]["startRowIndex"] == 0 for r in by_column.values()))
+        # 開始条件タイプ列にはメモを付けない
+        self.assertNotIn(3, by_column)
+
+
 class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
     def setUp(self):
         self.spreadsheet = _FakeSpreadsheet()
@@ -229,13 +272,14 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             EXPENSE_ID_HEADER,
             CATEGORY_HEADER,
             ONE_TIME_FLAG_HEADER,
-            EXPENSE_AMOUNT_HEADER,
-            "成長率",
+            AMOUNT_ANNUAL_HEADER,
+            ONE_TIME_AMOUNT_HEADER,
+            GROWTH_RATE_HEADER,
             IS_FLEXIBLE_HEADER,
             START_TYPE_HEADER,
             START_VALUE_HEADER,
         ]
-        data_row = ["expense_001", "living", "FALSE", "3600000", "0.02", "FALSE", "", ""]
+        data_row = ["expense_001", "living", "FALSE", "3600000", "", "0.02", "FALSE", "", ""]
         self.worksheet = self.spreadsheet.add_sheet(EXPENSES_SHEET, [header, data_row])
 
     def test_one_time_flag_and_is_flexible_become_checkboxes(self):
@@ -252,7 +296,7 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         by_column = {r["range"]["startColumnIndex"]: r for r in validation_requests}
 
         self.assertEqual(by_column[2]["rule"]["condition"]["type"], "BOOLEAN")  # 単発フラグ
-        self.assertEqual(by_column[5]["rule"]["condition"]["type"], "BOOLEAN")  # 柔軟支出フラグ
+        self.assertEqual(by_column[6]["rule"]["condition"]["type"], "BOOLEAN")  # 柔軟支出フラグ
 
     def test_checkbox_validation_is_scoped_to_existing_data_rows_only(self):
         # BOOLEAN型のデータの入力規則には「未入力」状態がなく、値のないセルにもGoogle Sheets側が
@@ -270,13 +314,20 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         ]
         by_column = {r["range"]["startColumnIndex"]: r for r in validation_requests}
 
-        for col in (2, 5):  # 単発フラグ, 柔軟支出フラグ
+        for col in (2, 6):  # 単発フラグ, 柔軟支出フラグ
             self.assertEqual(by_column[col]["range"]["startRowIndex"], 1)
             self.assertEqual(by_column[col]["range"]["endRowIndex"], 2)  # 実データ1行分のみ
 
     def test_no_checkbox_validation_requested_when_sheet_has_no_data_rows(self):
         spreadsheet = _FakeSpreadsheet()
-        header = [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER, EXPENSE_AMOUNT_HEADER, IS_FLEXIBLE_HEADER]
+        header = [
+            EXPENSE_ID_HEADER,
+            CATEGORY_HEADER,
+            ONE_TIME_FLAG_HEADER,
+            AMOUNT_ANNUAL_HEADER,
+            ONE_TIME_AMOUNT_HEADER,
+            IS_FLEXIBLE_HEADER,
+        ]
         worksheet = spreadsheet.add_sheet(EXPENSES_SHEET, [header])  # ヘッダーのみ、データ行なし
 
         sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
@@ -292,7 +343,7 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         ]
         self.assertEqual(checkbox_requests, [])
 
-    def test_grays_out_start_condition_columns_when_one_time_flag_is_false(self):
+    def test_grays_out_columns_unused_for_the_current_one_time_flag_value(self):
         sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
 
         conditional_rules = [
@@ -301,15 +352,22 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             for r in body["requests"]
             if "addConditionalFormatRule" in r
         ]
-        self.assertEqual(len(conditional_rules), 1)
-        rule = conditional_rules[0]
-        formula = rule["booleanRule"]["condition"]["values"][0]["userEnteredValue"]
-        self.assertIn("FALSE", formula)
-        # 単発フラグ(col2)を参照している
-        self.assertIn("C", formula)
-        target_range = rule["ranges"][0]
-        self.assertEqual(target_range["startColumnIndex"], 6)  # START_TYPE_HEADER
-        self.assertEqual(target_range["endColumnIndex"], 8)  # START_VALUE_HEADERまで含む
+        self.assertEqual(len(conditional_rules), 2)
+
+        rules_by_formula_flag = {}
+        for rule in conditional_rules:
+            formula = rule["booleanRule"]["condition"]["values"][0]["userEnteredValue"]
+            self.assertIn("C", formula)  # 単発フラグ(col2)を参照している
+            flag_value = "TRUE" if "TRUE" in formula else "FALSE"
+            rules_by_formula_flag[flag_value] = rule
+
+        # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視される
+        false_columns = {r["startColumnIndex"] for r in rules_by_formula_flag["FALSE"]["ranges"]}
+        self.assertEqual(false_columns, {4, 7, 8})  # ONE_TIME_AMOUNT, START_TYPE, START_VALUE
+
+        # TRUE(単発支出)の行では年間金額・成長率・柔軟支出フラグが無視される
+        true_columns = {r["startColumnIndex"] for r in rules_by_formula_flag["TRUE"]["ranges"]}
+        self.assertEqual(true_columns, {3, 5, 6})  # AMOUNT_ANNUAL, GROWTH_RATE, IS_FLEXIBLE
 
 
 class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
