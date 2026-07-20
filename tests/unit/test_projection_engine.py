@@ -17,7 +17,6 @@ from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import (
     DEFAULT_LIFE_EXPECTANCY_AGE,
-    UNALLOCATED_SURPLUS_KEY,
     age_at,
     _pension_eligible_months,
     _school_year_age,
@@ -488,7 +487,44 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
 
 
 class AllocationPolicyIntegrationTest(unittest.TestCase):
-    def test_initial_overweight_is_sold_down_to_target_but_not_reinvested(self) -> None:
+    def test_shortfall_withdrawal_sells_overweight_asset_class_first(self) -> None:
+        # 生活費不足の取り崩し以外では資産を売却しない（独立したリバランス処理は存在しない）ため、
+        # オーバーウェイトな株式の売却は、実際に生活費の不足が発生した月にのみ起きることを確認する。
+        from core.domain.allocation import AllocationPolicy, AllocationTarget
+
+        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
+        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        allocation_policy = AllocationPolicy(
+            targets=[AllocationTarget(age=0, weights={"equity_sp500": Rate.of("0.5"), "bond_us_treasury": Rate.of("0.5")})]
+        )
+        expense = Expense(expense_id="exp_living", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero())
+        plan = _minimal_plan(
+            accounts=[equity_account, bond_account],
+            allocation_policy=allocation_policy,
+            expenses=[expense],
+        )
+        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
+        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
+        portfolios = {
+            "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, current_value=Money.of(900_000), cost_basis=Money.of(900_000))]),
+            "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, current_value=Money.of(100_000), cost_basis=Money.of(100_000))]),
+        }
+
+        result = run_projection(
+            plan, portfolios, load_tax_rules(), load_portfolio_rules(), zero_pension_rules()
+        )
+
+        first_month = result.monthly_projections[0]
+        # 月10万円の生活費不足を、目標比率(50/50)より400,000円オーバーウェイトな株式から賄う
+        # （株式だけで足りるため、目標比率通りの債券は一切取り崩されない）
+        self.assertEqual(first_month.account_balances["acc_equity"], Money.of(800_000))
+        self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
+        self.assertEqual(first_month.withdrawals_by_asset_class["equity_sp500"], Money.of(100_000))
+        self.assertEqual(first_month.withdrawals_by_asset_class["bond_us_treasury"], Money.zero())
+
+    def test_no_shortfall_leaves_initial_imbalance_untouched_even_with_allocation_policy(self) -> None:
+        # 生活費の不足がない月は、配分方針が設定されていてもオーバーウェイトの解消目的だけでは
+        # 一切売却しない（独立したリバランス処理は削除済み）。
         from core.domain.allocation import AllocationPolicy, AllocationTarget
 
         equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
@@ -512,11 +548,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         )
 
         first_month = result.monthly_projections[0]
-        # 株式が目標比率まで売却される（900,000→500,000）が、その代金で債券を買い直すことは
-        # しないため、売却代金はすべて未配分の現金(surplus_reserve)としてプールされる
-        self.assertEqual(first_month.account_balances["acc_equity"], Money.of(500_000))
+        self.assertEqual(first_month.account_balances["acc_equity"], Money.of(900_000))
         self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
-        self.assertEqual(first_month.account_balances[UNALLOCATED_SURPLUS_KEY], Money.of(400_000))
 
     def test_no_allocation_policy_leaves_initial_imbalance_untouched(self) -> None:
         equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)

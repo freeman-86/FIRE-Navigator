@@ -9,6 +9,9 @@ from adapters.sheets.sheet_mapping import (
     DASHBOARD_CURRENT_NETWORTH_LABEL,
     DASHBOARD_DEPLETION_AGE_LABEL,
     DASHBOARD_NO_DEPLETION_TEXT,
+    HISTORICAL_METHOD_LABEL,
+    METHOD_HEADER,
+    MONTECARLO_METHOD_LABEL,
     MONTH_HEADER,
     NET_CASHFLOW_HEADER,
     NET_INCOME_HEADER,
@@ -16,7 +19,6 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_DASHBOARD_SHEET,
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_MONTHLY_DETAIL_SHEET,
-    OUTPUT_NETWORTH_BREAKDOWN_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
@@ -116,6 +118,17 @@ class _FakeSpreadsheet:
         }
 
 
+def _number_format_requests(spreadsheet, sheet_id):
+    return [
+        r["repeatCell"]
+        for body in spreadsheet.batch_updates
+        for r in body["requests"]
+        if "repeatCell" in r
+        and r["repeatCell"]["range"]["sheetId"] == sheet_id
+        and r["repeatCell"]["fields"] == "userEnteredFormat.numberFormat"
+    ]
+
+
 def _projection(year: int, networth: int) -> YearlyProjection:
     return YearlyProjection(
         year=year,
@@ -171,23 +184,87 @@ class WriteDashboardTest(unittest.TestCase):
         rows = dict(worksheet.last_values)
         self.assertEqual(rows[DASHBOARD_DEPLETION_AGE_LABEL], 78)
 
+    def test_money_rows_get_comma_number_format_but_depletion_age_row_does_not(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        dashboard = {
+            "current_networth": Money.of(30_000_000),
+            "extra_annual_budget": Money.of(300_000),
+            "extra_monthly_budget": Money.of(25_000),
+            "depletion_age": 78,
+            "target_ending_networth": Money.zero(),
+            "ending_networth": Money.of(21_000_000),
+            "surplus_vs_target": Money.of(21_000_000),
+        }
+
+        output_adapter.write_dashboard(spreadsheet, dashboard)
+
+        worksheet = spreadsheet.worksheet(OUTPUT_DASHBOARD_SHEET)
+        number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
+        formatted_rows = {r["range"]["startRowIndex"] for r in number_format_requests}
+
+        self.assertIn(0, formatted_rows)  # DASHBOARD_CURRENT_NETWORTH_LABEL
+        depletion_age_row = [row[0] for row in worksheet.last_values].index(DASHBOARD_DEPLETION_AGE_LABEL)
+        self.assertNotIn(depletion_age_row, formatted_rows)
+
+
+def _breakdown_chart() -> dict:
+    return {
+        "x": [2026, 2027],
+        "series": [
+            {"name": "taxable", "values": [1_000_000, 1_100_000]},
+            {"name": "nisa_growth", "values": [500_000, None]},
+        ],
+    }
+
 
 class WriteNetworthTableTest(unittest.TestCase):
-    def test_writes_year_and_networth_rows(self) -> None:
+    def test_writes_year_networth_and_breakdown_columns(self) -> None:
         spreadsheet = _FakeSpreadsheet()
         result = SimulationResult(yearly_projections=[_projection(2026, 1_000_000), _projection(2027, 2_000_000)])
 
-        output_adapter.write_networth_table(spreadsheet, result)
+        output_adapter.write_networth_table(spreadsheet, result, _breakdown_chart())
 
         worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_SHEET)
         self.assertEqual(
             worksheet.last_values,
             [
-                [YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER],
-                [2026, 1_000_000, 0],
-                [2027, 2_000_000, 0],
+                [YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER, "taxable", "nisa_growth"],
+                [2026, 1_000_000, 0, 1_000_000, 500_000],
+                [2027, 2_000_000, 0, 1_100_000, ""],
             ],
         )
+
+        number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
+        formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
+        self.assertEqual(formatted_columns, {1, 2, 3, 4})  # YEAR(0)は対象外、内訳列(3,4)も金額として対象
+
+        charts = spreadsheet.charts_by_sheet_id[worksheet.id]
+        self.assertEqual(len(charts), 1)
+        self.assertEqual(charts[0]["spec"]["title"], output_adapter.BREAKDOWN_CHART_TITLE)
+        self.assertEqual(charts[0]["spec"]["basicChart"]["stackedType"], "STACKED")
+
+    def test_rerunning_does_not_duplicate_chart(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        result = SimulationResult(yearly_projections=[_projection(2026, 1_000_000), _projection(2027, 2_000_000)])
+
+        output_adapter.write_networth_table(spreadsheet, result, _breakdown_chart())
+        output_adapter.write_networth_table(spreadsheet, result, _breakdown_chart())
+
+        worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_SHEET)
+        self.assertEqual(len(spreadsheet.charts_by_sheet_id[worksheet.id]), 1)
+
+    def test_no_breakdown_series_skips_chart(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        result = SimulationResult(yearly_projections=[_projection(2026, 1_000_000)])
+
+        output_adapter.write_networth_table(spreadsheet, result, {"x": [2026], "series": []})
+
+        worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_SHEET)
+        self.assertEqual(
+            worksheet.last_values,
+            [[YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER], [2026, 1_000_000, 0]],
+        )
+        self.assertNotIn(worksheet.id, spreadsheet.charts_by_sheet_id)
 
 
 def _monthly_projection(year: int, month: int, networth: int, capital_gains_tax: int = 0) -> MonthlyProjection:
@@ -229,6 +306,28 @@ class WriteMonthlyDetailTableTest(unittest.TestCase):
             ],
         )
 
+        worksheet = spreadsheet.worksheet(OUTPUT_MONTHLY_DETAIL_SHEET)
+        number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
+        formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
+        # YEAR(0)/MONTH(1)/AGE(2)は対象外、手取り収入以降(3〜7)が金額列
+        self.assertEqual(formatted_columns, {3, 4, 5, 6, 7})
+
+    def test_appends_dynamic_asset_class_withdrawal_columns(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        projection = _monthly_projection(2026, 1, 1_050_000)
+        projection.withdrawals_by_asset_class = {
+            "equity_sp500": Money.of(80_000),
+            "bond_us_treasury": Money.zero(),
+        }
+        result = SimulationResult(monthly_projections=[projection])
+
+        output_adapter.write_monthly_detail_table(spreadsheet, result)
+
+        worksheet = spreadsheet.worksheet(OUTPUT_MONTHLY_DETAIL_SHEET)
+        header, row = worksheet.last_values
+        self.assertEqual(header[-2:], ["bond_us_treasury", "equity_sp500"])
+        self.assertEqual(row[-2:], [0, 80_000])
+
 
 class WriteChartsTest(unittest.TestCase):
     def _chart(self) -> dict:
@@ -239,30 +338,6 @@ class WriteChartsTest(unittest.TestCase):
                 {"name": "nisa_growth", "values": [500_000, None]},
             ],
         }
-
-    def test_networth_breakdown_writes_table_and_creates_chart(self) -> None:
-        spreadsheet = _FakeSpreadsheet()
-
-        output_adapter.write_networth_breakdown_chart(spreadsheet, self._chart())
-
-        worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_BREAKDOWN_SHEET)
-        self.assertEqual(
-            worksheet.last_values,
-            [[YEAR_HEADER, "taxable", "nisa_growth"], [2026, 1_000_000, 500_000], [2027, 1_100_000, ""]],
-        )
-        charts = spreadsheet.charts_by_sheet_id[worksheet.id]
-        self.assertEqual(len(charts), 1)
-        self.assertEqual(charts[0]["spec"]["title"], output_adapter.BREAKDOWN_CHART_TITLE)
-        self.assertEqual(charts[0]["spec"]["basicChart"]["stackedType"], "STACKED")
-
-    def test_rerunning_does_not_duplicate_chart(self) -> None:
-        spreadsheet = _FakeSpreadsheet()
-
-        output_adapter.write_networth_breakdown_chart(spreadsheet, self._chart())
-        output_adapter.write_networth_breakdown_chart(spreadsheet, self._chart())
-
-        worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_BREAKDOWN_SHEET)
-        self.assertEqual(len(spreadsheet.charts_by_sheet_id[worksheet.id]), 1)
 
     def test_scenario_comparison_chart_is_not_stacked(self) -> None:
         spreadsheet = _FakeSpreadsheet()
@@ -308,31 +383,86 @@ class WriteSensitivityTableTest(unittest.TestCase):
         self.assertEqual(len(spreadsheet.conditional_formats_by_sheet_id[worksheet.id]), 1)
 
 
-class WritePercentileResultTest(unittest.TestCase):
-    def test_writes_percentile_table_success_summary_and_chart(self) -> None:
-        spreadsheet = _FakeSpreadsheet()
-        result = MonteCarloResult(
-            trials=100,
-            success_count=87,
-            success_rate=0.87,
-            percentile_networth_by_year={
-                2026: PercentileBand(p10=Money.of(1_000_000), p50=Money.of(2_000_000), p90=Money.of(3_000_000))
-            },
-        )
-        chart = {"x": [2026], "p10": [1_000_000], "p50": [2_000_000], "p90": [3_000_000]}
+def _percentile_result(trials: int, success_count: int, success_rate: float) -> MonteCarloResult:
+    return MonteCarloResult(
+        trials=trials,
+        success_count=success_count,
+        success_rate=success_rate,
+        percentile_networth_by_year={
+            2026: PercentileBand(p10=Money.of(1_000_000), p50=Money.of(2_000_000), p90=Money.of(3_000_000))
+        },
+    )
 
-        output_adapter.write_montecarlo_result(spreadsheet, result, chart)
+
+def _percentile_chart() -> dict:
+    return {"x": [2026], "p10": [1_000_000], "p50": [2_000_000], "p90": [3_000_000]}
+
+
+class WriteMontecarloAndHistoricalResultTest(unittest.TestCase):
+    def test_writes_both_methods_with_method_column_and_two_charts(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        montecarlo_result = _percentile_result(100, 87, 0.87)
+        historical_result = _percentile_result(50, 40, 0.8)
+
+        output_adapter.write_montecarlo_and_historical_result(
+            spreadsheet, (montecarlo_result, _percentile_chart()), (historical_result, _percentile_chart())
+        )
 
         worksheet = spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
-        table_values, summary_values = worksheet.updates[0][0], worksheet.updates[1][0]
+        table_values = worksheet.updates[0][0]
         self.assertEqual(
             table_values,
-            [[YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER], [2026, 1_000_000, 2_000_000, 3_000_000]],
+            [
+                [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
+                [MONTECARLO_METHOD_LABEL, 2026, 1_000_000, 2_000_000, 3_000_000],
+                [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
+                [HISTORICAL_METHOD_LABEL, 2026, 1_000_000, 2_000_000, 3_000_000],
+            ],
         )
+
+        summary_values = worksheet.updates[1][0]
+        self.assertIn(MONTECARLO_METHOD_LABEL, summary_values[0][0])
         self.assertIn("87.0%", summary_values[0][0])
         self.assertIn("87/100", summary_values[0][0])
+        self.assertIn(HISTORICAL_METHOD_LABEL, summary_values[1][0])
+        self.assertIn("80.0%", summary_values[1][0])
+        self.assertIn("40/50", summary_values[1][0])
+
         charts = spreadsheet.charts_by_sheet_id[worksheet.id]
+        self.assertEqual(len(charts), 2)
+        titles = {c["spec"]["title"] for c in charts}
+        self.assertEqual(titles, {output_adapter.MONTECARLO_CHART_TITLE, output_adapter.HISTORICAL_BACKTEST_CHART_TITLE})
+
+        number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
+        formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
+        self.assertEqual(formatted_columns, {2, 3, 4})  # P10/P50/P90、METHOD(0)/YEAR(1)は対象外
+
+    def test_writes_montecarlo_only_when_historical_is_skipped(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        montecarlo_result = _percentile_result(100, 87, 0.87)
+
+        output_adapter.write_montecarlo_and_historical_result(spreadsheet, (montecarlo_result, _percentile_chart()), None)
+
+        worksheet = spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
+        table_values = worksheet.updates[0][0]
+        self.assertEqual(
+            table_values,
+            [
+                [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
+                [MONTECARLO_METHOD_LABEL, 2026, 1_000_000, 2_000_000, 3_000_000],
+            ],
+        )
+        charts = spreadsheet.charts_by_sheet_id[worksheet.id]
+        self.assertEqual(len(charts), 1)
         self.assertEqual(charts[0]["spec"]["title"], output_adapter.MONTECARLO_CHART_TITLE)
+
+    def test_does_nothing_when_both_are_skipped(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+
+        output_adapter.write_montecarlo_and_historical_result(spreadsheet, None, None)
+
+        with self.assertRaises(gspread.exceptions.WorksheetNotFound):
+            spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
 
 
 if __name__ == "__main__":

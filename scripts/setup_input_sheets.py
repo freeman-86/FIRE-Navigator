@@ -4,6 +4,7 @@
   - 必須セルへの背景色（薄い黄色）
   - 選択肢が決まっている列へのプルダウン（データの入力規則）
   - 「入力例」シートへの記入例の書き出し
+  - タブの並び順・色分け（使用頻度別にグルーピング）
 
 初回セットアップ時や、入力シートの列構成を変更した後に実行する。毎回のシミュレーション実行
 （run_full_simulation.py）では自動実行しない（書式設定はAPI呼び出しを消費するため、
@@ -28,7 +29,7 @@ DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "secrets" / "gsheets_credentials.json"
 def main() -> None:
     args = _parse_args()
 
-    from adapters.sheets.sheets_formatting import apply_input_formatting, write_examples_sheet
+    from adapters.sheets.sheets_formatting import apply_input_formatting, organize_sheet_tabs, write_examples_sheet
     from adapters.sheets.sheets_input_adapter import build_client, open_spreadsheet
 
     if not args.credentials.exists():
@@ -46,6 +47,10 @@ def main() -> None:
 
     print("「入力例」シートを書き出しています...")
     write_examples_sheet(spreadsheet)
+    print("完了しました")
+
+    print("タブの並び順・色分けを整理しています...")
+    organize_sheet_tabs(spreadsheet)
     print("完了しました")
 
     print(f"\nすべての設定が完了しました: {spreadsheet.url}")

@@ -13,11 +13,9 @@ PROGRESS_SHEET = "入力_実績"
 ALLOCATION_POLICY_SHEET = "入力_配分方針"
 EDUCATION_EXPENSES_SHEET = "入力_教育費"
 OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
-OUTPUT_NETWORTH_BREAKDOWN_SHEET = "出力_純資産内訳"
 OUTPUT_SCENARIO_COMPARISON_SHEET = "出力_シナリオ比較"
 OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "出力_感応度分析"
 OUTPUT_MONTECARLO_SHEET = "出力_モンテカルロ"
-OUTPUT_HISTORICAL_BACKTEST_SHEET = "出力_ヒストリカルバックテスト"
 OUTPUT_PROGRESS_COMPARISON_SHEET = "出力_計画実績比較"
 OUTPUT_ERRORS_SHEET = "出力_エラー"
 OUTPUT_DASHBOARD_SHEET = "出力_ダッシュボード"
@@ -111,7 +109,11 @@ NET_INCOME_HEADER = "手取り収入"
 TOTAL_EXPENSE_HEADER = "支出"
 NET_CASHFLOW_HEADER = "収支"
 
-# Output_モンテカルロ / Output_ヒストリカルバックテスト
+# Output_モンテカルロ: 「手法」列でモンテカルロ/ヒストリカルバックテストの結果を区別する
+# （旧Output_ヒストリカルバックテストを統合）。
+METHOD_HEADER = "手法"
+MONTECARLO_METHOD_LABEL = "モンテカルロ"
+HISTORICAL_METHOD_LABEL = "ヒストリカル"
 P10_HEADER = "下位10%値"
 P50_HEADER = "中央値"
 P90_HEADER = "上位10%値"
@@ -223,14 +225,19 @@ EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (START_VALUE_HEADER, "plan.one_time_expenses[].trigger.value（単発支出のみ）", "condition_value"),
 )
 
-# Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース・譲渡税を書き戻す。
+# Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース・譲渡税に加え、
+# 口座種別ごとの内訳（列数・列名はPlanのaccount構成によって可変。旧・Output_純資産内訳を統合）も
+# 同じシートに書き戻す。内訳列はreports/chart_builder.py の出力（charts.networth_chartのseries）から
+# その都度組み立てるため、固定のマッピング定義は持たない。
 OUTPUT_NETWORTH_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (YEAR_HEADER, "simulation_result.yearly_projections[].year", "int"),
     (NETWORTH_HEADER, "simulation_result.yearly_projections[].networth", "money"),
     (CAPITAL_GAINS_TAX_HEADER, "simulation_result.yearly_projections[].capital_gains_tax", "money"),
 )
+OUTPUT_NETWORTH_BREAKDOWN_FIELD_PATH = "output_json.charts.networth_chart"
 
-# Output_月次詳細: ヘッダー行付きテーブル。西暦年・月別の月次明細を書き戻す。
+# Output_月次詳細: ヘッダー行付きテーブル。西暦年・月別の月次明細を書き戻す。末尾には資産クラスごとの
+# 取り崩し額（列数・列名はPlanのaccount構成によって可変）も付く（固定のマッピング定義は持たない）。
 OUTPUT_MONTHLY_DETAIL_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (YEAR_HEADER, "simulation_result.monthly_projections[].year", "int"),
     (MONTH_HEADER, "simulation_result.monthly_projections[].month", "int"),
@@ -241,11 +248,6 @@ OUTPUT_MONTHLY_DETAIL_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (CAPITAL_GAINS_TAX_HEADER, "simulation_result.monthly_projections[].capital_gains_tax", "money"),
     (NETWORTH_HEADER, "simulation_result.monthly_projections[].networth", "money"),
 )
-
-# Output_純資産内訳: ヘッダー行付きテーブル。1列目=year、以降は口座種別（+unallocated_surplus）ごとの残高。
-# 列数・列名はPlanのaccount構成によって可変なため固定のマッピング定義は持たず、
-# reports/chart_builder.py の出力（charts.networth_chartのseries）からその都度組み立てる。
-OUTPUT_NETWORTH_BREAKDOWN_FIELD_PATH = "output_json.charts.networth_chart"
 
 # Output_シナリオ比較: ヘッダー行付きテーブル。1列目=year、以降はシナリオ名ごとのネットワース推移。
 # 列数・列名はInput_シナリオの行数に応じて可変なため固定のマッピング定義は持たず、

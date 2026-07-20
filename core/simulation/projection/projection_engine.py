@@ -20,7 +20,6 @@ from core.domain.tax_config import TaxRules
 from core.domain.value_objects import AgeAt, EventCondition, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
-from core.simulation.portfolio.rebalance_engine import rebalance
 from core.simulation.projection.event_conditions import resolve_condition_month, resolve_condition_year
 from core.simulation.projection.milestone_evaluation import evaluate_milestones
 from core.simulation.tax.tax_engine import calculate_tax
@@ -89,6 +88,9 @@ def run_projection(
     lifetime_contributions = {account.account_id: Money.zero() for account in plan.accounts}
     surplus_reserve = Money.zero()
     asset_class_by_account_id = _asset_class_by_account_id(portfolios)
+    # 月次詳細の資産クラス別取り崩し額列を、月をまたいで常に同じ列構成にするための資産クラス一覧
+    # （出力_月次詳細の列がプランの口座構成に応じて動的に決まる。ソートは表示順を安定させるため）。
+    all_asset_classes = sorted(set(asset_class_by_account_id.values()))
 
     yearly_projections: list[YearlyProjection] = []
     monthly_projections: list[MonthlyProjection] = []
@@ -157,10 +159,16 @@ def run_projection(
                     portfolio_rules,
                     tax_rules.capital_gains,
                     age_this_month,
+                    asset_class_by_account_id=asset_class_by_account_id,
+                    target_weights=target_weights_this_month,
                 )
                 contributions_this_month = _merge(monthly_fixed_contributions, _negate(withdrawal_outcome.withdrawals))
                 unallocated_delta = -withdrawal_outcome.remaining_shortfall
                 capital_gains_tax_month = withdrawal_outcome.capital_gains_tax
+                withdrawals_by_asset_class_month = {
+                    asset_class: withdrawal_outcome.withdrawals_by_asset_class.get(asset_class, Money.zero())
+                    for asset_class in all_asset_classes
+                }
                 cost_basis_balances = {
                     account_id: withdrawal_outcome.updated_cost_basis.get(account_id, Money.zero())
                     + monthly_fixed_contributions.get(account_id, Money.zero())
@@ -182,6 +190,7 @@ def run_projection(
                 contributions_this_month = _merge(monthly_fixed_contributions, discretionary_contributions)
                 unallocated_delta = unallocated_leftover
                 capital_gains_tax_month = Money.zero()
+                withdrawals_by_asset_class_month = {asset_class: Money.zero() for asset_class in all_asset_classes}
                 discretionary_contributed_this_year = _merge(
                     discretionary_contributed_this_year, discretionary_contributions
                 )
@@ -209,26 +218,6 @@ def run_projection(
             }
             surplus_reserve = _grow(surplus_reserve, growth_rate) + unallocated_delta
 
-            if target_weights_this_month:
-                # 新規拠出(discretionary配分のドリフト考慮)で埋めきれなかった乖離を、
-                # 過大な口座の売却→過小な口座への再投資で解消する（ギャップ分析3.7）。
-                rebalance_outcome = rebalance(
-                    plan,
-                    account_balances,
-                    cost_basis_balances,
-                    lifetime_contributions,
-                    asset_class_by_account_id,
-                    target_weights_this_month,
-                    portfolio_rules,
-                    tax_rules.capital_gains,
-                    age_this_month,
-                )
-                account_balances = rebalance_outcome.account_balances
-                cost_basis_balances = rebalance_outcome.cost_basis_balances
-                lifetime_contributions = rebalance_outcome.lifetime_contributions
-                capital_gains_tax_month = capital_gains_tax_month + rebalance_outcome.capital_gains_tax
-                surplus_reserve = surplus_reserve + rebalance_outcome.unreinvested_proceeds
-
             capital_gains_tax_annual = capital_gains_tax_annual + capital_gains_tax_month
 
             balances_snapshot = {**account_balances, UNALLOCATED_SURPLUS_KEY: surplus_reserve}
@@ -247,6 +236,7 @@ def run_projection(
                     capital_gains_tax=capital_gains_tax_month,
                     account_balances=dict(balances_snapshot),
                     networth=networth,
+                    withdrawals_by_asset_class=dict(withdrawals_by_asset_class_month),
                 )
             )
 

@@ -81,10 +81,8 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
     )
     from adapters.sheets.sheets_output_adapter import (
         write_dashboard,
-        write_historical_backtest_result,
         write_monthly_detail_table,
-        write_montecarlo_result,
-        write_networth_breakdown_chart,
+        write_montecarlo_and_historical_result,
         write_networth_table,
         write_progress_comparison,
         write_scenario_comparison,
@@ -132,8 +130,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
 
     print("\n[4/9] 基本シミュレーション（決定論的）を実行しています...")
     result = run_projection(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
-    write_networth_table(spreadsheet, result)
-    write_networth_breakdown_chart(spreadsheet, build_networth_chart(plan, result))
+    write_networth_table(spreadsheet, result, build_networth_chart(plan, result))
     write_monthly_detail_table(spreadsheet, result)
     final_networth = result.yearly_projections[-1].networth if result.yearly_projections else None
     print(f"      完了（計算期間: {len(result.yearly_projections)}年、最終ネットワース: {final_networth}）")
@@ -164,6 +161,9 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
     write_sensitivity_table(spreadsheet, build_sensitivity_table(sensitivity_result))
     print("      完了")
 
+    montecarlo_entry = None
+    historical_entry = None
+
     if args.quick or args.skip_montecarlo:
         print("\n[8/9] モンテカルロシミュレーションをスキップしました（--quick/--skip-montecarlo）")
     else:
@@ -177,7 +177,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
             plan, portfolios, tax_rules, portfolio_rules, pension_rules,
             distributions, correlation_matrix, trials=args.trials,
         )
-        write_montecarlo_result(spreadsheet, montecarlo_result, build_percentile_band_chart(montecarlo_result))
+        montecarlo_entry = (montecarlo_result, build_percentile_band_chart(montecarlo_result))
         elapsed = time.time() - started
         print(f"      完了（成功確率: {montecarlo_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")
 
@@ -188,11 +188,12 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
         dataset = load_historical_dataset()
         started = time.time()
         historical_result, _ = run_historical_backtest(plan, portfolios, tax_rules, portfolio_rules, pension_rules, dataset)
-        write_historical_backtest_result(
-            spreadsheet, historical_result, build_percentile_band_chart(historical_result)
-        )
+        historical_entry = (historical_result, build_percentile_band_chart(historical_result))
         elapsed = time.time() - started
         print(f"      完了（成功確率: {historical_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")
+
+    if montecarlo_entry is not None or historical_entry is not None:
+        write_montecarlo_and_historical_result(spreadsheet, montecarlo_entry, historical_entry)
 
     print("\n[実績比較] 入力_実績を確認しています...")
     progress_records = build_progress_records_from_spreadsheet(spreadsheet)

@@ -219,5 +219,101 @@ class MinWithdrawalAgeTest(unittest.TestCase):
         self.assertEqual(outcome.withdrawals, {"acc_ideco": Money.of(300_000)})
 
 
+class AssetClassOverweightPriorityTest(unittest.TestCase):
+    def test_prefers_overweight_asset_class_over_account_type_priority(self) -> None:
+        accounts = [
+            _account("acc_cash", AccountType.CASH),
+            _account("acc_equity", AccountType.NISA_GROWTH),
+        ]
+        balances = {"acc_cash": Money.of(200_000), "acc_equity": Money.of(800_000)}
+        cost_basis = {"acc_cash": Money.of(200_000), "acc_equity": Money.of(800_000)}
+        asset_class_by_account_id = {"acc_cash": "cash", "acc_equity": "equity_sp500"}
+        target_weights = {"cash": Rate.of("0.5"), "equity_sp500": Rate.of("0.5")}
+        # 通常の口座タイプ優先順位ではCASHが先だが、equity_sp500がオーバーウェイトなのでそちらを優先する
+        strategy = WithdrawalStrategy(order=[AccountType.CASH, AccountType.NISA_GROWTH])
+        rules = _rules({AccountType.CASH: True, AccountType.NISA_GROWTH: True})
+
+        outcome = withdraw_shortfall(
+            accounts, balances, cost_basis, Money.of(100_000), strategy, rules, ZERO_TAX, ANY_AGE,
+            asset_class_by_account_id=asset_class_by_account_id, target_weights=target_weights,
+        )
+
+        self.assertEqual(outcome.withdrawals, {"acc_equity": Money.of(100_000)})
+        self.assertEqual(outcome.remaining_shortfall, Money.zero())
+        self.assertEqual(outcome.withdrawals_by_asset_class, {"equity_sp500": Money.of(100_000)})
+
+    def test_falls_back_to_account_type_priority_when_no_asset_class_is_overweight(self) -> None:
+        accounts = [
+            _account("acc_cash", AccountType.CASH),
+            _account("acc_equity", AccountType.NISA_GROWTH),
+        ]
+        balances = {"acc_cash": Money.of(500_000), "acc_equity": Money.of(500_000)}
+        cost_basis = dict(balances)
+        asset_class_by_account_id = {"acc_cash": "cash", "acc_equity": "equity_sp500"}
+        target_weights = {"cash": Rate.of("0.5"), "equity_sp500": Rate.of("0.5")}
+        strategy = WithdrawalStrategy(order=[AccountType.CASH, AccountType.NISA_GROWTH])
+        rules = _rules({AccountType.CASH: True, AccountType.NISA_GROWTH: True})
+
+        outcome = withdraw_shortfall(
+            accounts, balances, cost_basis, Money.of(100_000), strategy, rules, ZERO_TAX, ANY_AGE,
+            asset_class_by_account_id=asset_class_by_account_id, target_weights=target_weights,
+        )
+
+        self.assertEqual(outcome.withdrawals, {"acc_cash": Money.of(100_000)})
+
+    def test_overweight_sell_is_capped_at_the_excess_then_falls_back_for_the_remainder(self) -> None:
+        accounts = [
+            _account("acc_cash", AccountType.CASH),
+            _account("acc_equity", AccountType.NISA_GROWTH),
+        ]
+        balances = {"acc_cash": Money.of(50_000), "acc_equity": Money.of(800_000)}
+        cost_basis = dict(balances)
+        asset_class_by_account_id = {"acc_cash": "cash", "acc_equity": "equity_sp500"}
+        target_weights = {"cash": Rate.of("0.5"), "equity_sp500": Rate.of("0.5")}
+        strategy = WithdrawalStrategy(order=[AccountType.CASH, AccountType.NISA_GROWTH])
+        rules = _rules({AccountType.CASH: True, AccountType.NISA_GROWTH: True})
+
+        # 総額850,000、目標は425,000ずつ。株式は375,000オーバーウェイト。不足額500,000は
+        # オーバーウェイト分(375,000)だけでは賄いきれないため、残り125,000は通常の優先順位
+        # (現金→株式)で賄う。株式口座は既に一部売却済みの残高(425,000)から追加で取り崩される。
+        outcome = withdraw_shortfall(
+            accounts, balances, cost_basis, Money.of(500_000), strategy, rules, ZERO_TAX, ANY_AGE,
+            asset_class_by_account_id=asset_class_by_account_id, target_weights=target_weights,
+        )
+
+        self.assertEqual(outcome.withdrawals["acc_equity"], Money.of(450_000))
+        self.assertEqual(outcome.withdrawals["acc_cash"], Money.of(50_000))
+        self.assertEqual(outcome.remaining_shortfall, Money.zero())
+        self.assertEqual(outcome.withdrawals_by_asset_class["equity_sp500"], Money.of(450_000))
+        self.assertEqual(outcome.withdrawals_by_asset_class["cash"], Money.of(50_000))
+
+    def test_age_restricted_account_is_skipped_even_when_its_asset_class_is_overweight(self) -> None:
+        accounts = [
+            _account("acc_ideco", AccountType.IDECO),
+            _account("acc_cash", AccountType.CASH),
+        ]
+        balances = {"acc_ideco": Money.of(900_000), "acc_cash": Money.of(100_000)}
+        cost_basis = dict(balances)
+        asset_class_by_account_id = {"acc_ideco": "equity_sp500", "acc_cash": "cash"}
+        target_weights = {"equity_sp500": Rate.of("0.5"), "cash": Rate.of("0.5")}
+        strategy = WithdrawalStrategy(order=[AccountType.CASH, AccountType.IDECO])
+        rules = PortfolioRules(
+            rules_by_account_type={
+                AccountType.IDECO: AccountRules(annual_limit=None, lifetime_limit=None, tax_free=True, min_withdrawal_age=60),
+                AccountType.CASH: AccountRules(annual_limit=None, lifetime_limit=None, tax_free=True),
+            }
+        )
+
+        # equity_sp500(iDeCo)は400,000オーバーウェイトだが60歳未満のため売却対象外。
+        # 現金(100,000)だけでは200,000の不足を賄いきれず、残り100,000は取り崩せないまま残る。
+        outcome = withdraw_shortfall(
+            accounts, balances, cost_basis, Money.of(200_000), strategy, rules, ZERO_TAX, 45,
+            asset_class_by_account_id=asset_class_by_account_id, target_weights=target_weights,
+        )
+
+        self.assertEqual(outcome.withdrawals, {"acc_cash": Money.of(100_000)})
+        self.assertEqual(outcome.remaining_shortfall, Money.of(100_000))
+
+
 if __name__ == "__main__":
     unittest.main()

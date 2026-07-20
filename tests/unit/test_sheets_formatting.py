@@ -24,15 +24,18 @@ from adapters.sheets.sheet_mapping import (
     MONTHLY_CONTRIBUTION_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
+    OUTPUT_DASHBOARD_SHEET,
     OWNER_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
+    PROGRESS_SHEET,
     RESIDENCE_HEADER,
     RETIREMENT_AGE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
+    TARGET_ENDING_NETWORTH_HEADER,
     VOLATILITY_HEADER,
 )
 
@@ -119,7 +122,20 @@ def _color_requests(spreadsheet, sheet_id):
         r["repeatCell"]
         for body in spreadsheet.batch_updates
         for r in body["requests"]
-        if "repeatCell" in r and r["repeatCell"]["range"]["sheetId"] == sheet_id
+        if "repeatCell" in r
+        and r["repeatCell"]["range"]["sheetId"] == sheet_id
+        and r["repeatCell"]["fields"] == "userEnteredFormat.backgroundColor"
+    ]
+
+
+def _number_format_requests(spreadsheet, sheet_id):
+    return [
+        r["repeatCell"]
+        for body in spreadsheet.batch_updates
+        for r in body["requests"]
+        if "repeatCell" in r
+        and r["repeatCell"]["range"]["sheetId"] == sheet_id
+        and r["repeatCell"]["fields"] == "userEnteredFormat.numberFormat"
     ]
 
 
@@ -226,6 +242,20 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         self.assertNotIn(0, by_column)
         # ACCOUNT_TYPE_HEADER(col1, "cash")も非数値
         self.assertNotIn(1, by_column)
+
+    def test_money_columns_get_comma_number_format_but_rate_columns_do_not(self):
+        sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
+
+        number_format_requests = _number_format_requests(self.spreadsheet, self.worksheet.id)
+        formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
+
+        self.assertIn(3, formatted_columns)  # BALANCE_HEADER(残高)
+        self.assertIn(7, formatted_columns)  # MONTHLY_CONTRIBUTION_HEADER(月次拠出額)
+        self.assertNotIn(5, formatted_columns)  # EXPECTED_RETURN_HEADER(期待リターン、比率)
+        self.assertNotIn(6, formatted_columns)  # VOLATILITY_HEADER(ボラティリティ、比率)
+        # 将来の追加行にも適用されるよう、実データ行数を超えて広めに設定する
+        balance_request = next(r for r in number_format_requests if r["range"]["startColumnIndex"] == 3)
+        self.assertGreater(balance_request["range"]["endRowIndex"], 2)
 
 
 class ApplyInputFormattingIncomesSheetTest(unittest.TestCase):
@@ -454,6 +484,23 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
         validation_rows = {r["range"]["startRowIndex"] for r in validation_requests}
         self.assertEqual(validation_rows, {3, 5})  # RESIDENCE, PENSION_CLAIM_TIMING
 
+    def test_money_rows_get_comma_number_format_but_age_row_does_not(self):
+        spreadsheet = _FakeSpreadsheet()
+        rows = [
+            [PLAN_ID_HEADER, "plan_001"],
+            [TARGET_ENDING_NETWORTH_HEADER, "20000000"],
+            [RETIREMENT_AGE_HEADER, "60"],
+        ]
+        worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
+
+        sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
+
+        number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
+        formatted_rows = {r["range"]["startRowIndex"] for r in number_format_requests}
+
+        self.assertIn(1, formatted_rows)  # TARGET_ENDING_NETWORTH_HEADER(目標資産)
+        self.assertNotIn(2, formatted_rows)  # RETIREMENT_AGE_HEADER(年齢)
+
     def test_converts_numeric_plan_values_to_numbers(self):
         spreadsheet = _FakeSpreadsheet()
         rows = [
@@ -481,6 +528,39 @@ class ApplyInputFormattingMissingOptionalSheetTest(unittest.TestCase):
         spreadsheet = _FakeSpreadsheet()  # no sheets created at all
 
         sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
+
+        self.assertEqual(spreadsheet.batch_updates, [])
+
+
+class OrganizeSheetTabsTest(unittest.TestCase):
+    def test_orders_present_sheets_and_skips_missing_ones(self):
+        spreadsheet = _FakeSpreadsheet()
+        # わざと逆順・バラバラに作成し、TAB_LAYOUT通りに並べ替えられることを確認する。
+        # ACCOUNTS_SHEET等の中間シートはあえて作らず、存在しないシートがスキップされることも確認する。
+        ws_dashboard = spreadsheet.add_sheet(OUTPUT_DASHBOARD_SHEET)
+        ws_progress = spreadsheet.add_sheet(PROGRESS_SHEET)
+        ws_expenses = spreadsheet.add_sheet(EXPENSES_SHEET)
+        ws_plan = spreadsheet.add_sheet(PLAN_SHEET)
+
+        sheets_formatting.organize_sheet_tabs(spreadsheet)
+
+        requests = [r["updateSheetProperties"] for body in spreadsheet.batch_updates for r in body["requests"]]
+        index_by_sheet_id = {r["properties"]["sheetId"]: r["properties"]["index"] for r in requests}
+        color_by_sheet_id = {r["properties"]["sheetId"]: r["properties"]["tabColor"] for r in requests}
+
+        # プラン設定(頻繁)→支出(頻繁)→実績(たまに)→ダッシュボード(出力)の順
+        self.assertLess(index_by_sheet_id[ws_plan.id], index_by_sheet_id[ws_expenses.id])
+        self.assertLess(index_by_sheet_id[ws_expenses.id], index_by_sheet_id[ws_progress.id])
+        self.assertLess(index_by_sheet_id[ws_progress.id], index_by_sheet_id[ws_dashboard.id])
+        self.assertEqual(color_by_sheet_id[ws_plan.id], sheets_formatting.FREQUENT_INPUT_TAB_COLOR)
+        self.assertEqual(color_by_sheet_id[ws_expenses.id], sheets_formatting.FREQUENT_INPUT_TAB_COLOR)
+        self.assertEqual(color_by_sheet_id[ws_progress.id], sheets_formatting.OCCASIONAL_INPUT_TAB_COLOR)
+        self.assertEqual(color_by_sheet_id[ws_dashboard.id], sheets_formatting.OUTPUT_TAB_COLOR)
+
+    def test_does_nothing_when_no_known_sheets_exist(self):
+        spreadsheet = _FakeSpreadsheet()
+
+        sheets_formatting.organize_sheet_tabs(spreadsheet)
 
         self.assertEqual(spreadsheet.batch_updates, [])
 

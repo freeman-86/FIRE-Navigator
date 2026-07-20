@@ -56,6 +56,14 @@ from adapters.sheets.sheet_mapping import (
     NATIONAL_PENSION_ESTIMATE_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
+    OUTPUT_DASHBOARD_SHEET,
+    OUTPUT_ERRORS_SHEET,
+    OUTPUT_MONTECARLO_SHEET,
+    OUTPUT_MONTHLY_DETAIL_SHEET,
+    OUTPUT_NETWORTH_SHEET,
+    OUTPUT_PROGRESS_COMPARISON_SHEET,
+    OUTPUT_SCENARIO_COMPARISON_SHEET,
+    OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
     OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
@@ -77,6 +85,7 @@ from adapters.sheets.sheet_mapping import (
     VOLATILITY_HEADER,
     YEAR_HEADER,
 )
+from adapters.sheets.sheets_number_format import money_column_format_requests, money_row_format_requests
 from core.domain.account import AccountType, OwnerType
 from core.domain.asset import AssetClass
 from core.domain.pension import ClaimTimingType
@@ -541,6 +550,7 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
             requests.extend(_numeric_cell_requests(sheet_id, col_idx, data_values))
 
     requests.extend(_conditional_age_value_requests(sheet_id, header, values))
+    requests.extend(money_column_format_requests(sheet_id, header, 1, FORMAT_ROW_COUNT))
 
     # 入力_支出: 単発フラグの値に応じて使われない列をグレーアウトする。
     # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視され、
@@ -589,6 +599,9 @@ def _plan_sheet_requests(spreadsheet: gspread.Spreadsheet) -> list[dict]:
             if request is not None:
                 requests.append(request)
 
+    row_labels = [row[0] if row else "" for row in rows]
+    requests.extend(money_row_format_requests(sheet_id, row_labels))
+
     return requests
 
 
@@ -614,6 +627,68 @@ def apply_input_formatting(
         spreadsheet.batch_update({"requests": requests})
 
 
+# --- タブの並び順・色分け -----------------------------------------------------------------------
+
+# よく使う入力シート(青)。プラン作成後、日常的に更新する。
+FREQUENT_INPUT_TAB_COLOR = {"red": 0.26, "green": 0.52, "blue": 0.96}
+# たまにしか使わない入力シート(グレー)。シナリオ比較・配分方針・実績記録・教育費等、
+# 初期設定後は更新頻度が低い。
+OCCASIONAL_INPUT_TAB_COLOR = {"red": 0.62, "green": 0.62, "blue": 0.62}
+# 出力シート(緑)。シミュレーション実行のたびに再生成される結果ビュー。
+OUTPUT_TAB_COLOR = {"red": 0.20, "green": 0.66, "blue": 0.33}
+
+# タブの並び順(左→右)。よく使う入力シート→たまにしか使わない入力シート→入力例→出力シート
+# (出力_エラー/ダッシュボードを先頭)の順にまとめる。存在しないシートはorganize_sheet_tabsで
+# スキップする（未セットアップの出力シート等）。
+TAB_LAYOUT: list[tuple[str, dict]] = [
+    (PLAN_SHEET, FREQUENT_INPUT_TAB_COLOR),
+    (ACCOUNTS_SHEET, FREQUENT_INPUT_TAB_COLOR),
+    (INCOMES_SHEET, FREQUENT_INPUT_TAB_COLOR),
+    (EXPENSES_SHEET, FREQUENT_INPUT_TAB_COLOR),
+    (SCENARIOS_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
+    (ALLOCATION_POLICY_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
+    (PROGRESS_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
+    (EDUCATION_EXPENSES_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
+    (EXAMPLES_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
+    (OUTPUT_ERRORS_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_DASHBOARD_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_NETWORTH_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_MONTHLY_DETAIL_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_SCENARIO_COMPARISON_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_SENSITIVITY_ANALYSIS_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_MONTECARLO_SHEET, OUTPUT_TAB_COLOR),
+    (OUTPUT_PROGRESS_COMPARISON_SHEET, OUTPUT_TAB_COLOR),
+]
+
+
+def organize_sheet_tabs(spreadsheet: gspread.Spreadsheet) -> None:
+    """タブの並び順・色分けをTAB_LAYOUT通りに整理する。
+
+    存在しないシート（まだシミュレーションを実行していないため出力シートが未作成、等）は
+    スキップする。TAB_LAYOUTに含まれないシート（想定外の手動追加シート等）はそのまま末尾に残る。
+    """
+
+    requests: list[dict] = []
+    index = 0
+    for sheet_name, tab_color in TAB_LAYOUT:
+        try:
+            worksheet = spreadsheet.worksheet(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            continue
+        requests.append(
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": worksheet.id, "index": index, "tabColor": tab_color},
+                    "fields": "index,tabColor",
+                }
+            }
+        )
+        index += 1
+
+    if requests:
+        spreadsheet.batch_update({"requests": requests})
+
+
 # --- 入力例シート -----------------------------------------------------------------------------
 
 _EXAMPLE_SECTIONS: list[tuple[str, list[list[str]]]] = [
@@ -622,8 +697,8 @@ _EXAMPLE_SECTIONS: list[tuple[str, list[list[str]]]] = [
     (INCOMES_SHEET, INCOMES_ROWS),
     (EXPENSES_SHEET, EXPENSES_ROWS),
     (SCENARIOS_SHEET, SCENARIOS_ROWS),
-    (PROGRESS_SHEET, PROGRESS_ROWS),
     (ALLOCATION_POLICY_SHEET, ALLOCATION_POLICY_ROWS),
+    (PROGRESS_SHEET, PROGRESS_ROWS),
     (EDUCATION_EXPENSES_SHEET, EDUCATION_EXPENSES_ROWS),
 ]
 

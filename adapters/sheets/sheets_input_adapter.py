@@ -116,9 +116,19 @@ def _require(record: dict, key: str, field_path: str) -> object:
 
 def _parse_money(value: object, field_path: str) -> Money:
     try:
-        return Money.of(value)
+        return Money.of(_strip_thousands_separators(value))
     except (InvalidOperation, ValueError, TypeError) as e:
         raise StructuralInputError(f"金額として解釈できない値です: {value!r}", field_path) from e
+
+
+def _strip_thousands_separators(value: object) -> object:
+    """金額列にはカンマ区切り表示(#,##0)を設定しているため、get_all_values()経由（入力_プラン設定等の
+    縦持ちシート）で読み込むとFORMATTED_VALUE（表示形式適用後の文字列）としてカンマ付きで返ってくる。
+    get_all_records()経由の表形式シートはgspreadが自動でカンマを除去して数値化するため影響しないが、
+    どちらの経路でも安全に扱えるよう、文字列の場合のみここでカンマを取り除く。
+    """
+
+    return value.replace(",", "") if isinstance(value, str) else value
 
 
 def _parse_rate(value: object, field_path: str) -> Rate:

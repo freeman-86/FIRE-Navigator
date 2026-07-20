@@ -42,6 +42,7 @@ class MonthlyProjection:
     account_balances: dict[str, Money]
     networth: Money
     capital_gains_tax: Money = field(default_factory=Money.zero)
+    withdrawals_by_asset_class: dict[str, Money] = field(default_factory=dict)
 
 
 @dataclass
