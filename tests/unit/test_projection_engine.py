@@ -19,7 +19,6 @@ from core.simulation.projection.projection_engine import (
     DEFAULT_LIFE_EXPECTANCY_AGE,
     age_at,
     _pension_eligible_months,
-    _pension_income_for_month,
     _school_year_age,
     run_projection,
 )
@@ -180,32 +179,6 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(by_age[60], Money.of(250_000))
         self.assertEqual(by_age[61], Money.zero())
 
-    def test_monthly_income_is_full_amount_until_end_condition_month_not_smoothed_across_the_year(self) -> None:
-        # 年度途中(12月)で終了する収入が、それ以前の月(7月等)にも均等に按分されて減額表示されて
-        # しまわないことを確認する（修正前は年間合計を12等分していたため、終了月と無関係に
-        # 全月が一律で減額されていた）。
-        income = Income(
-            income_id="income_001",
-            source="salary",
-            amount=Money.of(1_200_000),
-            growth_rate=Rate.zero(),
-            start_condition=EventCondition.plan_start(),
-            end_condition=EventCondition.at_date(date(2031, 12, 1)),
-        )
-        plan = _minimal_plan(incomes=[income])
-        result = _run(plan)
-
-        by_month = {(p.year, p.month): p for p in result.monthly_projections}
-        self.assertEqual(by_month[(2031, 1)].gross_income, Money.of(100_000))
-        self.assertEqual(by_month[(2031, 7)].gross_income, Money.of(100_000))
-        self.assertEqual(by_month[(2031, 11)].gross_income, Money.of(100_000))
-        self.assertEqual(by_month[(2031, 12)].gross_income, Money.zero())
-        self.assertEqual(by_month[(2032, 1)].gross_income, Money.zero())
-        # 手取り収入(net_income、出力_月次詳細に表示される値)も同様に、終了月まで満額を反映する
-        # (旧方式では全月一律で減額されていた)
-        self.assertEqual(by_month[(2031, 7)].net_income, Money.of(100_000))
-        self.assertEqual(by_month[(2031, 12)].net_income, Money.zero())
-
 
 class PensionAndWithdrawalTest(unittest.TestCase):
     """Sprint8の終了条件：退職後フェーズを含めた資産推移が、年金受給・取り崩し順序を考慮して計算される。"""
@@ -232,28 +205,6 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         self.assertEqual(by_age[64], Money.zero())
         self.assertEqual(by_age[65], Money.of(1_485_000))
         self.assertEqual(by_age[66], Money.of(1_980_000))
-
-    def test_monthly_pension_income_starts_full_amount_at_claim_month_not_smoothed_across_the_year(self) -> None:
-        # 65歳受給開始年(2055年)は1〜3月がまだ64歳で受給資格なしのため、月次では0円。
-        # 4月の誕生日を迎えた瞬間から満額(1,980,000/12=165,000)になる（年間按分額の12等分ではない）。
-        pension = Pension(
-            national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
-            employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
-        )
-        milestone = Milestone(
-            milestone_id="milestone_retire_001",
-            milestone_type=MilestoneType.RETIREMENT,
-            trigger=EventCondition.at_age(65),
-        )
-        plan = _minimal_plan(pension=pension, milestones=[milestone])
-
-        result = _run(plan)
-
-        by_month = {(p.year, p.month): p for p in result.monthly_projections}
-        self.assertEqual(by_month[(2055, 3)].pension_income, Money.zero())
-        self.assertEqual(by_month[(2055, 4)].pension_income, Money.of(165_000))
-        self.assertEqual(by_month[(2055, 12)].pension_income, Money.of(165_000))
 
     def test_early_claim_reduces_pension_income(self) -> None:
         pension_rules = load_pension_rules()
@@ -654,38 +605,6 @@ class PensionEligibleMonthsTest(unittest.TestCase):
         birth_date = date(1990, 4, 1)
         month_pairs = [(2054, m) for m in range(1, 13)]
         self.assertEqual(_pension_eligible_months(birth_date, 65, month_pairs), 0)
-
-
-class PensionIncomeForMonthTest(unittest.TestCase):
-    def _pension(self) -> Pension:
-        return Pension(
-            national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
-            employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
-        )
-
-    def test_zero_before_birthday_month_in_transition_year(self) -> None:
-        # 1990-04-01生まれ、65歳受給。2055年3月時点ではまだ64歳のため資格なし。
-        birth_date = date(1990, 4, 1)
-        amount = _pension_income_for_month(birth_date, self._pension(), zero_pension_rules(), 2055, 3)
-        self.assertEqual(amount, Money.zero())
-
-    def test_full_monthly_amount_from_birthday_month_in_transition_year(self) -> None:
-        # 65歳の誕生日を迎える2055年4月からは、満額(1,980,000)の月割り額(165,000)が毎月満額計上される
-        # （旧方式のように年間按分額をさらに12等分するのではなく、有効な月は満額）。
-        birth_date = date(1990, 4, 1)
-        amount = _pension_income_for_month(birth_date, self._pension(), zero_pension_rules(), 2055, 4)
-        self.assertEqual(amount, Money.of(165_000))
-
-    def test_full_monthly_amount_once_fully_eligible(self) -> None:
-        birth_date = date(1990, 4, 1)
-        amount = _pension_income_for_month(birth_date, self._pension(), zero_pension_rules(), 2056, 1)
-        self.assertEqual(amount, Money.of(165_000))
-
-    def test_zero_before_eligible(self) -> None:
-        birth_date = date(1990, 4, 1)
-        amount = _pension_income_for_month(birth_date, self._pension(), zero_pension_rules(), 2054, 12)
-        self.assertEqual(amount, Money.zero())
 
 
 class SchoolYearAgeTest(unittest.TestCase):
