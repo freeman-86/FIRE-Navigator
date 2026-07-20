@@ -1,9 +1,5 @@
-"""入力シートの入力しやすさを改善する機能（必須セルの色分け・プルダウン・入力例）。
-
-ユーザーフィードバック:
-  3. 各入力シートで、実際に入力すべきセルに色をつけて分かりやすくする
-  4. 各入力シートの近くに入力例（サンプル行）を貼り付ける
-  5. 選択肢が決まっている列にプルダウン（データの入力規則）を設定し、無効な値を入力できないようにする
+"""入力シートの入力しやすさを改善する機能（必須/任意セルの色分け・チェックボックス・プルダウン・
+条件付き書式・数値の右揃い・入力例）。
 
 Point 4について: 入力例はget_all_records()で実データとして誤読されないよう、既存の入力シートとは
 完全に別の「入力例」シートにまとめて書き出す（同じシートの余白列/余白行に置くと、gspreadの
@@ -39,8 +35,10 @@ from adapters.sheets.sheet_mapping import (
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
+    COST_BASIS_HEADER,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
+    EMPLOYEE_PENSION_ESTIMATE_HEADER,
     END_AGE_HEADER,
     END_TYPE_HEADER,
     EXPECTED_RETURN_HEADER,
@@ -53,14 +51,18 @@ from adapters.sheets.sheet_mapping import (
     INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
     MONTHLY_AMOUNT_HEADER,
+    MONTHLY_CONTRIBUTION_HEADER,
+    NATIONAL_PENSION_ESTIMATE_HEADER,
     ONE_TIME_FLAG_HEADER,
     OWNER_HEADER,
+    PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PROGRESS_SHEET,
     RESIDENCE_HEADER,
+    RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
     SCENARIO_NAME_HEADER,
     SCENARIOS_SHEET,
@@ -68,6 +70,7 @@ from adapters.sheets.sheet_mapping import (
     START_AGE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
+    TARGET_ENDING_NETWORTH_HEADER,
     TARGET_WEIGHT_HEADER,
     VOLATILITY_HEADER,
     YEAR_HEADER,
@@ -82,6 +85,12 @@ EXAMPLES_SHEET = "入力例"
 
 # 必須セルの背景色（薄い黄色）。既存の値そのものは変更しない、書式のみのハイライト。
 REQUIRED_CELL_COLOR = {"red": 1.0, "green": 0.949, "blue": 0.702}
+# 任意セルの背景色（薄い青）。「入力欄ではあるが必須ではない」ことを示す
+# （無色のままだと入力欄かどうか見分けがつかないため、必須/任意を問わずすべての入力列に色を付ける）。
+OPTIONAL_CELL_COLOR = {"red": 0.878, "green": 0.929, "blue": 0.973}
+# 単発フラグ=FALSEの行で使われない開始条件タイプ/値等をグレーアウトする際の背景色・文字色。
+IGNORED_CELL_BACKGROUND_COLOR = {"red": 0.92, "green": 0.92, "blue": 0.92}
+IGNORED_CELL_TEXT_COLOR = {"red": 0.6, "green": 0.6, "blue": 0.6}
 
 # 背景色・プルダウンを適用する行数（ヘッダー行の次から）。将来の追加入力にも
 # あらかじめ書式が効くよう、実データ行数より広めに確保する。
@@ -94,7 +103,35 @@ FORMAT_CLEAR_COL_COUNT = 20
 WHITE_CELL_COLOR = {"red": 1.0, "green": 1.0, "blue": 1.0}
 
 CONDITION_TYPE_CHOICES = ["today", "plan_start", "age", "date"]
-BOOLEAN_CHOICES = ["TRUE", "FALSE"]
+
+# 数値として保存すべき列（右揃い表示のため）。開始条件値/終了条件値はage(整数)とdate(文字列)の
+# どちらもあり得るため、意図的にここへ含めない（誤って数値化すると日付文字列を壊すリスクがあるため）。
+NUMERIC_HEADERS = {
+    BALANCE_HEADER,
+    COST_BASIS_HEADER,
+    EXPECTED_RETURN_HEADER,
+    VOLATILITY_HEADER,
+    MONTHLY_CONTRIBUTION_HEADER,
+    AMOUNT_ANNUAL_HEADER,
+    EXPENSE_AMOUNT_HEADER,
+    START_AGE_HEADER,
+    END_AGE_HEADER,
+    MONTHLY_AMOUNT_HEADER,
+    AGE_HEADER,
+    TARGET_WEIGHT_HEADER,
+    YEAR_HEADER,
+    ACTUAL_NETWORTH_HEADER,
+    RETIREMENT_AGE_HEADER,
+    NATIONAL_PENSION_ESTIMATE_HEADER,
+    EMPLOYEE_PENSION_ESTIMATE_HEADER,
+    PENSION_CLAIM_AGE_HEADER,
+    TARGET_ENDING_NETWORTH_HEADER,
+    INFLATION_RATE_HEADER,
+    INVESTMENT_GROWTH_RATE_HEADER,
+}
+
+# チェックボックスにする列（TRUE/FALSEの自由入力によるタイプミスを防ぐ）。
+CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER, IS_FLEXIBLE_HEADER}
 
 
 class TabularSheetSpec:
@@ -132,7 +169,7 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
         TabularSheetSpec(
             EXPENSES_SHEET,
             [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER, EXPENSE_AMOUNT_HEADER],
-            {IS_FLEXIBLE_HEADER: BOOLEAN_CHOICES, ONE_TIME_FLAG_HEADER: BOOLEAN_CHOICES, START_TYPE_HEADER: CONDITION_TYPE_CHOICES},
+            {START_TYPE_HEADER: CONDITION_TYPE_CHOICES},
         ),
         TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER]),
         TabularSheetSpec(PROGRESS_SHEET, [YEAR_HEADER, ACTUAL_NETWORTH_HEADER]),
@@ -171,7 +208,18 @@ PLAN_DROPDOWNS: dict[str, list[str]] = {
 }
 
 
-def _repeat_cell_color_request(sheet_id: int, start_row: int, end_row: int, start_col: int, end_col: int) -> dict:
+def _column_letter(index: int) -> str:
+    """0始まりの列インデックスをA1表記の列名(A, B, ..., Z, AA, ...)に変換する。"""
+
+    index += 1
+    letters = ""
+    while index > 0:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(65 + remainder) + letters
+    return letters
+
+
+def _repeat_cell_color_request(sheet_id: int, start_row: int, end_row: int, start_col: int, end_col: int, color: dict) -> dict:
     return {
         "repeatCell": {
             "range": {
@@ -181,7 +229,7 @@ def _repeat_cell_color_request(sheet_id: int, start_row: int, end_row: int, star
                 "startColumnIndex": start_col,
                 "endColumnIndex": end_col,
             },
-            "cell": {"userEnteredFormat": {"backgroundColor": REQUIRED_CELL_COLOR}},
+            "cell": {"userEnteredFormat": {"backgroundColor": color}},
             "fields": "userEnteredFormat.backgroundColor",
         }
     }
@@ -209,6 +257,100 @@ def _data_validation_request(
             },
         }
     }
+
+
+def _checkbox_request(sheet_id: int, start_row: int, end_row: int, start_col: int, end_col: int) -> dict:
+    """TRUE/FALSEの自由入力の代わりにチェックボックスUIにする（insertCheckboxes）。
+    既存のTRUE/FALSE文字列もチェック状態に変換される。
+    """
+
+    return {
+        "setDataValidation": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": start_row,
+                "endRowIndex": end_row,
+                "startColumnIndex": start_col,
+                "endColumnIndex": end_col,
+            },
+            "rule": {"condition": {"type": "BOOLEAN"}, "strict": True, "showCustomUi": True},
+        }
+    }
+
+
+def _gray_out_when_one_time_flag_false_request(
+    sheet_id: int, flag_col_idx: int, target_col_start: int, target_col_end: int
+) -> dict:
+    """単発フラグ=FALSEの行では開始条件タイプ/値は使われない（無視される）ため、
+    その行だけ条件付き書式でグレーアウトする（ギャップ分析対応: 使われない入力欄を視覚的に示す）。
+    """
+
+    flag_col_letter = _column_letter(flag_col_idx)
+    formula = f"=${flag_col_letter}2=FALSE"
+    return {
+        "addConditionalFormatRule": {
+            "rule": {
+                "ranges": [
+                    {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,
+                        "endRowIndex": FORMAT_ROW_COUNT,
+                        "startColumnIndex": target_col_start,
+                        "endColumnIndex": target_col_end,
+                    }
+                ],
+                "booleanRule": {
+                    "condition": {"type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": formula}]},
+                    "format": {
+                        "backgroundColor": IGNORED_CELL_BACKGROUND_COLOR,
+                        "textFormat": {"foregroundColor": IGNORED_CELL_TEXT_COLOR},
+                    },
+                },
+            },
+            "index": 0,
+        }
+    }
+
+
+def _numeric_single_cell_request(sheet_id: int, row_idx: int, col_idx: int, raw: str) -> Optional[dict]:
+    """1セル分の数値らしき文字列を、実際の数値(numberValue)として書き込み直すリクエストを作る
+    （右揃い表示のため）。空欄・数値として解釈できない場合はNoneを返す（変更しない）。
+    """
+
+    raw = str(raw).strip()
+    if raw == "":
+        return None
+    try:
+        number = float(raw)
+    except ValueError:
+        return None
+    return {
+        "updateCells": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": row_idx,
+                "endRowIndex": row_idx + 1,
+                "startColumnIndex": col_idx,
+                "endColumnIndex": col_idx + 1,
+            },
+            "rows": [{"values": [{"userEnteredValue": {"numberValue": number}}]}],
+            "fields": "userEnteredValue",
+        }
+    }
+
+
+def _numeric_cell_requests(sheet_id: int, col_idx: int, data_values: list[str]) -> list[dict]:
+    """列内の数値らしき文字列セルを、実際の数値(numberValue)として書き込み直すリクエストを作る
+    （右揃い表示のため）。空欄・数値として解釈できないセルはそのまま変更しない。
+    data_valuesはヘッダー行を除いたデータ行の値（先頭がシート上の2行目に対応）。
+    """
+
+    requests = []
+    for row_offset, raw in enumerate(data_values, start=1):
+        request = _numeric_single_cell_request(sheet_id, row_offset, col_idx, raw)
+        if request is not None:
+            requests.append(request)
+    return requests
 
 
 def _clear_range_requests(sheet_id: int, end_row: int, end_col: int) -> list[dict]:
@@ -241,6 +383,17 @@ def _clear_range_requests(sheet_id: int, end_row: int, end_col: int) -> list[dic
     ]
 
 
+def _clear_conditional_format_requests(spreadsheet: gspread.Spreadsheet, sheet_id: int) -> list[dict]:
+    metadata = spreadsheet.fetch_sheet_metadata()
+    existing_rule_count = 0
+    for sheet in metadata.get("sheets", []):
+        if sheet["properties"]["sheetId"] == sheet_id:
+            existing_rule_count = len(sheet.get("conditionalFormats", []))
+            break
+    # 削除するたびにindexが詰まるため、常にindex=0を指定すればよい。
+    return [{"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}} for _ in range(existing_rule_count)]
+
+
 def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheetSpec) -> list[dict]:
     try:
         worksheet = spreadsheet.worksheet(spec.sheet_name)
@@ -248,20 +401,55 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
         return []
 
     sheet_id = worksheet.id
-    header = worksheet.row_values(1)
+    # updateCells(数値変換・チェックボックスの自動FALSE打ち消し)はグリッドの実際の行数を
+    # 超える範囲を指定できない（repeatCell/setDataValidationと違い自動拡張されない）ため、
+    # 先にグリッドをFORMAT_ROW_COUNT分まで広げておく。
+    if worksheet.row_count < FORMAT_ROW_COUNT:
+        worksheet.resize(rows=FORMAT_ROW_COUNT)
+
+    values = worksheet.get_all_values()
+    header = values[0] if values else []
     requests = _clear_range_requests(sheet_id, FORMAT_ROW_COUNT, FORMAT_CLEAR_COL_COUNT)
+    requests.extend(_clear_conditional_format_requests(spreadsheet, sheet_id))
 
-    for column_header in spec.required_headers:
-        if column_header not in header:
-            continue
-        col_idx = header.index(column_header)
-        requests.append(_repeat_cell_color_request(sheet_id, 1, FORMAT_ROW_COUNT, col_idx, col_idx + 1))
+    data_row_count = max(len(values) - 1, 0)  # ヘッダーを除いた実データ行数
+    first_future_row = 1 + data_row_count  # 0-indexed。この行以降はまだ実データがない
 
-    for column_header, choices in spec.dropdowns.items():
-        if column_header not in header:
+    # 必須/任意を問わず、ヘッダーに存在する列はすべて色を付ける（将来列が増えても漏れない）。
+    for col_idx, column_header in enumerate(header):
+        if not column_header:
             continue
-        col_idx = header.index(column_header)
-        requests.append(_data_validation_request(sheet_id, 1, FORMAT_ROW_COUNT, col_idx, col_idx + 1, choices))
+        color = REQUIRED_CELL_COLOR if column_header in spec.required_headers else OPTIONAL_CELL_COLOR
+        requests.append(_repeat_cell_color_request(sheet_id, 1, FORMAT_ROW_COUNT, col_idx, col_idx + 1, color))
+
+        if column_header in CHECKBOX_HEADERS:
+            # チェックボックス(BOOLEAN型のデータの入力規則)には「未入力」の状態がなく、
+            # 値のないセルにもGoogle Sheets側が自動的にFALSEを書き込んでしまう
+            # （値だけ空に戻しても、入力規則が残っている限りFALSEに戻ってしまう）。
+            # そのため他の列と違って実データ行より先には適用しない（get_all_records()が
+            # 偽の空行を実データとして読み込んでしまうのを防ぐため）。新しく行を追加した後は
+            # 再度セットアップを実行するとチェックボックスが効くようになる。
+            if data_row_count > 0:
+                requests.append(_checkbox_request(sheet_id, 1, first_future_row, col_idx, col_idx + 1))
+        elif column_header in spec.dropdowns:
+            requests.append(
+                _data_validation_request(sheet_id, 1, FORMAT_ROW_COUNT, col_idx, col_idx + 1, spec.dropdowns[column_header])
+            )
+
+        if column_header in NUMERIC_HEADERS:
+            data_values = [row[col_idx] if col_idx < len(row) else "" for row in values[1:]]
+            requests.extend(_numeric_cell_requests(sheet_id, col_idx, data_values))
+
+    # 入力_支出: 単発フラグ=FALSEの行は開始条件タイプ/値が無視されるため、グレーアウトする。
+    if spec.sheet_name == EXPENSES_SHEET and ONE_TIME_FLAG_HEADER in header and START_TYPE_HEADER in header:
+        flag_col_idx = header.index(ONE_TIME_FLAG_HEADER)
+        target_indices = [header.index(h) for h in (START_TYPE_HEADER, START_VALUE_HEADER) if h in header]
+        if target_indices:
+            requests.append(
+                _gray_out_when_one_time_flag_false_request(
+                    sheet_id, flag_col_idx, min(target_indices), max(target_indices) + 1
+                )
+            )
 
     return requests
 
@@ -273,14 +461,22 @@ def _plan_sheet_requests(spreadsheet: gspread.Spreadsheet) -> list[dict]:
         return []
 
     sheet_id = worksheet.id
-    keys = worksheet.col_values(1)
+    rows = worksheet.get_all_values()
     requests = _clear_range_requests(sheet_id, FORMAT_ROW_COUNT, FORMAT_CLEAR_COL_COUNT)
 
-    for row_idx, key in enumerate(keys):
-        if key in PLAN_REQUIRED_KEYS:
-            requests.append(_repeat_cell_color_request(sheet_id, row_idx, row_idx + 1, 1, 2))
+    for row_idx, row in enumerate(rows):
+        key = row[0] if row else ""
+        if not key:
+            continue
+        color = REQUIRED_CELL_COLOR if key in PLAN_REQUIRED_KEYS else OPTIONAL_CELL_COLOR
+        requests.append(_repeat_cell_color_request(sheet_id, row_idx, row_idx + 1, 1, 2, color))
         if key in PLAN_DROPDOWNS:
             requests.append(_data_validation_request(sheet_id, row_idx, row_idx + 1, 1, 2, PLAN_DROPDOWNS[key]))
+        if key in NUMERIC_HEADERS:
+            value = row[1] if len(row) > 1 else ""
+            request = _numeric_single_cell_request(sheet_id, row_idx, 1, value)
+            if request is not None:
+                requests.append(request)
 
     return requests
 
@@ -288,10 +484,11 @@ def _plan_sheet_requests(spreadsheet: gspread.Spreadsheet) -> list[dict]:
 def apply_input_formatting(
     spreadsheet: gspread.Spreadsheet, asset_class_registry: Optional[dict[AssetClass, str]] = None
 ) -> None:
-    """全入力シートに、必須セルの背景色とプルダウン(データの入力規則)を設定する。
+    """全入力シートに、必須/任意セルの背景色・チェックボックス・プルダウン(データの入力規則)・
+    条件付き書式・数値の右揃いを設定する。
 
-    既存のセルの値は一切変更しない（書式・入力規則のみ）。存在しない入力シート（任意タブ）は
-    スキップする。
+    既存のセルの「実質的な値」は変更しない（数値らしき文字列を数値型として書き込み直す変換のみ、
+    見た目上の値は変わらない）。存在しない入力シート（任意タブ）はスキップする。
     """
 
     if asset_class_registry is None:

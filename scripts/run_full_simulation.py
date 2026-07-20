@@ -70,12 +70,13 @@ def main() -> None:
 
 
 def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
-    from adapters.sheets.sheets_error_writer import write_errors
+    from adapters.sheets.sheets_error_writer import write_errors, write_warnings
     from adapters.sheets.sheets_input_adapter import (
         build_plan_from_spreadsheet,
         build_portfolios_from_spreadsheet,
         build_progress_records_from_spreadsheet,
         build_scenarios_from_spreadsheet,
+        collect_input_warnings,
         read_target_ending_networth,
     )
     from adapters.sheets.sheets_output_adapter import (
@@ -123,6 +124,11 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
         sys.exit(1)
     write_errors(spreadsheet, [])  # 前回実行時のエラー表示をクリア
     print("      検証OK")
+
+    input_warnings = collect_input_warnings(spreadsheet)
+    if input_warnings:
+        write_warnings(spreadsheet, input_warnings)
+        print(f"      [警告] {len(input_warnings)}件の入力値が実行時に無視されています（出力_エラーシート参照）")
 
     print("\n[4/9] 基本シミュレーション（決定論的）を実行しています...")
     result = run_projection(plan, portfolios, tax_rules, portfolio_rules, pension_rules)

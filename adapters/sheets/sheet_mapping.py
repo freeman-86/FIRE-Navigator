@@ -112,9 +112,13 @@ P90_HEADER = "上位10%値"
 
 SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
 
-# Output_エラー
+# Output_エラー: 種別列で「エラー」（実行を止める入力ミス）と「警告」（実行は続けるが
+# 無視される入力値がある旨の注意喚起）を区別する。
+KIND_HEADER = "種別"
 FIELD_PATH_HEADER = "エラー箇所"
 MESSAGE_HEADER = "エラー内容"
+ERROR_KIND_LABEL = "エラー"
+WARNING_KIND_LABEL = "警告"
 
 # Output_ダッシュボード: A列=項目 / B列=値 の縦持ち集約ビュー（旧ドラフトのDashboardシートを踏襲）。
 DASHBOARD_CURRENT_NETWORTH_LABEL = "現在の純資産"

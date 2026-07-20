@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import InvalidOperation
 from typing import Optional
@@ -664,6 +665,95 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         education_expenses=education_expenses,
         one_time_expenses=one_time_expenses,
     )
+
+
+@dataclass
+class InputWarning:
+    """入力ミスではないが、実行時に無視される入力値（設定の組み合わせ次第で使われない列に
+    値が入っている等）。StructuralInputErrorと違い実行は止めない（設計書11章の「警告」に相当）。
+    """
+
+    field_path: str
+    message: str
+
+
+def collect_input_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
+    """実行時に無視される入力値を検出する（実行は止めず、出力_エラーシートへの警告表示に使う）。
+
+    - 入力_支出: 単発フラグ=TRUEの行では成長率/柔軟支出フラグが使われない。
+      単発フラグ=FALSEの行では開始条件タイプ/値が使われない。
+    - 入力_収入: 終了条件タイプが未入力だと終了条件値があっても終了条件自体が設定されない
+      （_build_event_conditionはtypeが空なら値を見ずにNoneを返すため）。
+    """
+
+    warnings: list[InputWarning] = []
+    warnings.extend(_collect_expenses_warnings(spreadsheet))
+    warnings.extend(_collect_incomes_warnings(spreadsheet))
+    return warnings
+
+
+def _collect_expenses_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
+    try:
+        worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    warnings = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{EXPENSES_SHEET}!row{row_number}"
+        is_one_time = _parse_bool(record.get(ONE_TIME_FLAG_HEADER, "FALSE"))
+        if is_one_time:
+            if str(record.get(GROWTH_RATE_HEADER, "")).strip():
+                warnings.append(
+                    InputWarning(
+                        f"{row_prefix}.{GROWTH_RATE_HEADER}",
+                        f"{ONE_TIME_FLAG_HEADER}=TRUEの行では{GROWTH_RATE_HEADER}は使われません（無視されます）",
+                    )
+                )
+            if str(record.get(IS_FLEXIBLE_HEADER, "")).strip():
+                warnings.append(
+                    InputWarning(
+                        f"{row_prefix}.{IS_FLEXIBLE_HEADER}",
+                        f"{ONE_TIME_FLAG_HEADER}=TRUEの行では{IS_FLEXIBLE_HEADER}は使われません（無視されます）",
+                    )
+                )
+        else:
+            if str(record.get(START_TYPE_HEADER, "")).strip():
+                warnings.append(
+                    InputWarning(
+                        f"{row_prefix}.{START_TYPE_HEADER}",
+                        f"{ONE_TIME_FLAG_HEADER}=FALSEの行では{START_TYPE_HEADER}は使われません（無視されます）",
+                    )
+                )
+            if str(record.get(START_VALUE_HEADER, "")).strip():
+                warnings.append(
+                    InputWarning(
+                        f"{row_prefix}.{START_VALUE_HEADER}",
+                        f"{ONE_TIME_FLAG_HEADER}=FALSEの行では{START_VALUE_HEADER}は使われません（無視されます）",
+                    )
+                )
+    return warnings
+
+
+def _collect_incomes_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
+    try:
+        worksheet = spreadsheet.worksheet(INCOMES_SHEET)
+    except gspread.exceptions.WorksheetNotFound:
+        return []
+
+    warnings = []
+    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
+        row_prefix = f"{INCOMES_SHEET}!row{row_number}"
+        end_type_raw = str(record.get(END_TYPE_HEADER, "")).strip()
+        end_value_raw = str(record.get(END_VALUE_HEADER, "")).strip()
+        if end_value_raw and not end_type_raw:
+            warnings.append(
+                InputWarning(
+                    f"{row_prefix}.{END_VALUE_HEADER}",
+                    f"{END_TYPE_HEADER}が未入力のため、{END_VALUE_HEADER}は使われません（終了条件なしとして扱われます）",
+                )
+            )
+    return warnings
 
 
 def load_plan(
