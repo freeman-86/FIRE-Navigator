@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 import gspread
@@ -134,9 +134,22 @@ def _strip_thousands_separators(value: object) -> object:
 
 def _parse_rate(value: object, field_path: str) -> Rate:
     try:
-        return Rate.of(value)
+        return Rate.of(_normalize_percent_display(value))
     except (InvalidOperation, ValueError, TypeError) as e:
         raise StructuralInputError(f"割合として解釈できない値です: {value!r}", field_path) from e
+
+
+def _normalize_percent_display(value: object) -> object:
+    """比率列にはパーセント表示形式(0.00%)を設定しているため、get_all_values()（入力_プラン設定等の
+    縦持ちシート）・get_all_records()（表形式シート、gspreadのnumericise()は%記号を扱えず素通しする）の
+    どちらの経路でも、FORMATTED_VALUE（表示形式適用後の文字列。例: "7.00%"）として返ってくることが
+    ある。末尾が%の場合はパーセント表記とみなし、100で割った小数に変換する
+    （Rate.ofが期待する生の小数表現に揃える）。
+    """
+
+    if isinstance(value, str) and value.strip().endswith("%"):
+        return Decimal(value.strip().rstrip("%").replace(",", "")) / Decimal(100)
+    return value
 
 
 def _parse_growth_rate(record: dict, field_path: str, default_growth_rate: Rate) -> Rate:

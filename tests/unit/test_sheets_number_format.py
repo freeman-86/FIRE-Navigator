@@ -1,7 +1,12 @@
 import unittest
 
-from adapters.sheets.sheet_mapping import AGE_HEADER, BALANCE_HEADER, YEAR_HEADER
-from adapters.sheets.sheets_number_format import money_column_format_requests, money_row_format_requests
+from adapters.sheets.sheet_mapping import AGE_HEADER, BALANCE_HEADER, EXPECTED_RETURN_HEADER, GROWTH_RATE_HEADER, YEAR_HEADER
+from adapters.sheets.sheets_number_format import (
+    money_column_format_requests,
+    money_row_format_requests,
+    percent_column_format_requests,
+    percent_row_format_requests,
+)
 
 
 class MoneyColumnFormatRequestsTest(unittest.TestCase):
@@ -43,6 +48,44 @@ class MoneyRowFormatRequestsTest(unittest.TestCase):
 
     def test_targets_the_given_value_column(self) -> None:
         requests = money_row_format_requests(sheet_id=1, row_labels=[BALANCE_HEADER], value_col=1)
+
+        request = requests[0]["repeatCell"]
+        self.assertEqual(request["range"]["startColumnIndex"], 1)
+        self.assertEqual(request["range"]["endColumnIndex"], 2)
+
+
+class PercentColumnFormatRequestsTest(unittest.TestCase):
+    def test_formats_only_columns_in_the_percent_header_set(self) -> None:
+        header = [BALANCE_HEADER, EXPECTED_RETURN_HEADER, GROWTH_RATE_HEADER, "未知の新しい列"]
+
+        requests = percent_column_format_requests(sheet_id=42, header=header, start_row=1, end_row=300)
+
+        formatted_columns = {r["repeatCell"]["range"]["startColumnIndex"] for r in requests}
+        self.assertEqual(formatted_columns, {1, 2})  # EXPECTED_RETURN_HEADER, GROWTH_RATE_HEADER
+
+    def test_request_range_and_number_format_pattern(self) -> None:
+        requests = percent_column_format_requests(sheet_id=7, header=[EXPECTED_RETURN_HEADER], start_row=1, end_row=300)
+
+        request = requests[0]["repeatCell"]
+        self.assertEqual(
+            request["range"],
+            {"sheetId": 7, "startRowIndex": 1, "endRowIndex": 300, "startColumnIndex": 0, "endColumnIndex": 1},
+        )
+        self.assertEqual(request["cell"]["userEnteredFormat"]["numberFormat"], {"type": "PERCENT", "pattern": "0.00%"})
+        self.assertEqual(request["fields"], "userEnteredFormat.numberFormat")
+
+
+class PercentRowFormatRequestsTest(unittest.TestCase):
+    def test_formats_only_rows_in_the_percent_header_set(self) -> None:
+        labels = [BALANCE_HEADER, GROWTH_RATE_HEADER, AGE_HEADER, "未知の新しいラベル"]
+
+        requests = percent_row_format_requests(sheet_id=1, row_labels=labels)
+
+        formatted_rows = {r["repeatCell"]["range"]["startRowIndex"] for r in requests}
+        self.assertEqual(formatted_rows, {1})
+
+    def test_targets_the_given_value_column(self) -> None:
+        requests = percent_row_format_requests(sheet_id=1, row_labels=[GROWTH_RATE_HEADER], value_col=1)
 
         request = requests[0]["repeatCell"]
         self.assertEqual(request["range"]["startColumnIndex"], 1)

@@ -14,13 +14,14 @@ from adapters.sheets.sheets_input_adapter import (
     _build_life_expectancy_age,
     _build_milestones,
     _build_pension,
+    _parse_rate,
     read_target_ending_networth,
 )
 from core.domain.errors import StructuralInputError
 from core.domain.milestone import MilestoneType
 from core.domain.pension import ClaimTimingType
 from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE
-from core.domain.value_objects import EventConditionType, Money
+from core.domain.value_objects import EventConditionType, Money, Rate
 
 
 class _FakeWorksheet:
@@ -101,6 +102,24 @@ class BuildLifeExpectancyAgeTest(unittest.TestCase):
         with self.assertRaises(StructuralInputError) as ctx:
             _build_life_expectancy_age({LIFE_EXPECTANCY_HEADER: "hundred"})
         self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{LIFE_EXPECTANCY_HEADER}")
+
+
+class ParseRateTest(unittest.TestCase):
+    def test_plain_decimal_string_is_parsed_as_is(self) -> None:
+        self.assertEqual(_parse_rate("0.07", "field"), Rate.of("0.07"))
+
+    def test_percent_display_format_is_converted_back_to_a_decimal(self) -> None:
+        # 比率列にパーセント表示形式(0.00%)を設定しているため、get_all_values()/get_all_records()
+        # 経由で表示後の文字列("7.00%")がそのまま返ってくることがある。生の小数(0.07)として
+        # 解釈できなければならない。
+        self.assertEqual(_parse_rate("7.00%", "field"), Rate.of("0.07"))
+        self.assertEqual(_parse_rate("100.00%", "field"), Rate.of("1"))
+        self.assertEqual(_parse_rate("0.00%", "field"), Rate.zero())
+
+    def test_non_numeric_value_raises_structural_input_error(self) -> None:
+        with self.assertRaises(StructuralInputError) as ctx:
+            _parse_rate("not_a_rate", "field")
+        self.assertEqual(ctx.exception.field_path, "field")
 
 
 class ReadTargetEndingNetworthTest(unittest.TestCase):

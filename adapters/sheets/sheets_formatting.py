@@ -86,7 +86,14 @@ from adapters.sheets.sheet_mapping import (
     VOLATILITY_HEADER,
     YEAR_HEADER,
 )
-from adapters.sheets.sheets_number_format import money_column_format_requests, money_row_format_requests
+from adapters.sheets.sheets_number_format import (
+    PERCENT_HEADERS,
+    money_column_format_requests,
+    money_row_format_requests,
+    percent_column_format_requests,
+    percent_number_format_request,
+    percent_row_format_requests,
+)
 from core.domain.account import AccountType, OwnerType
 from core.domain.asset import AssetClass
 from core.domain.pension import ClaimTimingType
@@ -553,6 +560,7 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
 
     requests.extend(_conditional_age_value_requests(sheet_id, header, values))
     requests.extend(money_column_format_requests(sheet_id, header, 1, FORMAT_ROW_COUNT))
+    requests.extend(percent_column_format_requests(sheet_id, header, 1, FORMAT_ROW_COUNT))
 
     # 入力_支出: 単発フラグの値に応じて使われない列をグレーアウトする。
     # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視され、
@@ -603,6 +611,7 @@ def _plan_sheet_requests(spreadsheet: gspread.Spreadsheet) -> list[dict]:
 
     row_labels = [row[0] if row else "" for row in rows]
     requests.extend(money_row_format_requests(sheet_id, row_labels))
+    requests.extend(percent_row_format_requests(sheet_id, row_labels))
 
     return requests
 
@@ -714,6 +723,21 @@ def _get_or_create_examples_worksheet(spreadsheet: gspread.Spreadsheet) -> gspre
     try:
         worksheet = spreadsheet.worksheet(EXAMPLES_SHEET)
         worksheet.clear()
+        # worksheet.clear()は値のみを消し表示形式は残るため、以前の実行で別の行/列位置に付けた
+        # パーセント表示形式等が新しい内容に残存しないよう、書き込み前に明示的にクリアする。
+        spreadsheet.batch_update(
+            {
+                "requests": [
+                    {
+                        "repeatCell": {
+                            "range": {"sheetId": worksheet.id, "startRowIndex": 0, "endRowIndex": 200, "startColumnIndex": 0, "endColumnIndex": 10},
+                            "cell": {"userEnteredFormat": {"numberFormat": None}},
+                            "fields": "userEnteredFormat.numberFormat",
+                        }
+                    }
+                ]
+            }
+        )
         return worksheet
     except gspread.exceptions.WorksheetNotFound:
         return spreadsheet.add_worksheet(title=EXAMPLES_SHEET, rows=200, cols=10, index=1)
@@ -727,22 +751,49 @@ def write_examples_sheet(spreadsheet: gspread.Spreadsheet) -> None:
     """
 
     worksheet = _get_or_create_examples_worksheet(spreadsheet)
+    sheet_id = worksheet.id
 
-    values: list[list[str]] = [[_NOTE_TEXT], []]
+    values: list[list[object]] = [[_NOTE_TEXT], []]
     title_rows: list[int] = []
     header_rows: list[int] = []
+    percent_format_requests: list[dict] = []
 
     for sheet_name, rows in _EXAMPLE_SECTIONS:
         title_rows.append(len(values))
         values.append([f"■ {sheet_name} の入力例"])
-        header_rows.append(len(values))
-        values.extend(rows)
+        section_start = len(values)
+        header_rows.append(section_start)
+        # sample_data.pyのモジュール定数(PLAN_ROWS等)を直接書き込むのではなく、コピーを積む
+        # （後続のパーセント値の数値変換で元のリストを書き換えてしまわないようにするため）。
+        section_rows = [list(row) for row in rows]
+        values.extend(section_rows)
+        section_end = len(values)
+        if sheet_name == PLAN_SHEET:
+            # 縦持ち(A列=キー/B列=値)のセクションなので、行ごとにキーがPERCENT_HEADERSかどうかを見る
+            for offset, row in enumerate(section_rows):
+                label = row[0] if row else ""
+                if label in PERCENT_HEADERS and len(row) > 1 and row[1] != "":
+                    row[1] = float(row[1])
+                    absolute_row = section_start + offset
+                    percent_format_requests.append(
+                        percent_number_format_request(sheet_id, absolute_row, absolute_row + 1, 1, 2)
+                    )
+        else:
+            # ヘッダー行付きテーブルのセクションなので、先頭行(ヘッダー)を見て列単位で判定する
+            header = section_rows[0] if section_rows else []
+            percent_columns = [col for col, name in enumerate(header) if name in PERCENT_HEADERS]
+            for data_row in section_rows[1:]:
+                for col in percent_columns:
+                    if col < len(data_row) and data_row[col] != "":
+                        data_row[col] = float(data_row[col])
+            percent_format_requests.extend(
+                percent_column_format_requests(sheet_id, header, section_start + 1, section_end)
+            )
         values.append([])
 
     worksheet.update(values=values, range_name="A1")
 
-    sheet_id = worksheet.id
-    requests = [
+    requests = list(percent_format_requests) + [
         {
             "repeatCell": {
                 "range": {"sheetId": sheet_id, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 1},

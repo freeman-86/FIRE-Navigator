@@ -20,6 +20,8 @@ from adapters.sheets.sheet_mapping import (
     GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
     INCOMES_SHEET,
+    INFLATION_RATE_HEADER,
+    INVESTMENT_GROWTH_RATE_HEADER,
     IS_FLEXIBLE_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     ONE_TIME_AMOUNT_HEADER,
@@ -136,6 +138,19 @@ def _number_format_requests(spreadsheet, sheet_id):
         if "repeatCell" in r
         and r["repeatCell"]["range"]["sheetId"] == sheet_id
         and r["repeatCell"]["fields"] == "userEnteredFormat.numberFormat"
+        and r["repeatCell"]["cell"]["userEnteredFormat"]["numberFormat"]["type"] == "NUMBER"
+    ]
+
+
+def _percent_format_requests(spreadsheet, sheet_id):
+    return [
+        r["repeatCell"]
+        for body in spreadsheet.batch_updates
+        for r in body["requests"]
+        if "repeatCell" in r
+        and r["repeatCell"]["range"]["sheetId"] == sheet_id
+        and r["repeatCell"]["fields"] == "userEnteredFormat.numberFormat"
+        and r["repeatCell"]["cell"]["userEnteredFormat"]["numberFormat"]["type"] == "PERCENT"
     ]
 
 
@@ -256,6 +271,17 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         # 将来の追加行にも適用されるよう、実データ行数を超えて広めに設定する
         balance_request = next(r for r in number_format_requests if r["range"]["startColumnIndex"] == 3)
         self.assertGreater(balance_request["range"]["endRowIndex"], 2)
+
+    def test_rate_columns_get_percent_number_format_but_money_columns_do_not(self):
+        sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
+
+        percent_format_requests = _percent_format_requests(self.spreadsheet, self.worksheet.id)
+        formatted_columns = {r["range"]["startColumnIndex"] for r in percent_format_requests}
+
+        self.assertEqual(formatted_columns, {5, 6})  # EXPECTED_RETURN_HEADER, VOLATILITY_HEADER
+        # 将来の追加行にも適用されるよう、実データ行数を超えて広めに設定する
+        expected_return_request = next(r for r in percent_format_requests if r["range"]["startColumnIndex"] == 5)
+        self.assertGreater(expected_return_request["range"]["endRowIndex"], 2)
 
 
 class ApplyInputFormattingIncomesSheetTest(unittest.TestCase):
@@ -501,6 +527,23 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
         self.assertIn(1, formatted_rows)  # TARGET_ENDING_NETWORTH_HEADER(目標資産)
         self.assertNotIn(2, formatted_rows)  # RETIREMENT_AGE_HEADER(年齢)
 
+    def test_rate_rows_get_percent_number_format(self):
+        spreadsheet = _FakeSpreadsheet()
+        rows = [
+            [PLAN_ID_HEADER, "plan_001"],
+            [INFLATION_RATE_HEADER, "0.02"],
+            [INVESTMENT_GROWTH_RATE_HEADER, "0.05"],
+            [RETIREMENT_AGE_HEADER, "60"],
+        ]
+        worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
+
+        sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
+
+        percent_format_requests = _percent_format_requests(spreadsheet, worksheet.id)
+        formatted_rows = {r["range"]["startRowIndex"] for r in percent_format_requests}
+
+        self.assertEqual(formatted_rows, {1, 2})  # INFLATION_RATE_HEADER, INVESTMENT_GROWTH_RATE_HEADER
+
     def test_converts_numeric_plan_values_to_numbers(self):
         spreadsheet = _FakeSpreadsheet()
         rows = [
@@ -596,6 +639,26 @@ class WriteExamplesSheetTest(unittest.TestCase):
 
         worksheet = spreadsheet.worksheet(EXAMPLES_SHEET)
         self.assertEqual(len(worksheet.updates), 1)  # 2回目のupdateだけが残る(clear->updateの繰り返し)
+
+    def test_applies_percent_format_to_rate_cells_in_both_vertical_and_tabular_sections(self):
+        spreadsheet = _FakeSpreadsheet()
+
+        sheets_formatting.write_examples_sheet(spreadsheet)
+
+        worksheet = spreadsheet.worksheet(EXAMPLES_SHEET)
+        values = worksheet.updates[0][0]
+        percent_requests = _percent_format_requests(spreadsheet, worksheet.id)
+        formatted_cells = {(r["range"]["startRowIndex"], r["range"]["startColumnIndex"]) for r in percent_requests}
+
+        # 入力_プラン設定セクション(縦持ち: A列=キー/B列=値): インフレ率の行のB列(index1)が対象
+        inflation_row = next(i for i, row in enumerate(values) if row and row[0] == INFLATION_RATE_HEADER)
+        self.assertIn((inflation_row, 1), formatted_cells)
+
+        # 入力_口座セクション(横持ち: ヘッダー行+データ行): 期待リターン列が対象
+        accounts_title_row = values.index([f"■ {ACCOUNTS_SHEET} の入力例"])
+        accounts_header_row = accounts_title_row + 1
+        expected_return_col = values[accounts_header_row].index(EXPECTED_RETURN_HEADER)
+        self.assertIn((accounts_header_row + 1, expected_return_col), formatted_cells)
 
 
 if __name__ == "__main__":
