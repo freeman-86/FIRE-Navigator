@@ -187,13 +187,14 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
             for r in single_column_requests
         }
 
-        required_columns = {0, 1, 2, 3, 4}  # ACCOUNT_ID..EXPECTED_RETURN (0-indexed)
-        optional_column = 5  # MONTHLY_CONTRIBUTION_HEADER
+        required_columns = {0, 1, 3, 4}  # ACCOUNT_ID, ACCOUNT_TYPE, ASSET_CLASS, EXPECTED_RETURN (0-indexed)
+        optional_columns = {2, 5}  # BALANCE_HEADER(空欄は0円扱い), MONTHLY_CONTRIBUTION_HEADER
 
         for col in required_columns:
             self.assertEqual(color_by_column[col], sheets_formatting.REQUIRED_CELL_COLOR)
         # 任意列も色が付く(無色のまま残らない)が、必須列とは異なる色になる
-        self.assertEqual(color_by_column[optional_column], sheets_formatting.OPTIONAL_CELL_COLOR)
+        for col in optional_columns:
+            self.assertEqual(color_by_column[col], sheets_formatting.OPTIONAL_CELL_COLOR)
         self.assertNotEqual(sheets_formatting.OPTIONAL_CELL_COLOR, sheets_formatting.REQUIRED_CELL_COLOR)
 
     def test_clears_previous_formatting_before_reapplying(self):

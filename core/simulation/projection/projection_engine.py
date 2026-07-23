@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Callable, Optional
@@ -30,6 +31,47 @@ UNALLOCATED_SURPLUS_KEY = "unallocated_surplus"
 MONTHS_PER_YEAR = 12
 
 
+@dataclass
+class _YearAccumulator:
+    """実際の西暦年ごとに月次実績を合算するための可変な集計バケット（YearlyProjection構築用）。
+
+    フロー項目（収入・支出・税額等）はその年に属する月の値を合計する。ストック項目
+    （口座残高・純資産・年齢）は月が進むたびに上書きし、最終的にその年最後の月（年末時点、
+    または想定寿命等でシミュレーションが途中で終わる場合は最終月）のスナップショットになる。
+    """
+
+    gross_income: Money = field(default_factory=Money.zero)
+    pension_income: Money = field(default_factory=Money.zero)
+    income_tax: Money = field(default_factory=Money.zero)
+    resident_tax: Money = field(default_factory=Money.zero)
+    social_insurance: Money = field(default_factory=Money.zero)
+    net_income: Money = field(default_factory=Money.zero)
+    total_expense: Money = field(default_factory=Money.zero)
+    net_cashflow: Money = field(default_factory=Money.zero)
+    capital_gains_tax: Money = field(default_factory=Money.zero)
+    age_self: int = 0
+    account_balances: dict[str, Money] = field(default_factory=dict)
+    networth: Money = field(default_factory=Money.zero)
+
+
+def _build_yearly_projection(calendar_year: int, acc: _YearAccumulator) -> YearlyProjection:
+    return YearlyProjection(
+        year=calendar_year,
+        age_self=acc.age_self,
+        gross_income=acc.gross_income,
+        pension_income=acc.pension_income,
+        income_tax=acc.income_tax,
+        resident_tax=acc.resident_tax,
+        social_insurance=acc.social_insurance,
+        net_income=acc.net_income,
+        total_expense=acc.total_expense,
+        net_cashflow=acc.net_cashflow,
+        capital_gains_tax=acc.capital_gains_tax,
+        account_balances=acc.account_balances,
+        networth=acc.networth,
+    )
+
+
 def run_projection(
     plan: Plan,
     portfolios: dict[str, Portfolio],
@@ -39,9 +81,17 @@ def run_projection(
     growth_rate_provider: Optional[Callable[[int], Rate]] = None,
 ) -> SimulationResult:
     """決定論的シミュレーション。内部的には月次ループで計算し（Sprint12 月次化）、
-    年末時点のスナップショットを従来通りYearlyProjectionとして積み上げる。これにより
-    milestone評価・感応度分析・チャート・Monte Carlo/Historical Engine等の年次インターフェースは
+    実際の西暦年（1〜12月）ごとに集計したスナップショットをYearlyProjectionとして積み上げる。
+    これによりmilestone評価・感応度分析・チャート・Monte Carlo/Historical Engine等の年次インターフェースは
     無改修で動作する。月次の明細はSimulationResult.monthly_projectionsに別途保持する。
+
+    内部の年次ループ自体はプラン開始月（start_month）を起点とした12ヶ月区切り（例:
+    TODAY開始・7月なら7月〜翌6月）のまま所得税・住民税・社会保険料等を計算するが（年次課税額の
+    近似計算はこの区切りの方が実態に近いため）、YearlyProjectionへの集計は月次実績
+    （MonthlyProjection）を実際の西暦年ごとに合算して作る。これにより出力_純資産推移の「西暦年」列と
+    出力_月次詳細の同じ西暦年の月次合計が一致する（以前はプラン開始月起点の12ヶ月区切りをそのまま
+    「西暦年」として表示していたため、start_monthが1月以外の場合は両シートの集計期間がずれ、
+    金額が一致しなかった）。
 
     退職(RETIREMENT)マイルストーンがある場合、想定寿命(plan.life_expectancy_age。
     入力_プラン設定の想定寿命、未入力ならDEFAULT_LIFE_EXPECTANCY_AGE)まで
@@ -92,9 +142,9 @@ def run_projection(
     # （出力_月次詳細の列がプランの口座構成に応じて動的に決まる。ソートは表示順を安定させるため）。
     all_asset_classes = sorted(set(asset_class_by_account_id.values()))
 
-    yearly_projections: list[YearlyProjection] = []
     monthly_projections: list[MonthlyProjection] = []
-    for offset_year, year in enumerate(range(start_year, end_year + 1)):
+    calendar_year_accumulators: dict[int, _YearAccumulator] = {}
+    for offset_year in range(end_year - start_year + 1):
         month_pairs_this_year = [
             calendar_year_month(start_year, start_month, offset_year * MONTHS_PER_YEAR + m)
             for m in range(MONTHS_PER_YEAR)
@@ -116,14 +166,14 @@ def run_projection(
         monthly_gross_income = _divide_by_12(gross_income_annual)
         monthly_pension_income = _divide_by_12(pension_income_annual)
         monthly_net_income = _divide_by_12(tax_result.net_income)
+        monthly_income_tax = _divide_by_12(tax_result.income_tax)
+        monthly_resident_tax = _divide_by_12(tax_result.resident_tax)
+        monthly_social_insurance = _divide_by_12(tax_result.social_insurance)
         monthly_recurring_expense = _divide_by_12(total_expense_annual)
         monthly_fixed_contributions = {
             account_id: _divide_by_12(amount) for account_id, amount in fixed_plan.contributions.items()
         }
         discretionary_contributed_this_year: dict[str, Money] = {}
-        capital_gains_tax_annual = Money.zero()
-        one_time_expense_annual = Money.zero()
-        education_expense_annual = Money.zero()
 
         balances_snapshot: dict[str, Money] = {}
         networth = Money.zero()
@@ -136,11 +186,9 @@ def run_projection(
             )
 
             one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
-            one_time_expense_annual = one_time_expense_annual + one_time_expense_this_month
             education_expense_this_month = _education_expense_monthly_total(
                 plan.children, plan.education_expenses, calendar_year, calendar_month
             )
-            education_expense_annual = education_expense_annual + education_expense_this_month
             monthly_expense = monthly_recurring_expense + one_time_expense_this_month + education_expense_this_month
 
             net_cashflow_month = monthly_net_income - monthly_expense
@@ -218,8 +266,6 @@ def run_projection(
             }
             surplus_reserve = _grow(surplus_reserve, growth_rate) + unallocated_delta
 
-            capital_gains_tax_annual = capital_gains_tax_annual + capital_gains_tax_month
-
             balances_snapshot = {**account_balances, UNALLOCATED_SURPLUS_KEY: surplus_reserve}
             networth = sum(balances_snapshot.values(), Money.zero())
 
@@ -240,24 +286,27 @@ def run_projection(
                 )
             )
 
-        total_expense_including_one_time = total_expense_annual + one_time_expense_annual + education_expense_annual
-        yearly_projections.append(
-            YearlyProjection(
-                year=year,
-                age_self=age_this_month,  # 月次ループの最終月(年末時点)の年齢
-                gross_income=gross_income_annual,
-                pension_income=pension_income_annual,
-                income_tax=tax_result.income_tax,
-                resident_tax=tax_result.resident_tax,
-                social_insurance=tax_result.social_insurance,
-                net_income=tax_result.net_income,
-                total_expense=total_expense_including_one_time,
-                net_cashflow=tax_result.net_income - total_expense_including_one_time,
-                capital_gains_tax=capital_gains_tax_annual,
-                account_balances=balances_snapshot,
-                networth=networth,
-            )
-        )
+            # 出力_純資産推移の「西暦年」が出力_月次詳細の同じ西暦年の月次合計と一致するよう、
+            # プラン開始月起点の12ヶ月区切り（この外側ループの単位）ではなく、実際の西暦年
+            # （calendar_year）ごとに月次実績を合算してYearlyProjectionを作る。
+            year_acc = calendar_year_accumulators.setdefault(calendar_year, _YearAccumulator())
+            year_acc.gross_income += monthly_gross_income
+            year_acc.pension_income += monthly_pension_income
+            year_acc.income_tax += monthly_income_tax
+            year_acc.resident_tax += monthly_resident_tax
+            year_acc.social_insurance += monthly_social_insurance
+            year_acc.net_income += monthly_net_income
+            year_acc.total_expense += monthly_expense
+            year_acc.net_cashflow += net_cashflow_month
+            year_acc.capital_gains_tax += capital_gains_tax_month
+            year_acc.age_self = age_this_month  # 月が進むたびに上書きされ、最終的にその年最後の月の年齢になる
+            year_acc.account_balances = dict(balances_snapshot)  # 同様に、その年最後の月の残高スナップショットになる
+            year_acc.networth = networth
+
+    yearly_projections = [
+        _build_yearly_projection(calendar_year, year_acc)
+        for calendar_year, year_acc in sorted(calendar_year_accumulators.items())
+    ]
 
     milestone_outcomes = evaluate_milestones(plan, yearly_projections)
 

@@ -26,7 +26,7 @@ from adapters.sheets.sheet_mapping import (
     END_VALUE_HEADER,
 )
 from core.domain.errors import StructuralInputError
-from core.domain.value_objects import Rate
+from core.domain.value_objects import Money, Rate
 
 
 class _FakeWorksheet:
@@ -182,6 +182,28 @@ class BuildIncomesGrowthRateDefaultTest(unittest.TestCase):
         incomes = _build_incomes(spreadsheet, Rate.of("0.02"))
 
         self.assertEqual(incomes[0].growth_rate, Rate.of("0.01"))
+
+    def test_blank_amount_defaults_to_zero_instead_of_raising(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                INCOMES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            INCOME_ID_HEADER: "income_001",
+                            SOURCE_HEADER: "salary",
+                            AMOUNT_ANNUAL_HEADER: "",
+                            GROWTH_RATE_HEADER: "0.01",
+                            START_TYPE_HEADER: "plan_start",
+                            START_VALUE_HEADER: "",
+                        }
+                    ]
+                )
+            }
+        )
+
+        incomes = _build_incomes(spreadsheet, Rate.of("0.02"))
+
+        self.assertEqual(incomes[0].amount, Money.zero())
 
 
 if __name__ == "__main__":

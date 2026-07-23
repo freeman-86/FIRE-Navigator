@@ -139,9 +139,12 @@ class ProjectionEngineTest(unittest.TestCase):
         result = _run(plan, portfolios)
         first_year = result.yearly_projections[0]
 
-        self.assertEqual(first_year.gross_income, Money.of(5_000_000))
+        # gross_income/net_cashflowは月次実績(月額を12等分して丸めた値)の合算のため、
+        # 端数の丸め分だけ単純計算(5,000,000)よりわずかに多くなる（total_expenseは
+        # 3,000,000が12でちょうど割り切れるため丸め差が生じない）。
+        self.assertEqual(first_year.gross_income, Money.of(5_000_004))
         self.assertEqual(first_year.total_expense, Money.of(3_000_000))
-        self.assertEqual(first_year.net_cashflow, Money.of(2_000_000))
+        self.assertEqual(first_year.net_cashflow, Money.of(2_000_004))
         # 口座残高: 追加拠出なしの口座は月次複利でも年率複利と一致する: 1,000,000 * 1.05 = 1,050,000
         # 余剰: 毎月の余剰(2,000,000/12)がその都度その年の残り月数分だけ月次複利で増える
         # （Sprint12月次化により、年末に一括計上していた旧仕様より高くなる。ドルコスト平均的な効果）
@@ -192,9 +195,11 @@ class ProjectionEngineTest(unittest.TestCase):
 
         # 生年月日1990-04-01、終了条件は60歳(2050年4月に60歳の誕生日)。60歳に達する年（2050年）は
         # 1〜3月の3ヶ月分のみ収入があり(1,000,000×3/12=250,000)、翌年(2051年、61歳)は0円になる。
+        # YearlyProjectionは実際の西暦年ごとに月次実績(月額を12等分して丸めた値)を合算して作るため、
+        # 端数の丸め分だけ単純計算(1,000,000・250,000)よりわずかに少なくなる。
         by_age = {p.age_self: p.gross_income for p in result.yearly_projections}
-        self.assertEqual(by_age[59], Money.of(1_000_000))
-        self.assertEqual(by_age[60], Money.of(250_000))
+        self.assertEqual(by_age[59], Money.of(999_996))
+        self.assertEqual(by_age[60], Money.of(249_996))
         self.assertEqual(by_age[61], Money.zero())
 
 

@@ -50,17 +50,26 @@ def main() -> None:
     print(f"      接続完了: {spreadsheet.url}")
 
     try:
-        _run_pipeline(spreadsheet, args)
+        completed = _run_pipeline(spreadsheet, args)
     except FireNavigatorError as e:
         print(f"\n[入力エラー] {e.field_path}: {e.message}")
         print("      詳細を出力_エラーシートに書き込みました。入力内容を確認してください。")
         write_errors(spreadsheet, [e])
-        sys.exit(1)
+        completed = False
     except Exception as e:  # noqa: BLE001 - 想定外のエラーもトレースバックではなく分かりやすく表示する
         print(f"\n[予期しないエラー] {type(e).__name__}: {e}")
         if "429" in str(e) or "Quota exceeded" in str(e):
             print("      Google Sheets APIの利用回数制限に達した可能性があります。")
             print("      1分ほど待ってから再実行してください。")
+        completed = False
+
+    if not completed:
+        # 出力_エラーシートを見ないと気づけず、他の出力シートが前回実行時のまま古くなっている
+        # ことに気づきにくいため、ターミナル上でも一目で分かる警告を最後に出す。
+        print("\n" + "=" * 60)
+        print("⚠️  エラーのため計算は実行されませんでした。出力シートは前回の結果のままです。")
+        print("      出力_エラーシートを確認し、入力内容を修正してから再実行してください。")
+        print("=" * 60)
         sys.exit(1)
 
     print("\n" + "=" * 60)
@@ -69,7 +78,14 @@ def main() -> None:
     print("=" * 60)
 
 
-def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
+def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
+    """入力読み込み〜シミュレーション実行〜結果書き戻しの一連の処理を行う。
+
+    戻り値は計算が最後まで実行されたかどうか（Falseの場合、出力シートは前回実行時のままで
+    更新されていない）。入力の意味的エラー(semantic_errors)は例外を送出せず、呼び出し元の
+    main()でterminal上の警告を一箇所に集約できるようFalseを返して抜ける。
+    """
+
     from datetime import date
 
     from adapters.sheets.sheets_error_writer import write_errors, write_warnings
@@ -122,7 +138,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
     if semantic_errors:
         print(f"      [エラー] {len(semantic_errors)}件の入力矛盾が見つかりました。処理を中断します。")
         write_errors(spreadsheet, semantic_errors)
-        sys.exit(1)
+        return False
     write_errors(spreadsheet, [])  # 前回実行時のエラー表示をクリア
     print("      検証OK")
 
@@ -211,6 +227,8 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> None:
         print(f"      完了（{len(progress_records)}件の実績データと比較）")
     else:
         print("      入力_実績が未設定のためスキップしました")
+
+    return True
 
 
 def _parse_args() -> argparse.Namespace:

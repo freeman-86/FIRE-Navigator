@@ -63,5 +63,19 @@ class BuildPortfoliosCostBasisTest(unittest.TestCase):
         self.assertEqual(holding.cost_basis, Money.of(3_000_000))
 
 
+class BuildPortfoliosBalanceTest(unittest.TestCase):
+    def test_blank_balance_defaults_to_zero_instead_of_raising(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {ACCOUNTS_SHEET: _FakeWorksheet(records=[_record(**{BALANCE_HEADER: ""})])}
+        )
+
+        portfolios = build_portfolios_from_spreadsheet(spreadsheet, ASSET_CLASS_REGISTRY)
+
+        holding = portfolios["acc_001"].holdings[0]
+        self.assertEqual(holding.current_value, Money.zero())
+        # 取得原価は残高(0円)と同額になる
+        self.assertEqual(holding.cost_basis, Money.zero())
+
+
 if __name__ == "__main__":
     unittest.main()

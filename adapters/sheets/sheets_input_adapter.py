@@ -118,6 +118,16 @@ def _parse_money(value: object, field_path: str) -> Money:
         raise StructuralInputError(f"金額として解釈できない値です: {value!r}", field_path) from e
 
 
+def _parse_money_or_zero(value: object, field_path: str) -> Money:
+    """空欄なら0円として扱う金額列用。0円でも意味が成立する項目（残高・年間金額・単発金額・
+    教育費の月額等）に使う。値が入っている場合は通常通り_parse_moneyで検証する
+    （数値として解釈できない文字列はこれまで通りエラーにする）。
+    """
+
+    raw = str(value).strip() if value is not None else ""
+    return _parse_money(raw, field_path) if raw else Money.zero()
+
+
 def _strip_thousands_separators(value: object) -> object:
     """金額列にはカンマ区切り表示(#,##0)を設定しているため、get_all_values()経由（入力_プラン設定等の
     縦持ちシート）で読み込むとFORMATTED_VALUE（表示形式適用後の文字列）としてカンマ付きで返ってくる。
@@ -301,9 +311,7 @@ def build_portfolios_from_spreadsheet(
                 f"{row_prefix}.{EXPECTED_RETURN_HEADER}",
             ),
         )
-        current_value = _parse_money(
-            _require(record, BALANCE_HEADER, f"{row_prefix}.{BALANCE_HEADER}"), f"{row_prefix}.{BALANCE_HEADER}"
-        )
+        current_value = _parse_money_or_zero(record.get(BALANCE_HEADER, ""), f"{row_prefix}.{BALANCE_HEADER}")
         cost_basis_raw = str(record.get(COST_BASIS_HEADER, "")).strip()
         # 取得原価が未入力の場合は残高と同額とみなす（開始時点の含み益ゼロという後方互換のデフォルト）
         cost_basis = (
@@ -454,9 +462,8 @@ def _build_children_and_education_expenses(
                     _require(record, END_AGE_HEADER, f"{row_prefix}.{END_AGE_HEADER}"),
                     f"{row_prefix}.{END_AGE_HEADER}",
                 ),
-                monthly_amount=_parse_money(
-                    _require(record, MONTHLY_AMOUNT_HEADER, f"{row_prefix}.{MONTHLY_AMOUNT_HEADER}"),
-                    f"{row_prefix}.{MONTHLY_AMOUNT_HEADER}",
+                monthly_amount=_parse_money_or_zero(
+                    record.get(MONTHLY_AMOUNT_HEADER, ""), f"{row_prefix}.{MONTHLY_AMOUNT_HEADER}"
                 ),
             )
         )
@@ -486,10 +493,7 @@ def _build_incomes(spreadsheet: gspread.Spreadsheet, default_growth_rate: Rate) 
             Income(
                 income_id=str(_require(record, INCOME_ID_HEADER, f"{row_prefix}.{INCOME_ID_HEADER}")),
                 source=str(_require(record, SOURCE_HEADER, f"{row_prefix}.{SOURCE_HEADER}")),
-                amount=_parse_money(
-                    _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
-                    f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
-                ),
+                amount=_parse_money_or_zero(record.get(AMOUNT_ANNUAL_HEADER, ""), f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
                 growth_rate=_parse_growth_rate(record, f"{row_prefix}.{GROWTH_RATE_HEADER}", default_growth_rate),
                 start_condition=start_condition,
                 end_condition=end_condition,
@@ -518,10 +522,7 @@ def _build_expenses(
         category = str(_require(record, CATEGORY_HEADER, f"{row_prefix}.{CATEGORY_HEADER}"))
 
         if _parse_bool(record.get(ONE_TIME_FLAG_HEADER, "FALSE")):
-            amount = _parse_money(
-                _require(record, ONE_TIME_AMOUNT_HEADER, f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}"),
-                f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}",
-            )
+            amount = _parse_money_or_zero(record.get(ONE_TIME_AMOUNT_HEADER, ""), f"{row_prefix}.{ONE_TIME_AMOUNT_HEADER}")
             trigger = _build_event_condition(
                 record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
             )
@@ -533,10 +534,7 @@ def _build_expenses(
                 OneTimeExpense(expense_id=expense_id, category=category, amount=amount, trigger=trigger)
             )
         else:
-            amount = _parse_money(
-                _require(record, AMOUNT_ANNUAL_HEADER, f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}"),
-                f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}",
-            )
+            amount = _parse_money_or_zero(record.get(AMOUNT_ANNUAL_HEADER, ""), f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}")
             growth_rate = _parse_growth_rate(record, f"{row_prefix}.{GROWTH_RATE_HEADER}", default_growth_rate)
             expenses.append(
                 Expense(

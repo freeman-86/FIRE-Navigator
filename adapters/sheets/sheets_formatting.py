@@ -180,7 +180,6 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
             [
                 ACCOUNT_ID_HEADER,
                 ACCOUNT_TYPE_HEADER,
-                BALANCE_HEADER,
                 ASSET_CLASS_HEADER,
                 EXPECTED_RETURN_HEADER,
             ],
@@ -191,7 +190,7 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
         ),
         TabularSheetSpec(
             INCOMES_SHEET,
-            [INCOME_ID_HEADER, SOURCE_HEADER, AMOUNT_ANNUAL_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
+            [INCOME_ID_HEADER, SOURCE_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
             {START_TYPE_HEADER: CONDITION_TYPE_CHOICES, END_TYPE_HEADER: CONDITION_TYPE_CHOICES},
         ),
         TabularSheetSpec(
@@ -215,7 +214,6 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
                 CATEGORY_HEADER,
                 START_AGE_HEADER,
                 END_AGE_HEADER,
-                MONTHLY_AMOUNT_HEADER,
             ],
         ),
     ]

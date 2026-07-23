@@ -34,5 +34,23 @@ def resolve_condition_month(
     if condition.condition_type in (EventConditionType.DATE, EventConditionType.FIXED_DATE):
         return condition.date.year, condition.date.month
     if condition.condition_type == EventConditionType.AGE:
-        return birth_date.year + condition.age, birth_date.month
+        return _age_reached_month(birth_date, condition.age)
     return None
+
+
+def _age_reached_month(birth_date: date, age: int) -> tuple[int, int]:
+    """その年齢に達する最初の（月の1日時点でその年齢だとage_at()が判定する）西暦年・月を返す。
+
+    age_at()は「その月の1日時点で誕生日を迎えているか」で年齢を判定するため、誕生日が月の
+    2日以降（birth_date.day > 1）の場合、誕生月の1日はまだ誕生日前で年齢表示は1つ若いままになる
+    （実際にその年齢になったと表示されるのは翌月から）。ここでもage_at()と同じ基準に揃えることで、
+    単発支出等の発生月と年齢表示(age_self)がズレないようにする。
+    """
+
+    target_year = birth_date.year + age
+    if birth_date.day == 1:
+        return target_year, birth_date.month
+    target_month = birth_date.month + 1
+    if target_month > 12:
+        return target_year + 1, 1
+    return target_year, target_month

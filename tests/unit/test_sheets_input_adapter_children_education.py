@@ -91,6 +91,29 @@ class BuildChildrenAndEducationExpensesTest(unittest.TestCase):
         self.assertEqual(bands[0].end_age, 11)
         self.assertEqual(bands[0].monthly_amount, Money.of(20_000))
 
+    def test_blank_monthly_amount_defaults_to_zero_instead_of_raising(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EDUCATION_EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EDUCATION_BAND_ID_HEADER: "band_nursery",
+                            CHILD_ID_HEADER: "child_001",
+                            BIRTH_DATE_HEADER: "2020-04-01",
+                            CATEGORY_HEADER: "保育料無償化期間",
+                            START_AGE_HEADER: "3",
+                            END_AGE_HEADER: "5",
+                            MONTHLY_AMOUNT_HEADER: "",
+                        },
+                    ]
+                )
+            }
+        )
+
+        _, bands = _build_children_and_education_expenses(spreadsheet)
+
+        self.assertEqual(bands[0].monthly_amount, Money.zero())
+
     def test_inconsistent_birth_date_for_same_child_id_raises_structural_input_error(self) -> None:
         spreadsheet = _FakeSpreadsheet(
             {
@@ -149,6 +172,49 @@ class BuildExpensesTest(unittest.TestCase):
         self.assertEqual(expenses[0].category, "living")
         self.assertEqual(expenses[0].amount, Money.of(3_600_000))
         self.assertEqual(expenses[0].growth_rate, Rate.of("0.02"))
+
+    def test_blank_recurring_amount_defaults_to_zero_instead_of_raising(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_living",
+                            CATEGORY_HEADER: "living",
+                            ONE_TIME_FLAG_HEADER: "FALSE",
+                            AMOUNT_ANNUAL_HEADER: "",
+                            GROWTH_RATE_HEADER: "0.02",
+                        }
+                    ]
+                )
+            }
+        )
+
+        expenses, _ = _build_expenses(spreadsheet, Rate.zero())
+
+        self.assertEqual(expenses[0].amount, Money.zero())
+
+    def test_blank_one_time_amount_defaults_to_zero_instead_of_raising(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_car",
+                            CATEGORY_HEADER: "車",
+                            ONE_TIME_FLAG_HEADER: "TRUE",
+                            ONE_TIME_AMOUNT_HEADER: "",
+                            START_TYPE_HEADER: "age",
+                            START_VALUE_HEADER: "45",
+                        }
+                    ]
+                )
+            }
+        )
+
+        _, one_time_expenses = _build_expenses(spreadsheet, Rate.zero())
+
+        self.assertEqual(one_time_expenses[0].amount, Money.zero())
 
     def test_blank_growth_rate_defaults_to_inflation_rate(self) -> None:
         spreadsheet = _FakeSpreadsheet(
