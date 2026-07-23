@@ -8,8 +8,7 @@ BIRTH_DATE = date(1990, 4, 15)
 
 
 class ResolveConditionMonthTest(unittest.TestCase):
-    def test_today_and_plan_start_resolve_to_start_year_month(self) -> None:
-        self.assertEqual(resolve_condition_month(EventCondition.today(), 2026, 7, BIRTH_DATE), (2026, 7))
+    def test_plan_start_resolves_to_start_year_month(self) -> None:
         self.assertEqual(resolve_condition_month(EventCondition.plan_start(), 2026, 7, BIRTH_DATE), (2026, 7))
 
     def test_date_condition_resolves_to_its_own_year_and_month(self) -> None:

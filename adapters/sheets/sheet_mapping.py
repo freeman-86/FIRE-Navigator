@@ -61,13 +61,24 @@ START_TYPE_HEADER = "開始条件タイプ"
 START_VALUE_HEADER = "開始条件値"
 END_TYPE_HEADER = "終了条件タイプ"
 END_VALUE_HEADER = "終了条件値"
+# 開始/終了条件タイプの選択肢（表示ラベルをそのままセルの値として保存・パースする）。
+# 以前は内部識別子(today/plan_start/age/date)をそのままプルダウンに出していたが分かりにくいため、
+# 日本語ラベルに統一した（旧today/plan_startは動作が同一の重複だったため統合済み。
+# core.domain.value_objects.EventConditionType.PLAN_START）。
+PLAN_START_CONDITION_LABEL = "プラン開始時から"
+AGE_CONDITION_LABEL = "年齢で指定"
+DATE_CONDITION_LABEL = "日付で指定"
 
 # Input_支出: 経常支出（毎年発生・成長率あり）と単発支出（発生条件で1回のみ）を
 # ONE_TIME_FLAG_HEADERで区別し、1シートにまとめる（旧Input_大型支出を統合）。
-# 単発フラグ=TRUEの行はONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERを使い、
-# AMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADERは空欄でよい（経常支出専用）。
-# 逆に単発フラグ=FALSEの行はAMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADERを使い、
-# ONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERは空欄でよい。
+# 単発フラグ=TRUEの行はONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADER（発生時点の
+# トリガーとして使う）を使い、AMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADER/END_TYPE_HEADER/
+# END_VALUE_HEADERは空欄でよい（単発支出は「いつ発生するか」だけを持ち、終了条件の概念はない）。
+# 逆に単発フラグ=FALSEの行はAMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADERを使い、加えて
+# START_TYPE_HEADER/START_VALUE_HEADER/END_TYPE_HEADER/END_VALUE_HEADER（Input_収入と同じ意味・
+# 両方とも空欄可）でこの支出がいつからいつまで発生するかを指定できる（未指定ならプラン全期間）。
+# 同じ支出が途中で金額ごと変わるケースは、開始/終了条件をずらした複数行に分けて表現する。
+# ONE_TIME_AMOUNT_HEADERは空欄でよい（単発支出専用）。
 # AMOUNT_ANNUAL_HEADER（"年間金額"）はInput_収入と同じ列名を共有する（値は年額で意味も揃う）。
 EXPENSE_ID_HEADER = "支出ID"
 CATEGORY_HEADER = "カテゴリ"
@@ -217,8 +228,18 @@ EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (AMOUNT_ANNUAL_HEADER, "plan.expenses[].amount（経常支出のみ）", "money"),
     (ONE_TIME_AMOUNT_HEADER, "plan.one_time_expenses[].amount（単発支出のみ）", "money"),
     (GROWTH_RATE_HEADER, "plan.expenses[].growth_rate（経常支出のみ）", "rate"),
-    (START_TYPE_HEADER, "plan.one_time_expenses[].trigger.type（単発支出のみ）", "condition_type"),
-    (START_VALUE_HEADER, "plan.one_time_expenses[].trigger.value（単発支出のみ）", "condition_value"),
+    (
+        START_TYPE_HEADER,
+        "plan.one_time_expenses[].trigger.type（単発支出）/ plan.expenses[].start_condition.type（経常支出、任意）",
+        "condition_type",
+    ),
+    (
+        START_VALUE_HEADER,
+        "plan.one_time_expenses[].trigger.value（単発支出）/ plan.expenses[].start_condition.value（経常支出、任意）",
+        "condition_value",
+    ),
+    (END_TYPE_HEADER, "plan.expenses[].end_condition.type（経常支出のみ、任意）", "condition_type"),
+    (END_VALUE_HEADER, "plan.expenses[].end_condition.value（経常支出のみ、任意）", "condition_value"),
 )
 
 # Output_純資産推移: ヘッダー行付きテーブル。西暦年別のネットワース・譲渡税に加え、

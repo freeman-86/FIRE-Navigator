@@ -10,6 +10,7 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
     ACCOUNT_TYPE_HEADER,
     ACTUAL_NETWORTH_HEADER,
+    AGE_CONDITION_LABEL,
     AGE_HEADER,
     AMOUNT_ANNUAL_HEADER,
     ASSET_CLASS_HEADER,
@@ -39,6 +40,7 @@ from adapters.sheets.sheet_mapping import (
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
+    PLAN_START_CONDITION_LABEL,
     RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
     SCENARIO_NAME_HEADER,
@@ -94,7 +96,7 @@ INCOMES_ROWS = [
         END_TYPE_HEADER,
         END_VALUE_HEADER,
     ],
-    ["income_salary_001", "salary", "6000000", "0.01", "plan_start", "", "age", "60"],
+    ["income_salary_001", "salary", "6000000", "0.01", PLAN_START_CONDITION_LABEL, "", AGE_CONDITION_LABEL, "60"],
 ]
 
 EXPENSES_ROWS = [
@@ -107,9 +109,25 @@ EXPENSES_ROWS = [
         GROWTH_RATE_HEADER,
         START_TYPE_HEADER,
         START_VALUE_HEADER,
+        END_TYPE_HEADER,
+        END_VALUE_HEADER,
     ],
-    ["expense_living_001", "living", "FALSE", "3600000", "", "0.02", "", ""],
-    ["expense_car_001", "車の買い替え", "TRUE", "", "3000000", "", "age", "45"],
+    ["expense_living_001", "living", "FALSE", "3600000", "", "0.02", "", "", "", ""],
+    # 経常支出も開始/終了条件を指定できる例（本人が50歳から60歳の間だけ発生する支出）。
+    # 途中で金額が変わる支出は、開始/終了条件をずらした複数行に分けて表現する。
+    [
+        "expense_parent_care_001",
+        "親の介護費用",
+        "FALSE",
+        "1200000",
+        "",
+        "0",
+        AGE_CONDITION_LABEL,
+        "50",
+        AGE_CONDITION_LABEL,
+        "60",
+    ],
+    ["expense_car_001", "車の買い替え", "TRUE", "", "3000000", "", AGE_CONDITION_LABEL, "45", "", ""],
 ]
 
 SCENARIOS_ROWS = [

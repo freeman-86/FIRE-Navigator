@@ -27,6 +27,7 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
     ACTUAL_NETWORTH_HEADER,
+    AGE_CONDITION_LABEL,
     AGE_HEADER,
     ALLOCATION_POLICY_SHEET,
     AMOUNT_ANNUAL_HEADER,
@@ -36,6 +37,7 @@ from adapters.sheets.sheet_mapping import (
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
     COST_BASIS_HEADER,
+    DATE_CONDITION_LABEL,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
@@ -69,6 +71,7 @@ from adapters.sheets.sheet_mapping import (
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
+    PLAN_START_CONDITION_LABEL,
     PROGRESS_SHEET,
     RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
@@ -116,7 +119,7 @@ FORMAT_ROW_COUNT = 300
 FORMAT_CLEAR_COL_COUNT = 20
 WHITE_CELL_COLOR = {"red": 1.0, "green": 1.0, "blue": 1.0}
 
-CONDITION_TYPE_CHOICES = ["today", "plan_start", "age", "date"]
+CONDITION_TYPE_CHOICES = [PLAN_START_CONDITION_LABEL, AGE_CONDITION_LABEL, DATE_CONDITION_LABEL]
 
 # 数値として保存すべき列（右揃い表示のため）。開始条件値/終了条件値はage(整数)とdate(文字列)の
 # どちらもあり得るため、意図的にここへ含めない（誤って数値化すると日付文字列を壊すリスクがあるため）。
@@ -145,22 +148,39 @@ NUMERIC_HEADERS = {
     INVESTMENT_GROWTH_RATE_HEADER,
 }
 
-# 開始/終了条件値は、対応する条件タイプの値が"age"の行に限り数値変換する（"date"等の行は
-# 文字列の日付が入っている可能性があるため、列全体を一律には数値化しない）。
+# 開始/終了条件値は、対応する条件タイプが「年齢で指定」の行に限り数値変換する（「日付で指定」等の
+# 行は文字列の日付が入っている可能性があるため、列全体を一律には数値化しない）。
 CONDITIONAL_NUMERIC_VALUE_COLUMNS: dict[str, str] = {
     START_VALUE_HEADER: START_TYPE_HEADER,
     END_VALUE_HEADER: END_TYPE_HEADER,
 }
-AGE_CONDITION_TYPE_VALUE = "age"
 
 # チェックボックスにする列（TRUE/FALSEの自由入力によるタイプミスを防ぐ）。
 CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER}
 
+# 開始/終了条件値セルの入力例メモ。条件タイプの選択に応じて入力する値の形式が変わるため、
+# 両シートで共通のメモ文を使う。
+_CONDITION_VALUE_NOTE = (
+    f"「{AGE_CONDITION_LABEL}」を選んだ場合は年齢の数字（例: 45）、「{DATE_CONDITION_LABEL}」を"
+    f"選んだ場合は日付（例: 2027-06-01）を入力してください。「{PLAN_START_CONDITION_LABEL}」の場合は"
+    "空欄のままで構いません。"
+)
+_END_CONDITION_TYPE_NOTE = f"空欄の場合はプランの最後まで継続する扱いになります。（{_CONDITION_VALUE_NOTE}）"
+
 # 列ヘッダーセルに付けるメモ（セルにマウスオーバーすると表示される補足説明）。
 HEADER_NOTES: dict[str, dict[str, str]] = {
     INCOMES_SHEET: {
-        END_TYPE_HEADER: "給与収入などがいつ止まるかはこちらで設定してください（today/plan_start/age/dateのいずれか）。",
-        END_VALUE_HEADER: "給与収入などがいつ止まるかはこちらで設定してください（終了条件タイプに対応する値）。",
+        START_VALUE_HEADER: _CONDITION_VALUE_NOTE,
+        END_TYPE_HEADER: f"給与収入などがいつ止まるかはこちらで設定してください。{_END_CONDITION_TYPE_NOTE}",
+        END_VALUE_HEADER: _CONDITION_VALUE_NOTE,
+    },
+    EXPENSES_SHEET: {
+        START_VALUE_HEADER: _CONDITION_VALUE_NOTE,
+        END_TYPE_HEADER: (
+            "経常支出（単発フラグ=FALSEの行）がいつまで発生するかはこちらで設定できます"
+            f"（任意入力）。{_END_CONDITION_TYPE_NOTE}"
+        ),
+        END_VALUE_HEADER: _CONDITION_VALUE_NOTE,
     },
 }
 
@@ -196,7 +216,7 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
         TabularSheetSpec(
             EXPENSES_SHEET,
             [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER],
-            {START_TYPE_HEADER: CONDITION_TYPE_CHOICES},
+            {START_TYPE_HEADER: CONDITION_TYPE_CHOICES, END_TYPE_HEADER: CONDITION_TYPE_CHOICES},
         ),
         TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER]),
         TabularSheetSpec(PROGRESS_SHEET, [YEAR_HEADER, ACTUAL_NETWORTH_HEADER]),
@@ -433,7 +453,7 @@ def _boolean_cell_requests(sheet_id: int, col_idx: int, data_values: list[str]) 
 
 
 def _conditional_age_value_requests(sheet_id: int, header: list[str], values: list[list[str]]) -> list[dict]:
-    """開始/終了条件値のうち、対応する条件タイプが"age"の行だけを数値変換するリクエストを作る。"""
+    """開始/終了条件値のうち、対応する条件タイプが「年齢で指定」の行だけを数値変換するリクエストを作る。"""
 
     requests = []
     for value_header, type_header in CONDITIONAL_NUMERIC_VALUE_COLUMNS.items():
@@ -443,7 +463,7 @@ def _conditional_age_value_requests(sheet_id: int, header: list[str], values: li
         type_col_idx = header.index(type_header)
         for row_offset, row in enumerate(values[1:], start=1):
             type_value = row[type_col_idx] if type_col_idx < len(row) else ""
-            if str(type_value).strip().lower() != AGE_CONDITION_TYPE_VALUE:
+            if str(type_value).strip() != AGE_CONDITION_LABEL:
                 continue
             raw = row[value_col_idx] if value_col_idx < len(row) else ""
             request = _numeric_single_cell_request(sheet_id, row_offset, value_col_idx, raw)
@@ -550,12 +570,14 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
     requests.extend(percent_column_format_requests(sheet_id, header, 1, FORMAT_ROW_COUNT))
 
     # 入力_支出: 単発フラグの値に応じて使われない列をグレーアウトする。
-    # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視され、
-    # TRUE(単発支出)の行では年間金額・成長率が無視される。
+    # FALSE(経常支出)の行では単発金額が無視され、TRUE(単発支出)の行では年間金額・成長率・
+    # 終了条件タイプ/値が無視される（開始条件タイプ/値はどちらの行種別でも使われる）。
     if spec.sheet_name == EXPENSES_SHEET and ONE_TIME_FLAG_HEADER in header:
         flag_col_idx = header.index(ONE_TIME_FLAG_HEADER)
-        unused_when_false = [h for h in (ONE_TIME_AMOUNT_HEADER, START_TYPE_HEADER, START_VALUE_HEADER) if h in header]
-        unused_when_true = [h for h in (AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER) if h in header]
+        unused_when_false = [h for h in (ONE_TIME_AMOUNT_HEADER,) if h in header]
+        unused_when_true = [
+            h for h in (AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER, END_TYPE_HEADER, END_VALUE_HEADER) if h in header
+        ]
         if unused_when_false:
             requests.append(
                 _gray_out_when_one_time_flag_request(

@@ -13,6 +13,7 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
     ACTUAL_NETWORTH_HEADER,
+    AGE_CONDITION_LABEL,
     AGE_HEADER,
     ALLOCATION_POLICY_SHEET,
     AMOUNT_ANNUAL_HEADER,
@@ -22,6 +23,7 @@ from adapters.sheets.sheet_mapping import (
     CATEGORY_HEADER,
     CHILD_ID_HEADER,
     COST_BASIS_HEADER,
+    DATE_CONDITION_LABEL,
     EDUCATION_BAND_ID_HEADER,
     EDUCATION_EXPENSES_SHEET,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
@@ -47,6 +49,7 @@ from adapters.sheets.sheet_mapping import (
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
+    PLAN_START_CONDITION_LABEL,
     PROGRESS_SHEET,
     RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
@@ -208,21 +211,18 @@ def _parse_date(value: object) -> date:
 
 
 def _build_event_condition(condition_type: object, value: object, field_path: str) -> Optional[EventCondition]:
-    normalized_type = str(condition_type or "").strip().lower()
+    normalized_type = str(condition_type or "").strip()
     normalized_value = str(value or "").strip()
-    if normalized_type in ("", "none"):
+    if normalized_type == "" or normalized_type.lower() == "none":
         return None
-    if normalized_type == "today":
-        return EventCondition.today()
-    if normalized_type == "plan_start":
+    if normalized_type == PLAN_START_CONDITION_LABEL:
         return EventCondition.plan_start()
-    if normalized_type == "age":
+    if normalized_type == AGE_CONDITION_LABEL:
         return EventCondition.at_age(_parse_int(normalized_value, field_path))
-    if normalized_type == "date":
+    if normalized_type == DATE_CONDITION_LABEL:
         return EventCondition.at_date(_parse_date_field(normalized_value, field_path))
-    raise StructuralInputError(
-        f"未知のcondition_typeです: {normalized_type!r}（有効な値: today, plan_start, age, date）", field_path
-    )
+    allowed = ", ".join((PLAN_START_CONDITION_LABEL, AGE_CONDITION_LABEL, DATE_CONDITION_LABEL))
+    raise StructuralInputError(f"未知の条件タイプです: {normalized_type!r}（有効な値: {allowed}）", field_path)
 
 
 def _read_plan_settings(spreadsheet: gspread.Spreadsheet) -> dict[str, str]:
@@ -511,6 +511,11 @@ def _build_expenses(
     それ以外(既定FALSE)は経常支出（毎年発生・成長率あり、金額はAMOUNT_ANNUAL_HEADER）として
     振り分ける。経常支出の成長率が未入力の行は、プラン設定のインフレ率(default_growth_rate)を
     既定値として使う（入力済みの行はそちらを優先）。
+
+    経常支出の開始/終了条件（START_TYPE_HEADER/START_VALUE_HEADER・END_TYPE_HEADER/
+    END_VALUE_HEADER）はInput_収入と同じ意味で、いずれも任意入力（Incomeと異なり必須ではない）。
+    両方省略した行はこれまで通りプラン全期間で発生する。同じ支出が途中で金額・成長率ごと変わる
+    場合は、開始/終了条件をずらした複数行に分けて表現する。
     """
 
     worksheet = spreadsheet.worksheet(EXPENSES_SHEET)
@@ -536,12 +541,20 @@ def _build_expenses(
         else:
             amount = _parse_money_or_zero(record.get(AMOUNT_ANNUAL_HEADER, ""), f"{row_prefix}.{AMOUNT_ANNUAL_HEADER}")
             growth_rate = _parse_growth_rate(record, f"{row_prefix}.{GROWTH_RATE_HEADER}", default_growth_rate)
+            start_condition = _build_event_condition(
+                record.get(START_TYPE_HEADER), record.get(START_VALUE_HEADER), f"{row_prefix}.{START_TYPE_HEADER}"
+            )
+            end_condition = _build_event_condition(
+                record.get(END_TYPE_HEADER), record.get(END_VALUE_HEADER), f"{row_prefix}.{END_TYPE_HEADER}"
+            )
             expenses.append(
                 Expense(
                     expense_id=expense_id,
                     category=category,
                     amount=amount,
                     growth_rate=growth_rate,
+                    start_condition=start_condition,
+                    end_condition=end_condition,
                 )
             )
     return expenses, one_time_expenses
@@ -704,10 +717,11 @@ class InputWarning:
 def collect_input_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
     """実行時に無視される入力値を検出する（実行は止めず、出力_エラーシートへの警告表示に使う）。
 
-    - 入力_支出: 単発フラグ=TRUEの行では成長率が使われない。
-      単発フラグ=FALSEの行では開始条件タイプ/値が使われない。
-    - 入力_収入: 終了条件タイプが未入力だと終了条件値があっても終了条件自体が設定されない
-      （_build_event_conditionはtypeが空なら値を見ずにNoneを返すため）。
+    - 入力_支出: 単発フラグ=TRUEの行では成長率・終了条件タイプ/値が使われない
+      （単発支出は発生条件〈開始条件タイプ/値〉のみを持ち、終了条件の概念はない）。
+      単発フラグ=FALSEの行では単発金額が使われない。
+    - 入力_収入・入力_支出（経常支出）: 終了条件タイプが未入力だと終了条件値があっても
+      終了条件自体が設定されない（_build_event_conditionはtypeが空なら値を見ずにNoneを返すため）。
     """
 
     warnings: list[InputWarning] = []
@@ -716,8 +730,25 @@ def collect_input_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarnin
     return warnings
 
 
-_UNUSED_WHEN_ONE_TIME = (GROWTH_RATE_HEADER, AMOUNT_ANNUAL_HEADER)
-_UNUSED_WHEN_RECURRING = (START_TYPE_HEADER, START_VALUE_HEADER, ONE_TIME_AMOUNT_HEADER)
+_UNUSED_WHEN_ONE_TIME = (GROWTH_RATE_HEADER, AMOUNT_ANNUAL_HEADER, END_TYPE_HEADER, END_VALUE_HEADER)
+_UNUSED_WHEN_RECURRING = (ONE_TIME_AMOUNT_HEADER,)
+
+
+def _condition_value_without_type_warning(
+    row_prefix: str, record: dict, type_header: str, value_header: str
+) -> Optional[InputWarning]:
+    """条件値だけ入力されていて条件タイプが空欄の行を検出する（値があっても条件タイプが空だと
+    _build_event_conditionは値を見ずにNoneを返すため、条件値が無視されてしまう）。
+    """
+
+    type_raw = str(record.get(type_header, "")).strip()
+    value_raw = str(record.get(value_header, "")).strip()
+    if value_raw and not type_raw:
+        return InputWarning(
+            f"{row_prefix}.{value_header}",
+            f"{type_header}が未入力のため、{value_header}は使われません（条件なしとして扱われます）",
+        )
+    return None
 
 
 def _collect_expenses_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
@@ -740,6 +771,15 @@ def _collect_expenses_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWa
                         f"{ONE_TIME_FLAG_HEADER}={flag_value}の行では{header}は使われません（無視されます）",
                     )
                 )
+        if not is_one_time:
+            # 経常支出の開始/終了条件は任意入力のため、値だけ入力して条件タイプを空欄のままに
+            # しがちな入力ミスを検出する（単発支出は開始条件タイプ/値が必須なのでここでは対象外）。
+            for warning in (
+                _condition_value_without_type_warning(row_prefix, record, START_TYPE_HEADER, START_VALUE_HEADER),
+                _condition_value_without_type_warning(row_prefix, record, END_TYPE_HEADER, END_VALUE_HEADER),
+            ):
+                if warning is not None:
+                    warnings.append(warning)
     return warnings
 
 
@@ -752,15 +792,9 @@ def _collect_incomes_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWar
     warnings = []
     for row_number, record in enumerate(worksheet.get_all_records(), start=2):
         row_prefix = f"{INCOMES_SHEET}!row{row_number}"
-        end_type_raw = str(record.get(END_TYPE_HEADER, "")).strip()
-        end_value_raw = str(record.get(END_VALUE_HEADER, "")).strip()
-        if end_value_raw and not end_type_raw:
-            warnings.append(
-                InputWarning(
-                    f"{row_prefix}.{END_VALUE_HEADER}",
-                    f"{END_TYPE_HEADER}が未入力のため、{END_VALUE_HEADER}は使われません（終了条件なしとして扱われます）",
-                )
-            )
+        warning = _condition_value_without_type_warning(row_prefix, record, END_TYPE_HEADER, END_VALUE_HEADER)
+        if warning is not None:
+            warnings.append(warning)
     return warnings
 
 

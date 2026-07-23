@@ -3,6 +3,7 @@ import unittest
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    AGE_CONDITION_LABEL,
     AMOUNT_ANNUAL_HEADER,
     CATEGORY_HEADER,
     END_TYPE_HEADER,
@@ -51,7 +52,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             ONE_TIME_FLAG_HEADER: "TRUE",
                             ONE_TIME_AMOUNT_HEADER: "3000000",
                             GROWTH_RATE_HEADER: "0.02",
-                            START_TYPE_HEADER: "age",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
                             START_VALUE_HEADER: "45",
                         }
                     ]
@@ -75,7 +76,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             ONE_TIME_FLAG_HEADER: "TRUE",
                             ONE_TIME_AMOUNT_HEADER: "3000000",
                             AMOUNT_ANNUAL_HEADER: "3000000",
-                            START_TYPE_HEADER: "age",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
                             START_VALUE_HEADER: "45",
                         }
                     ]
@@ -111,7 +112,8 @@ class CollectExpensesWarningsTest(unittest.TestCase):
         field_paths = {w.field_path for w in warnings}
         self.assertIn(f"{EXPENSES_SHEET}!row2.{ONE_TIME_AMOUNT_HEADER}", field_paths)
 
-    def test_warns_when_recurring_row_has_start_condition(self) -> None:
+    def test_no_warning_when_recurring_row_has_start_condition(self) -> None:
+        # 経常支出の開始条件タイプ/値は任意入力として使われるため(無視されない)、警告は出ない。
         spreadsheet = _FakeSpreadsheet(
             {
                 EXPENSES_SHEET: _FakeWorksheet(
@@ -122,7 +124,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             ONE_TIME_FLAG_HEADER: "FALSE",
                             AMOUNT_ANNUAL_HEADER: "3600000",
                             GROWTH_RATE_HEADER: "0.02",
-                            START_TYPE_HEADER: "age",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
                             START_VALUE_HEADER: "45",
                         }
                     ]
@@ -132,9 +134,57 @@ class CollectExpensesWarningsTest(unittest.TestCase):
 
         warnings = collect_input_warnings(spreadsheet)
 
+        self.assertEqual(warnings, [])
+
+    def test_warns_when_one_time_row_has_end_condition(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_car",
+                            CATEGORY_HEADER: "車",
+                            ONE_TIME_FLAG_HEADER: "TRUE",
+                            ONE_TIME_AMOUNT_HEADER: "3000000",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
+                            START_VALUE_HEADER: "45",
+                            END_TYPE_HEADER: AGE_CONDITION_LABEL,
+                            END_VALUE_HEADER: "50",
+                        }
+                    ]
+                )
+            }
+        )
+
+        warnings = collect_input_warnings(spreadsheet)
+
         field_paths = {w.field_path for w in warnings}
-        self.assertIn(f"{EXPENSES_SHEET}!row2.{START_TYPE_HEADER}", field_paths)
-        self.assertIn(f"{EXPENSES_SHEET}!row2.{START_VALUE_HEADER}", field_paths)
+        self.assertIn(f"{EXPENSES_SHEET}!row2.{END_TYPE_HEADER}", field_paths)
+        self.assertIn(f"{EXPENSES_SHEET}!row2.{END_VALUE_HEADER}", field_paths)
+
+    def test_warns_when_recurring_row_has_end_value_without_end_type(self) -> None:
+        spreadsheet = _FakeSpreadsheet(
+            {
+                EXPENSES_SHEET: _FakeWorksheet(
+                    records=[
+                        {
+                            EXPENSE_ID_HEADER: "expense_childcare",
+                            CATEGORY_HEADER: "保育料",
+                            ONE_TIME_FLAG_HEADER: "FALSE",
+                            AMOUNT_ANNUAL_HEADER: "600000",
+                            GROWTH_RATE_HEADER: "0",
+                            END_TYPE_HEADER: "",
+                            END_VALUE_HEADER: "6",
+                        }
+                    ]
+                )
+            }
+        )
+
+        warnings = collect_input_warnings(spreadsheet)
+
+        field_paths = {w.field_path for w in warnings}
+        self.assertIn(f"{EXPENSES_SHEET}!row2.{END_VALUE_HEADER}", field_paths)
 
     def test_no_warnings_for_clean_rows(self) -> None:
         spreadsheet = _FakeSpreadsheet(
@@ -156,7 +206,7 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             ONE_TIME_FLAG_HEADER: "TRUE",
                             ONE_TIME_AMOUNT_HEADER: "3000000",
                             GROWTH_RATE_HEADER: "",
-                            START_TYPE_HEADER: "age",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
                             START_VALUE_HEADER: "45",
                         },
                     ]
@@ -204,7 +254,7 @@ class CollectIncomesWarningsTest(unittest.TestCase):
                             INCOME_ID_HEADER: "income_001",
                             SOURCE_HEADER: "salary",
                             AMOUNT_ANNUAL_HEADER: "6000000",
-                            END_TYPE_HEADER: "age",
+                            END_TYPE_HEADER: AGE_CONDITION_LABEL,
                             END_VALUE_HEADER: "60",
                         }
                     ]

@@ -7,11 +7,13 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
+    AGE_CONDITION_LABEL,
     AMOUNT_ANNUAL_HEADER,
     ASSET_CLASS_HEADER,
     BALANCE_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
+    DATE_CONDITION_LABEL,
     END_TYPE_HEADER,
     END_VALUE_HEADER,
     EXPECTED_RETURN_HEADER,
@@ -302,11 +304,13 @@ class ApplyInputFormattingIncomesSheetTest(unittest.TestCase):
         ]
         by_column = {r["range"]["startColumnIndex"]: r for r in note_requests}
 
+        self.assertIn(4, by_column)  # START_VALUE_HEADER
         self.assertIn(5, by_column)  # END_TYPE_HEADER
         self.assertIn(6, by_column)  # END_VALUE_HEADER
-        for col in (5, 6):
+        self.assertIn("給与収入", by_column[5]["rows"][0]["values"][0]["note"])
+        for col in (4, 6):
             note = by_column[col]["rows"][0]["values"][0]["note"]
-            self.assertIn("給与収入", note)
+            self.assertIn("年齢で指定", note)  # 開始/終了条件値の入力例メモ
         # ヘッダー行(row0)のみが対象
         self.assertTrue(all(r["range"]["startRowIndex"] == 0 for r in by_column.values()))
         # 開始条件タイプ列にはメモを付けない
@@ -325,8 +329,10 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             GROWTH_RATE_HEADER,
             START_TYPE_HEADER,
             START_VALUE_HEADER,
+            END_TYPE_HEADER,
+            END_VALUE_HEADER,
         ]
-        data_row = ["expense_001", "living", "FALSE", "3600000", "", "0.02", "", ""]
+        data_row = ["expense_001", "living", "FALSE", "3600000", "", "0.02", "", "", "", ""]
         self.worksheet = self.spreadsheet.add_sheet(EXPENSES_SHEET, [header, data_row])
 
     def test_one_time_flag_becomes_checkbox(self):
@@ -374,8 +380,8 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             START_TYPE_HEADER,
             START_VALUE_HEADER,
         ]
-        age_row = ["expense_car", "車", "TRUE", "", "3000000", "", "age", "45"]
-        date_row = ["expense_trip", "旅行", "TRUE", "", "500000", "", "date", "2030-05-01"]
+        age_row = ["expense_car", "車", "TRUE", "", "3000000", "", AGE_CONDITION_LABEL, "45"]
+        date_row = ["expense_trip", "旅行", "TRUE", "", "500000", "", DATE_CONDITION_LABEL, "2030-05-01"]
         worksheet = spreadsheet.add_sheet(EXPENSES_SHEET, [header, age_row, date_row])
 
         sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
@@ -387,6 +393,7 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             if "updateCells" in r
             and r["updateCells"]["range"]["sheetId"] == worksheet.id
             and r["updateCells"]["range"]["startColumnIndex"] == 7  # START_VALUE_HEADER
+            and r["updateCells"].get("fields") != "note"
         ]
         by_row = {r["range"]["startRowIndex"]: r for r in numeric_requests}
 
@@ -456,13 +463,13 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             flag_value = "TRUE" if "TRUE" in formula else "FALSE"
             rules_by_formula_flag[flag_value] = rule
 
-        # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視される
+        # FALSE(経常支出)の行では単発金額が無視される（開始/終了条件タイプ/値は経常支出でも使う）
         false_columns = {r["startColumnIndex"] for r in rules_by_formula_flag["FALSE"]["ranges"]}
-        self.assertEqual(false_columns, {4, 6, 7})  # ONE_TIME_AMOUNT, START_TYPE, START_VALUE
+        self.assertEqual(false_columns, {4})  # ONE_TIME_AMOUNT
 
-        # TRUE(単発支出)の行では年間金額・成長率が無視される
+        # TRUE(単発支出)の行では年間金額・成長率・終了条件タイプ/値が無視される
         true_columns = {r["startColumnIndex"] for r in rules_by_formula_flag["TRUE"]["ranges"]}
-        self.assertEqual(true_columns, {3, 5})  # AMOUNT_ANNUAL, GROWTH_RATE
+        self.assertEqual(true_columns, {3, 5, 8, 9})  # AMOUNT_ANNUAL, GROWTH_RATE, END_TYPE, END_VALUE
 
 
 class ApplyInputFormattingPlanSheetTest(unittest.TestCase):

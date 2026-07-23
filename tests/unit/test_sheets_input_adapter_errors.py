@@ -19,6 +19,7 @@ from adapters.sheets.sheet_mapping import (
     INCOMES_SHEET,
     MONTHLY_CONTRIBUTION_HEADER,
     PLAN_SHEET,
+    PLAN_START_CONDITION_LABEL,
     SOURCE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
@@ -104,7 +105,7 @@ class BuildIncomesErrorTest(unittest.TestCase):
                             SOURCE_HEADER: "salary",
                             AMOUNT_ANNUAL_HEADER: "not_a_number",
                             GROWTH_RATE_HEADER: "0.01",
-                            START_TYPE_HEADER: "plan_start",
+                            START_TYPE_HEADER: PLAN_START_CONDITION_LABEL,
                             START_VALUE_HEADER: "",
                             END_TYPE_HEADER: "",
                             END_VALUE_HEADER: "",
@@ -149,7 +150,7 @@ class BuildIncomesGrowthRateDefaultTest(unittest.TestCase):
                             SOURCE_HEADER: "salary",
                             AMOUNT_ANNUAL_HEADER: "1000000",
                             GROWTH_RATE_HEADER: "",
-                            START_TYPE_HEADER: "plan_start",
+                            START_TYPE_HEADER: PLAN_START_CONDITION_LABEL,
                             START_VALUE_HEADER: "",
                         }
                     ]
@@ -171,7 +172,7 @@ class BuildIncomesGrowthRateDefaultTest(unittest.TestCase):
                             SOURCE_HEADER: "salary",
                             AMOUNT_ANNUAL_HEADER: "1000000",
                             GROWTH_RATE_HEADER: "0.01",
-                            START_TYPE_HEADER: "plan_start",
+                            START_TYPE_HEADER: PLAN_START_CONDITION_LABEL,
                             START_VALUE_HEADER: "",
                         }
                     ]
@@ -193,7 +194,7 @@ class BuildIncomesGrowthRateDefaultTest(unittest.TestCase):
                             SOURCE_HEADER: "salary",
                             AMOUNT_ANNUAL_HEADER: "",
                             GROWTH_RATE_HEADER: "0.01",
-                            START_TYPE_HEADER: "plan_start",
+                            START_TYPE_HEADER: PLAN_START_CONDITION_LABEL,
                             START_VALUE_HEADER: "",
                         }
                     ]

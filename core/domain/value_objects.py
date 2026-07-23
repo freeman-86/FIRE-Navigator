@@ -191,7 +191,6 @@ class FiscalYear:
 
 
 class EventConditionType(str, Enum):
-    TODAY = "today"
     FIXED_DATE = "fixed_date"
     PLAN_START = "plan_start"
     AGE = "age"
@@ -215,10 +214,6 @@ class EventCondition:
             raise ValueError(f"condition_type='{self.condition_type.value}' には date が必須です")
         if self.condition_type == EventConditionType.NETWORTH_MULTIPLE_OF_EXPENSE and self.multiple is None:
             raise ValueError("condition_type='networth_multiple_of_expense' には multiple が必須です")
-
-    @classmethod
-    def today(cls) -> "EventCondition":
-        return cls(EventConditionType.TODAY)
 
     @classmethod
     def fixed_date(cls, d: date) -> "EventCondition":

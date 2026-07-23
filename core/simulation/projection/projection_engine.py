@@ -153,7 +153,9 @@ def run_projection(
             plan.incomes, month_pairs_this_year, start_year, start_month, birth_date, offset_year
         )
         pension_income_annual = _pension_income_for_year(birth_date, plan.pension, pension_rules, month_pairs_this_year)
-        total_expense_annual = _expense_total(plan.expenses, offset_year)
+        total_expense_annual = _active_expense_total(
+            plan.expenses, month_pairs_this_year, start_year, start_month, birth_date, offset_year
+        )
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
         year_end_calendar_year, year_end_calendar_month = month_pairs_this_year[-1]
@@ -443,7 +445,7 @@ def _retirement_year(plan: Plan, start_year: int) -> Optional[int]:
 
 
 def _is_active_in_month(
-    start_condition: EventCondition,
+    start_condition: Optional[EventCondition],
     end_condition: Optional[EventCondition],
     calendar_year: int,
     calendar_month: int,
@@ -451,9 +453,12 @@ def _is_active_in_month(
     start_month: int,
     birth_date: date,
 ) -> bool:
-    start_resolved = resolve_condition_month(start_condition, start_year, start_month, birth_date)
-    if start_resolved is not None and (calendar_year, calendar_month) < start_resolved:
-        return False
+    # start_conditionはExpense（経常支出）では省略可能（Noneの場合は開始条件による制限なし＝
+    # プラン開始時点から発生しているものとして扱う）。Incomeでは常に必須のためNoneにはならない。
+    if start_condition is not None:
+        start_resolved = resolve_condition_month(start_condition, start_year, start_month, birth_date)
+        if start_resolved is not None and (calendar_year, calendar_month) < start_resolved:
+            return False
     if end_condition is not None:
         end_resolved = resolve_condition_month(end_condition, start_year, start_month, birth_date)
         if end_resolved is not None and (calendar_year, calendar_month) >= end_resolved:
@@ -462,7 +467,7 @@ def _is_active_in_month(
 
 
 def _active_months_in_year(
-    start_condition: EventCondition,
+    start_condition: Optional[EventCondition],
     end_condition: Optional[EventCondition],
     month_pairs: list[tuple[int, int]],
     start_year: int,
@@ -505,10 +510,31 @@ def _active_income_total(
     return total
 
 
-def _expense_total(expenses: list[Expense], offset: int) -> Money:
+def _active_expense_total(
+    expenses: list[Expense],
+    month_pairs: list[tuple[int, int]],
+    start_year: int,
+    start_month: int,
+    birth_date: date,
+    offset: int,
+) -> Money:
+    """月精度で開始/終了条件を判定し、年間のうち条件を満たす月数分だけ按分した年間経常支出合計を返す
+    （_active_income_totalの支出版。start_condition/end_conditionはともに省略可能で、両方省略した
+    行はこれまで通りプラン全期間で発生する扱いになる）。
+    """
+
     total = Money.zero()
     for expense in expenses:
-        total = total + _grown_amount(expense.amount, expense.growth_rate, offset)
+        active_months = _active_months_in_year(
+            expense.start_condition, expense.end_condition, month_pairs, start_year, start_month, birth_date
+        )
+        if active_months == 0:
+            continue
+        full_year_amount = _grown_amount(expense.amount, expense.growth_rate, offset)
+        if active_months >= MONTHS_PER_YEAR:
+            total = total + full_year_amount
+        else:
+            total = total + full_year_amount * (Decimal(active_months) / Decimal(MONTHS_PER_YEAR))
     return total
 
 

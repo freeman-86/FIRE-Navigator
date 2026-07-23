@@ -11,7 +11,7 @@ def resolve_condition_year(condition: EventCondition, start_year: int, birth_dat
     年次シミュレーション結果に照らさないと判定できない条件はNoneを返す。
     """
 
-    if condition.condition_type in (EventConditionType.TODAY, EventConditionType.PLAN_START):
+    if condition.condition_type == EventConditionType.PLAN_START:
         return start_year
     if condition.condition_type in (EventConditionType.DATE, EventConditionType.FIXED_DATE):
         return condition.date.year
@@ -29,7 +29,7 @@ def resolve_condition_month(
     Noneを返す。
     """
 
-    if condition.condition_type in (EventConditionType.TODAY, EventConditionType.PLAN_START):
+    if condition.condition_type == EventConditionType.PLAN_START:
         return start_year, start_month
     if condition.condition_type in (EventConditionType.DATE, EventConditionType.FIXED_DATE):
         return condition.date.year, condition.date.month

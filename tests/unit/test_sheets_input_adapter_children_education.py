@@ -4,6 +4,7 @@ from datetime import date
 import gspread
 
 from adapters.sheets.sheet_mapping import (
+    AGE_CONDITION_LABEL,
     AMOUNT_ANNUAL_HEADER,
     BIRTH_DATE_HEADER,
     CATEGORY_HEADER,
@@ -204,7 +205,7 @@ class BuildExpensesTest(unittest.TestCase):
                             CATEGORY_HEADER: "車",
                             ONE_TIME_FLAG_HEADER: "TRUE",
                             ONE_TIME_AMOUNT_HEADER: "",
-                            START_TYPE_HEADER: "age",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
                             START_VALUE_HEADER: "45",
                         }
                     ]
@@ -289,7 +290,7 @@ class BuildExpensesTest(unittest.TestCase):
                             CATEGORY_HEADER: "車",
                             ONE_TIME_FLAG_HEADER: "TRUE",
                             ONE_TIME_AMOUNT_HEADER: "3000000",
-                            START_TYPE_HEADER: "age",
+                            START_TYPE_HEADER: AGE_CONDITION_LABEL,
                             START_VALUE_HEADER: "45",
                         }
                     ]
