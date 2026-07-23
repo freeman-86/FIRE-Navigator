@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset, AssetClass
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
@@ -10,7 +10,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
@@ -23,20 +23,18 @@ def build_plan() -> Plan:
     変更する場合はtests/regression/golden/を再生成しレビューを経ること。
     """
 
-    user = User(birth_date=date(1995, 1, 1), residence=Prefecture.OSAKA)
+    user = User(birth_date=date(1995, 1, 1))
 
     accounts = [
-        Account(account_id="acc_cash_001", account_type=AccountType.CASH, owner=OwnerType.SELF),
+        Account(account_id="acc_cash_001", account_type=AccountType.CASH),
         Account(
             account_id="acc_nisa_growth_001",
             account_type=AccountType.NISA_GROWTH,
-            owner=OwnerType.SELF,
             monthly_contribution=Money.of(80_000),
         ),
         Account(
             account_id="acc_ideco_001",
             account_type=AccountType.IDECO,
-            owner=OwnerType.SELF,
             monthly_contribution=Money.of(23_000),
         ),
     ]
@@ -53,7 +51,6 @@ def build_plan() -> Plan:
         category="living",
         amount=Money.of(3_000_000),
         growth_rate=Rate.from_percent(1.5),
-        is_flexible=False,
     )
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -68,7 +65,7 @@ def build_plan() -> Plan:
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(6)),
         accounts=accounts,
-        tax_config=TaxConfig(residence=Prefecture.OSAKA),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH, AccountType.TAXABLE]),
         contribution_strategy=ContributionStrategy(
@@ -82,7 +79,7 @@ def build_plan() -> Plan:
 
 def build_portfolios() -> dict[str, Portfolio]:
     def _portfolio(balance: int, asset_class: AssetClass) -> Portfolio:
-        asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
+        asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5))
         return Portfolio(holdings=[Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))])
 
     return {

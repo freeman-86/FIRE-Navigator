@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.portfolio_rules import AccountRules, PortfolioRules
 from core.domain.tax_config import CapitalGainsTaxRules
 from core.domain.value_objects import Money, Rate
@@ -13,7 +13,7 @@ STANDARD_RATE = CapitalGainsTaxRules(rate=Rate.of("0.20315"))
 
 
 def _account(account_id: str, account_type: AccountType) -> Account:
-    return Account(account_id=account_id, account_type=account_type, owner=OwnerType.SELF)
+    return Account(account_id=account_id, account_type=account_type)
 
 
 def _rules(tax_free_by_type: dict[AccountType, bool]) -> PortfolioRules:

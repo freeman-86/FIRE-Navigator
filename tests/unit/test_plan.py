@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -10,19 +10,18 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from tests.portfolio_test_fixtures import no_allocation_contribution_strategy
 
 
 def _build_plan() -> Plan:
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
 
     account = Account(
         account_id="acc_nisa_growth_001",
         account_type=AccountType.NISA_GROWTH,
-        owner=OwnerType.SELF,
     )
 
     income = Income(
@@ -56,7 +55,7 @@ def _build_plan() -> Plan:
             investment_growth_rate=Rate.from_percent(5),
         ),
         accounts=[account],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(
             order=[AccountType.CASH, AccountType.TAXABLE, AccountType.NISA_GROWTH, AccountType.IDECO]
@@ -71,7 +70,6 @@ def _build_portfolios(plan: Plan) -> dict[str, Portfolio]:
     asset = Asset(
         asset_class="equity_sp500",
         expected_return=Rate.from_percent(5),
-        volatility=Rate.from_percent(15),
     )
     holding = Holding(asset=asset, quantity=100, current_value=Money.of(300_000), cost_basis=Money.of(300_000))
     return {account.account_id: Portfolio(holdings=[holding]) for account in plan.accounts}

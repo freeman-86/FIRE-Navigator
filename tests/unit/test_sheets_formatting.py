@@ -22,23 +22,19 @@ from adapters.sheets.sheet_mapping import (
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
-    IS_FLEXIBLE_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     OUTPUT_DASHBOARD_SHEET,
-    OWNER_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PROGRESS_SHEET,
-    RESIDENCE_HEADER,
     RETIREMENT_AGE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
-    VOLATILITY_HEADER,
 )
 
 EXAMPLES_SHEET = sheets_formatting.EXAMPLES_SHEET
@@ -171,14 +167,12 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         header = [
             ACCOUNT_ID_HEADER,
             ACCOUNT_TYPE_HEADER,
-            OWNER_HEADER,
             BALANCE_HEADER,
             ASSET_CLASS_HEADER,
             EXPECTED_RETURN_HEADER,
-            VOLATILITY_HEADER,
             MONTHLY_CONTRIBUTION_HEADER,
         ]
-        data_row = ["acc_001", "cash", "self", "1000000", "cash", "0.05", "0.1", "30000"]
+        data_row = ["acc_001", "cash", "1000000", "cash", "0.05", "30000"]
         self.worksheet = self.spreadsheet.add_sheet(ACCOUNTS_SHEET, [header, data_row])
 
     def test_colors_required_columns_yellow_and_optional_column_blue(self):
@@ -193,8 +187,8 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
             for r in single_column_requests
         }
 
-        required_columns = {0, 1, 2, 3, 4, 5, 6}  # ACCOUNT_ID..VOLATILITY (0-indexed)
-        optional_column = 7  # MONTHLY_CONTRIBUTION_HEADER
+        required_columns = {0, 1, 2, 3, 4}  # ACCOUNT_ID..EXPECTED_RETURN (0-indexed)
+        optional_column = 5  # MONTHLY_CONTRIBUTION_HEADER
 
         for col in required_columns:
             self.assertEqual(color_by_column[col], sheets_formatting.REQUIRED_CELL_COLOR)
@@ -229,11 +223,9 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         by_column = {r["range"]["startColumnIndex"]: r for r in validation_requests}
 
         account_type_choices = {v["userEnteredValue"] for v in by_column[1]["rule"]["condition"]["values"]}
-        owner_choices = {v["userEnteredValue"] for v in by_column[2]["rule"]["condition"]["values"]}
-        asset_class_choices = {v["userEnteredValue"] for v in by_column[4]["rule"]["condition"]["values"]}
+        asset_class_choices = {v["userEnteredValue"] for v in by_column[3]["rule"]["condition"]["values"]}
 
         self.assertEqual(account_type_choices, {"nisa_growth", "nisa_tsumitate", "ideco", "company_dc", "zaikei", "taxable", "cash"})
-        self.assertEqual(owner_choices, {"self", "spouse", "joint"})
         self.assertEqual(asset_class_choices, {"cash", "equity_sp500"})
         self.assertTrue(by_column[1]["rule"]["strict"])
         self.assertEqual(by_column[1]["rule"]["condition"]["type"], "ONE_OF_LIST")
@@ -249,10 +241,10 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         ]
         by_column = {r["range"]["startColumnIndex"]: r for r in update_cells_requests}
 
-        # BALANCE_HEADER(col3)="1000000" -> numberValue
-        self.assertEqual(by_column[3]["rows"][0]["values"][0]["userEnteredValue"]["numberValue"], 1000000.0)
-        # EXPECTED_RETURN_HEADER(col5)="0.05" -> numberValue
-        self.assertEqual(by_column[5]["rows"][0]["values"][0]["userEnteredValue"]["numberValue"], 0.05)
+        # BALANCE_HEADER(col2)="1000000" -> numberValue
+        self.assertEqual(by_column[2]["rows"][0]["values"][0]["userEnteredValue"]["numberValue"], 1000000.0)
+        # EXPECTED_RETURN_HEADER(col4)="0.05" -> numberValue
+        self.assertEqual(by_column[4]["rows"][0]["values"][0]["userEnteredValue"]["numberValue"], 0.05)
         # ACCOUNT_ID_HEADER(col0, "acc_001")のような非数値列は対象外
         self.assertNotIn(0, by_column)
         # ACCOUNT_TYPE_HEADER(col1, "cash")も非数値
@@ -264,12 +256,11 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         number_format_requests = _number_format_requests(self.spreadsheet, self.worksheet.id)
         formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
 
-        self.assertIn(3, formatted_columns)  # BALANCE_HEADER(残高)
-        self.assertIn(7, formatted_columns)  # MONTHLY_CONTRIBUTION_HEADER(月次拠出額)
-        self.assertNotIn(5, formatted_columns)  # EXPECTED_RETURN_HEADER(期待リターン、比率)
-        self.assertNotIn(6, formatted_columns)  # VOLATILITY_HEADER(ボラティリティ、比率)
+        self.assertIn(2, formatted_columns)  # BALANCE_HEADER(残高)
+        self.assertIn(5, formatted_columns)  # MONTHLY_CONTRIBUTION_HEADER(月次拠出額)
+        self.assertNotIn(4, formatted_columns)  # EXPECTED_RETURN_HEADER(期待リターン、比率)
         # 将来の追加行にも適用されるよう、実データ行数を超えて広めに設定する
-        balance_request = next(r for r in number_format_requests if r["range"]["startColumnIndex"] == 3)
+        balance_request = next(r for r in number_format_requests if r["range"]["startColumnIndex"] == 2)
         self.assertGreater(balance_request["range"]["endRowIndex"], 2)
 
     def test_rate_columns_get_percent_number_format_but_money_columns_do_not(self):
@@ -278,9 +269,9 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         percent_format_requests = _percent_format_requests(self.spreadsheet, self.worksheet.id)
         formatted_columns = {r["range"]["startColumnIndex"] for r in percent_format_requests}
 
-        self.assertEqual(formatted_columns, {5, 6})  # EXPECTED_RETURN_HEADER, VOLATILITY_HEADER
+        self.assertEqual(formatted_columns, {4})  # EXPECTED_RETURN_HEADER
         # 将来の追加行にも適用されるよう、実データ行数を超えて広めに設定する
-        expected_return_request = next(r for r in percent_format_requests if r["range"]["startColumnIndex"] == 5)
+        expected_return_request = next(r for r in percent_format_requests if r["range"]["startColumnIndex"] == 4)
         self.assertGreater(expected_return_request["range"]["endRowIndex"], 2)
 
 
@@ -331,14 +322,13 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             AMOUNT_ANNUAL_HEADER,
             ONE_TIME_AMOUNT_HEADER,
             GROWTH_RATE_HEADER,
-            IS_FLEXIBLE_HEADER,
             START_TYPE_HEADER,
             START_VALUE_HEADER,
         ]
-        data_row = ["expense_001", "living", "FALSE", "3600000", "", "0.02", "FALSE", "", ""]
+        data_row = ["expense_001", "living", "FALSE", "3600000", "", "0.02", "", ""]
         self.worksheet = self.spreadsheet.add_sheet(EXPENSES_SHEET, [header, data_row])
 
-    def test_one_time_flag_and_is_flexible_become_checkboxes(self):
+    def test_one_time_flag_becomes_checkbox(self):
         sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
 
         validation_requests = [
@@ -352,7 +342,6 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         by_column = {r["range"]["startColumnIndex"]: r for r in validation_requests}
 
         self.assertEqual(by_column[2]["rule"]["condition"]["type"], "BOOLEAN")  # 単発フラグ
-        self.assertEqual(by_column[6]["rule"]["condition"]["type"], "BOOLEAN")  # 柔軟支出フラグ
 
     def test_existing_checkbox_column_values_are_rewritten_as_actual_booleans(self):
         # BOOLEAN型の入力規則を設定しても、既存の文字列"TRUE"/"FALSE"が自動でbooleanに変換される
@@ -371,8 +360,6 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
 
         self.assertIn(2, by_column)  # 単発フラグ
         self.assertEqual(by_column[2]["rows"][0]["values"][0]["userEnteredValue"]["boolValue"], False)
-        self.assertIn(6, by_column)  # 柔軟支出フラグ
-        self.assertEqual(by_column[6]["rows"][0]["values"][0]["userEnteredValue"]["boolValue"], False)
 
     def test_start_value_is_converted_to_number_only_when_start_type_is_age(self):
         spreadsheet = _FakeSpreadsheet()
@@ -383,12 +370,11 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             AMOUNT_ANNUAL_HEADER,
             ONE_TIME_AMOUNT_HEADER,
             GROWTH_RATE_HEADER,
-            IS_FLEXIBLE_HEADER,
             START_TYPE_HEADER,
             START_VALUE_HEADER,
         ]
-        age_row = ["expense_car", "車", "TRUE", "", "3000000", "", "FALSE", "age", "45"]
-        date_row = ["expense_trip", "旅行", "TRUE", "", "500000", "", "FALSE", "date", "2030-05-01"]
+        age_row = ["expense_car", "車", "TRUE", "", "3000000", "", "age", "45"]
+        date_row = ["expense_trip", "旅行", "TRUE", "", "500000", "", "date", "2030-05-01"]
         worksheet = spreadsheet.add_sheet(EXPENSES_SHEET, [header, age_row, date_row])
 
         sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
@@ -399,7 +385,7 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             for r in body["requests"]
             if "updateCells" in r
             and r["updateCells"]["range"]["sheetId"] == worksheet.id
-            and r["updateCells"]["range"]["startColumnIndex"] == 8  # START_VALUE_HEADER
+            and r["updateCells"]["range"]["startColumnIndex"] == 7  # START_VALUE_HEADER
         ]
         by_row = {r["range"]["startRowIndex"]: r for r in numeric_requests}
 
@@ -423,7 +409,7 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         ]
         by_column = {r["range"]["startColumnIndex"]: r for r in validation_requests}
 
-        for col in (2, 6):  # 単発フラグ, 柔軟支出フラグ
+        for col in (2,):  # 単発フラグ
             self.assertEqual(by_column[col]["range"]["startRowIndex"], 1)
             self.assertEqual(by_column[col]["range"]["endRowIndex"], 2)  # 実データ1行分のみ
 
@@ -435,7 +421,6 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
             ONE_TIME_FLAG_HEADER,
             AMOUNT_ANNUAL_HEADER,
             ONE_TIME_AMOUNT_HEADER,
-            IS_FLEXIBLE_HEADER,
         ]
         worksheet = spreadsheet.add_sheet(EXPENSES_SHEET, [header])  # ヘッダーのみ、データ行なし
 
@@ -472,11 +457,11 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
 
         # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視される
         false_columns = {r["startColumnIndex"] for r in rules_by_formula_flag["FALSE"]["ranges"]}
-        self.assertEqual(false_columns, {4, 7, 8})  # ONE_TIME_AMOUNT, START_TYPE, START_VALUE
+        self.assertEqual(false_columns, {4, 6, 7})  # ONE_TIME_AMOUNT, START_TYPE, START_VALUE
 
-        # TRUE(単発支出)の行では年間金額・成長率・柔軟支出フラグが無視される
+        # TRUE(単発支出)の行では年間金額・成長率が無視される
         true_columns = {r["startColumnIndex"] for r in rules_by_formula_flag["TRUE"]["ranges"]}
-        self.assertEqual(true_columns, {3, 5, 6})  # AMOUNT_ANNUAL, GROWTH_RATE, IS_FLEXIBLE
+        self.assertEqual(true_columns, {3, 5})  # AMOUNT_ANNUAL, GROWTH_RATE
 
 
 class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
@@ -486,7 +471,6 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
             [PLAN_ID_HEADER, "plan_001"],
             [PLAN_NAME_HEADER, "ベースプラン"],
             [BIRTH_DATE_HEADER, "1990-04-01"],
-            [RESIDENCE_HEADER, "tokyo"],
             [RETIREMENT_AGE_HEADER, "60"],
             [PENSION_CLAIM_TIMING_HEADER, "standard"],
         ]
@@ -500,15 +484,15 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
             r["range"]["startRowIndex"]: r["cell"]["userEnteredFormat"]["backgroundColor"] for r in single_row_requests
         }
 
-        # PLAN_ID(0), PLAN_NAME(1), BIRTH_DATE(2), RESIDENCE(3) are required; RETIREMENT_AGE(4)/PENSION_CLAIM_TIMING(5) are not.
-        for row in (0, 1, 2, 3):
+        # PLAN_ID(0), PLAN_NAME(1), BIRTH_DATE(2) are required; RETIREMENT_AGE(3)/PENSION_CLAIM_TIMING(4) are not.
+        for row in (0, 1, 2):
             self.assertEqual(color_by_row[row], sheets_formatting.REQUIRED_CELL_COLOR)
-        for row in (4, 5):
+        for row in (3, 4):
             self.assertEqual(color_by_row[row], sheets_formatting.OPTIONAL_CELL_COLOR)
 
         validation_requests = _validation_requests(spreadsheet, worksheet.id)
         validation_rows = {r["range"]["startRowIndex"] for r in validation_requests}
-        self.assertEqual(validation_rows, {3, 5})  # RESIDENCE, PENSION_CLAIM_TIMING
+        self.assertEqual(validation_rows, {4})  # PENSION_CLAIM_TIMING
 
     def test_money_rows_get_comma_number_format_but_age_row_does_not(self):
         spreadsheet = _FakeSpreadsheet()

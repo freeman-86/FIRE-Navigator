@@ -18,15 +18,12 @@ from adapters.sheets.sheet_mapping import (
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     MONTHLY_CONTRIBUTION_HEADER,
-    OWNER_HEADER,
     PLAN_SHEET,
-    RESIDENCE_HEADER,
     SOURCE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     END_TYPE_HEADER,
     END_VALUE_HEADER,
-    VOLATILITY_HEADER,
 )
 from core.domain.errors import StructuralInputError
 from core.domain.value_objects import Rate
@@ -54,20 +51,13 @@ class _FakeSpreadsheet:
 
 class BuildUserErrorTest(unittest.TestCase):
     def test_missing_birth_date_raises_structural_input_error_with_field_path(self) -> None:
-        settings = {RESIDENCE_HEADER: "tokyo"}
+        settings = {}
         with self.assertRaises(StructuralInputError) as ctx:
             _build_user(settings)
         self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{BIRTH_DATE_HEADER}")
 
-    def test_invalid_residence_raises_structural_input_error_listing_allowed_values(self) -> None:
-        settings = {BIRTH_DATE_HEADER: "1990-04-01", RESIDENCE_HEADER: "narnia"}
-        with self.assertRaises(StructuralInputError) as ctx:
-            _build_user(settings)
-        self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{RESIDENCE_HEADER}")
-        self.assertIn("tokyo", str(ctx.exception))
-
     def test_malformed_birth_date_raises_structural_input_error(self) -> None:
-        settings = {BIRTH_DATE_HEADER: "1990/04/01", RESIDENCE_HEADER: "tokyo"}
+        settings = {BIRTH_DATE_HEADER: "1990/04/01"}
         with self.assertRaises(StructuralInputError):
             _build_user(settings)
 
@@ -81,11 +71,9 @@ class BuildAccountsErrorTest(unittest.TestCase):
                         {
                             ACCOUNT_ID_HEADER: "acc_001",
                             ACCOUNT_TYPE_HEADER: "not_a_real_type",
-                            OWNER_HEADER: "self",
                             BALANCE_HEADER: "1000000",
                             ASSET_CLASS_HEADER: "cash",
                             EXPECTED_RETURN_HEADER: "0.01",
-                            VOLATILITY_HEADER: "0.01",
                             MONTHLY_CONTRIBUTION_HEADER: "",
                         }
                     ]
@@ -98,7 +86,7 @@ class BuildAccountsErrorTest(unittest.TestCase):
 
     def test_missing_account_id_raises_error(self) -> None:
         spreadsheet = _FakeSpreadsheet(
-            {ACCOUNTS_SHEET: _FakeWorksheet(records=[{ACCOUNT_TYPE_HEADER: "cash", OWNER_HEADER: "self"}])}
+            {ACCOUNTS_SHEET: _FakeWorksheet(records=[{ACCOUNT_TYPE_HEADER: "cash"}])}
         )
         with self.assertRaises(StructuralInputError) as ctx:
             _build_accounts(spreadsheet)

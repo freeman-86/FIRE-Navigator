@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.expense import Expense
 from core.domain.holding import Holding
@@ -10,7 +10,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from reports.dashboard_builder import (
@@ -28,7 +28,7 @@ INITIAL_BALANCE = 30_000_000
 
 
 def _plan() -> Plan:
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -53,8 +53,8 @@ def _plan() -> Plan:
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
-        accounts=[Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        accounts=[Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)],
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
         contribution_strategy=no_allocation_contribution_strategy(),
@@ -64,7 +64,7 @@ def _plan() -> Plan:
 
 
 def _portfolios(balance: int = INITIAL_BALANCE) -> dict[str, Portfolio]:
-    asset = Asset(asset_class="cash", expected_return=Rate.zero(), volatility=Rate.zero())
+    asset = Asset(asset_class="cash", expected_return=Rate.zero())
     holding = Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))
     return {"acc_taxable": Portfolio(holdings=[holding])}
 

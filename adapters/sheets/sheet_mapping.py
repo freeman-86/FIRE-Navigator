@@ -31,7 +31,6 @@ OUTPUT_MONTHLY_DETAIL_SHEET = "出力_月次詳細"
 PLAN_ID_HEADER = "プランID"
 PLAN_NAME_HEADER = "プラン名"
 BIRTH_DATE_HEADER = "生年月日"
-RESIDENCE_HEADER = "居住都道府県"
 INFLATION_RATE_HEADER = "インフレ率"
 INVESTMENT_GROWTH_RATE_HEADER = "投資成長率"
 NATIONAL_PENSION_ESTIMATE_HEADER = "国民年金見込額（年額）"
@@ -45,14 +44,12 @@ LIFE_EXPECTANCY_HEADER = "想定寿命"
 # Input_口座
 ACCOUNT_ID_HEADER = "口座ID"
 ACCOUNT_TYPE_HEADER = "口座タイプ"
-OWNER_HEADER = "名義"
 BALANCE_HEADER = "残高"
 # 取得原価: 任意入力。未入力の場合は残高と同額（含み益ゼロ）とみなす。譲渡税計算（平均取得原価方式）で
 # シミュレーション開始前からの含み益/含み損を反映するために使う（Holding.cost_basis）。
 COST_BASIS_HEADER = "取得原価"
 ASSET_CLASS_HEADER = "資産クラス"
 EXPECTED_RETURN_HEADER = "期待リターン"
-VOLATILITY_HEADER = "ボラティリティ"
 MONTHLY_CONTRIBUTION_HEADER = "月次拠出額"
 
 # Input_収入
@@ -68,13 +65,12 @@ END_VALUE_HEADER = "終了条件値"
 # Input_支出: 経常支出（毎年発生・成長率あり）と単発支出（発生条件で1回のみ）を
 # ONE_TIME_FLAG_HEADERで区別し、1シートにまとめる（旧Input_大型支出を統合）。
 # 単発フラグ=TRUEの行はONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERを使い、
-# AMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADER/IS_FLEXIBLE_HEADERは空欄でよい（経常支出専用）。
-# 逆に単発フラグ=FALSEの行はAMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADER/IS_FLEXIBLE_HEADERを使い、
+# AMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADERは空欄でよい（経常支出専用）。
+# 逆に単発フラグ=FALSEの行はAMOUNT_ANNUAL_HEADER/GROWTH_RATE_HEADERを使い、
 # ONE_TIME_AMOUNT_HEADER/START_TYPE_HEADER/START_VALUE_HEADERは空欄でよい。
 # AMOUNT_ANNUAL_HEADER（"年間金額"）はInput_収入と同じ列名を共有する（値は年額で意味も揃う）。
 EXPENSE_ID_HEADER = "支出ID"
 CATEGORY_HEADER = "カテゴリ"
-IS_FLEXIBLE_HEADER = "柔軟支出フラグ"
 ONE_TIME_FLAG_HEADER = "単発フラグ"
 ONE_TIME_AMOUNT_HEADER = "単発金額"
 
@@ -150,7 +146,6 @@ PLAN_FIELD_MAPPING: tuple[tuple[str, str, str], ...] = (
     (PLAN_ID_HEADER, "plan.plan_id", "str"),
     (PLAN_NAME_HEADER, "plan.name", "str"),
     (BIRTH_DATE_HEADER, "plan.user.birth_date", "date"),
-    (RESIDENCE_HEADER, "plan.user.residence", "prefecture"),
     (INFLATION_RATE_HEADER, "plan.assumptions.inflation_rate", "rate"),
     (INVESTMENT_GROWTH_RATE_HEADER, "plan.assumptions.investment_growth_rate", "rate"),
 )
@@ -161,12 +156,10 @@ PLAN_FIELD_MAPPING: tuple[tuple[str, str, str], ...] = (
 ACCOUNTS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (ACCOUNT_ID_HEADER, "plan.accounts[].account_id", "str"),
     (ACCOUNT_TYPE_HEADER, "plan.accounts[].account_type", "account_type"),
-    (OWNER_HEADER, "plan.accounts[].owner", "owner_type"),
     (BALANCE_HEADER, "portfolios[account_id].holdings[].current_value", "money"),
     (COST_BASIS_HEADER, "portfolios[account_id].holdings[].cost_basis", "money_optional"),
     (ASSET_CLASS_HEADER, "portfolios[account_id].holdings[].asset.asset_class", "asset_class"),
     (EXPECTED_RETURN_HEADER, "portfolios[account_id].holdings[].asset.expected_return", "rate"),
-    (VOLATILITY_HEADER, "portfolios[account_id].holdings[].asset.volatility", "rate"),
     (MONTHLY_CONTRIBUTION_HEADER, "plan.accounts[].monthly_contribution", "money_optional"),
 )
 
@@ -224,7 +217,6 @@ EXPENSES_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (AMOUNT_ANNUAL_HEADER, "plan.expenses[].amount（経常支出のみ）", "money"),
     (ONE_TIME_AMOUNT_HEADER, "plan.one_time_expenses[].amount（単発支出のみ）", "money"),
     (GROWTH_RATE_HEADER, "plan.expenses[].growth_rate（経常支出のみ）", "rate"),
-    (IS_FLEXIBLE_HEADER, "plan.expenses[].is_flexible（経常支出のみ）", "bool"),
     (START_TYPE_HEADER, "plan.one_time_expenses[].trigger.type（単発支出のみ）", "condition_type"),
     (START_VALUE_HEADER, "plan.one_time_expenses[].trigger.value（単発支出のみ）", "condition_value"),
 )

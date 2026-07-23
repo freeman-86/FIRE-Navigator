@@ -1,6 +1,6 @@
 import unittest
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.portfolio_rules import AccountRules, PortfolioRules
 from core.domain.value_objects import Money, Rate
@@ -12,7 +12,6 @@ def _account(account_id: str, account_type: AccountType, monthly_contribution=No
     return Account(
         account_id=account_id,
         account_type=account_type,
-        owner=OwnerType.SELF,
         monthly_contribution=Money.of(monthly_contribution) if monthly_contribution is not None else None,
     )
 

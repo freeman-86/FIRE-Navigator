@@ -324,7 +324,6 @@ classDiagram
     class User {
         +birth_date: date
         +spouse: User
-        +residence: Prefecture
     }
 
     class Plan {
@@ -352,7 +351,6 @@ classDiagram
     class Account {
         +account_id: str
         +account_type: AccountType
-        +owner: OwnerType
         +portfolio: Portfolio
     }
 
@@ -370,7 +368,6 @@ classDiagram
     class Asset {
         +asset_class: AssetClass
         +expected_return: Rate
-        +volatility: Rate
     }
 
     class Income {
@@ -385,7 +382,6 @@ classDiagram
         +category: str
         +amount: Money
         +growth_rate: Rate
-        +is_flexible: bool
     }
 
     class Debt {
@@ -408,7 +404,6 @@ classDiagram
     }
 
     class TaxConfig {
-        +residence: Prefecture
         +deduction_settings: dict
         +tax_year_config_ref: str
     }
@@ -459,19 +454,19 @@ classDiagram
 
 | モデル | 責務 | 主要属性 | 関連 |
 |---|---|---|---|
-| **User** | 本人・配偶者の基本情報を保持 | 生年月日, 居住都道府県, 配偶者参照 | Plan からの参照元 |
+| **User** | 本人・配偶者の基本情報を保持 | 生年月日, 配偶者参照 | Plan からの参照元 |
 | **Plan** | 1つの資産形成計画全体の集約ルート（Aggregate Root）。すべての設定要素をまとめる | plan_id, name, 開始条件, 前提(Assumptions), 各種リスト | Account/Income/Expense/Debt/Loan/Milestone/TaxConfig/Pension/WithdrawalStrategyを内包 |
 | **Scenario** | Planに対する「差分（override）」を表現し、比較機能で使う軽量な派生プラン | scenario_id, base_planへの参照, overrides辞書 | Planを参照、独立コピーは持たない（差分方式でメモリ効率と一貫性を両立） |
-| **Account** | 1つの金融口座（NISA/iDeCo/課税口座/現金等）を表現 | account_id, account_type（列挙型）, owner（本人/配偶者/共同）, portfolio | Portfolioを1つ内包 |
+| **Account** | 1つの金融口座（NISA/iDeCo/課税口座/現金等）を表現 | account_id, account_type（列挙型）, portfolio | Portfolioを1つ内包 |
 | **Portfolio** | 口座内の資産配分（Holdingの集合）と配分方針を管理 | holdings, allocation_policy | Holdingを複数内包 |
 | **Holding** | 特定資産の保有数量・取得価額 | asset参照, quantity, cost_basis | Assetを参照 |
-| **Asset** | 資産クラス（国内株/全世界株/債券等）ごとの期待リターン・ボラティリティ定義 | asset_class, expected_return, volatility | Config（assumptions.yaml）由来の値を保持 |
+| **Asset** | 資産クラス（国内株/全世界株/債券等）ごとの期待リターン定義 | asset_class, expected_return | Config（assumptions.yaml）由来の値を保持 |
 | **Income** | 収入源（給与・年金以外の副収入等）の金額・成長・発生条件 | source, amount, growth_rate, start/end condition | Milestoneのトリガー条件と同じ型（EventCondition）を再利用 |
-| **Expense** | 支出カテゴリごとの金額・成長・柔軟支出フラグ | category, amount, growth_rate, is_flexible | - |
+| **Expense** | 支出カテゴリごとの金額・成長 | category, amount, growth_rate | - |
 | **Debt** | 返済中の負債（学生ローン等、単純返済） | debt_type, balance, interest_rate | - |
 | **Loan** | 住宅ローン等、償却スケジュールを持つ複雑な借入 | principal, interest_rate, term_years, repayment_schedule | Loan Engineが償却表を計算 |
 | **Milestone** | FI達成・退職等のイベント定義と到達判定条件 | milestone_type, trigger（単純トリガー。複合条件はCould機能として将来拡張） | Plan配下に複数保持 |
-| **TaxConfig** | 税制計算に必要な設定（居住地・控除設定・年度別config参照） | residence, deduction_settings, tax_year_config_ref | Tax Engineが参照 |
+| **TaxConfig** | 税制計算に必要な設定（控除設定・年度別config参照） | deduction_settings, tax_year_config_ref | Tax Engineが参照 |
 | **Pension** | 公的年金の見込額・受給タイミング設定 | national_pension, employee_pension, claim_timing | Pension Engineが参照 |
 | **WithdrawalStrategy** | 退職後の口座取り崩し順序とルール | order（口座タイプの優先順） , rules | Withdrawal Engineが参照 |
 | **SimulationResult** | 1回のシミュレーション実行結果（年次推移・税分析・マイルストーン到達結果） | yearly_projections, tax_analytics, milestone_outcomes | Reporting Engineの入力 |
@@ -586,7 +581,6 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
     },
     "user": {
       "birth_date": "1990-04-01",
-      "residence": "tokyo",
       "spouse": {
         "birth_date": "1991-07-15"
       }
@@ -604,7 +598,6 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
       {
         "account_id": "acc_nisa_growth_001",
         "account_type": "nisa_growth",
-        "owner": "self",
         "balance": 3000000,
         "holdings": [
           {"asset_class": "global_equity", "amount": 3000000}
@@ -613,7 +606,6 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
       {
         "account_id": "acc_ideco_001",
         "account_type": "ideco",
-        "owner": "self",
         "balance": 1500000,
         "monthly_contribution": 23000
       }
@@ -633,8 +625,7 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
         "expense_id": "expense_living_001",
         "category": "living",
         "amount_annual": 3600000,
-        "growth_rate": 0.02,
-        "is_flexible": false
+        "growth_rate": 0.02
       }
     ],
     "debts": [],
@@ -659,7 +650,6 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
       }
     ],
     "tax_config": {
-      "residence": "tokyo",
       "deduction_settings": {
         "basic_deduction": true,
         "spouse_deduction": true
@@ -948,7 +938,6 @@ account_types:
 | 必須項目不足 | JSON Adapter（スキーマ検証） | `birth_date`が未入力 |
 | 型エラー | JSON Adapter（スキーマ検証） | `amount_annual`が負の数値 |
 | 年齢矛盾（意味的エラー） | Validation Service（Application Layer） | 退職年齢が現在年齢より若い、配偶者の生年月日が未来 |
-| 税制設定矛盾 | Validation Service + Tax Engine | `tax_config.residence`が`tax.yaml`に存在しない地域コード |
 
 ### 11.2 例外階層（設計方針）
 

@@ -7,7 +7,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.simulation_result import YearlyProjection
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.milestone_evaluation import evaluate_milestones
@@ -15,7 +15,7 @@ from tests.portfolio_test_fixtures import no_allocation_contribution_strategy
 
 
 def _plan(milestones) -> Plan:
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -28,7 +28,7 @@ def _plan(milestones) -> Plan:
         start_condition=StartCondition(StartConditionType.TODAY),
         assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
         accounts=[],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
         contribution_strategy=no_allocation_contribution_strategy(),

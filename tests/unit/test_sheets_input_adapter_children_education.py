@@ -149,7 +149,6 @@ class BuildExpensesTest(unittest.TestCase):
         self.assertEqual(expenses[0].category, "living")
         self.assertEqual(expenses[0].amount, Money.of(3_600_000))
         self.assertEqual(expenses[0].growth_rate, Rate.of("0.02"))
-        self.assertFalse(expenses[0].is_flexible)
 
     def test_blank_growth_rate_defaults_to_inflation_rate(self) -> None:
         spreadsheet = _FakeSpreadsheet(

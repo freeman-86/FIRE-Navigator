@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -9,7 +9,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.sensitivity_analysis import run_sensitivity_analysis
@@ -20,7 +20,7 @@ from tests.tax_test_fixtures import zero_tax_rules
 
 
 def _plan() -> Plan:
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -39,8 +39,8 @@ def _plan() -> Plan:
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(5)),
-        accounts=[Account(account_id="acc_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        accounts=[Account(account_id="acc_001", account_type=AccountType.TAXABLE)],
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
         contribution_strategy=no_allocation_contribution_strategy(),
@@ -49,7 +49,7 @@ def _plan() -> Plan:
 
 
 def _portfolios() -> dict[str, Portfolio]:
-    asset = Asset(asset_class="equity_sp500", expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
+    asset = Asset(asset_class="equity_sp500", expected_return=Rate.from_percent(5))
     holding = Holding(asset=asset, quantity=1, current_value=Money.of(1_000_000), cost_basis=Money.of(1_000_000))
     return {"acc_001": Portfolio(holdings=[holding])}
 

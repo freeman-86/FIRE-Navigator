@@ -36,21 +36,18 @@ from adapters.sheets.sheet_mapping import (
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
-    IS_FLEXIBLE_HEADER,
     LIFE_EXPECTANCY_HEADER,
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
-    OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PROGRESS_SHEET,
-    RESIDENCE_HEADER,
     RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
     SCENARIO_NAME_HEADER,
@@ -62,10 +59,9 @@ from adapters.sheets.sheet_mapping import (
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
     TARGET_WEIGHT_HEADER,
-    VOLATILITY_HEADER,
     YEAR_HEADER,
 )
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.allocation import AllocationPolicy, AllocationTarget
 from core.domain.asset import Asset, AssetClass
 from core.domain.child import Child
@@ -83,7 +79,7 @@ from core.domain.portfolio import Portfolio
 from core.domain.progress_record import ProgressRecord
 from core.domain.scenario import Scenario
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from repositories.asset_class_repository import load_asset_class_registry
@@ -237,9 +233,6 @@ def _require_setting(settings: dict[str, str], key: str) -> str:
 def _build_user(settings: dict[str, str]) -> User:
     return User(
         birth_date=_parse_date_field(_require_setting(settings, BIRTH_DATE_HEADER), f"{PLAN_SHEET}!{BIRTH_DATE_HEADER}"),
-        residence=_parse_enum(
-            Prefecture, _require_setting(settings, RESIDENCE_HEADER), f"{PLAN_SHEET}!{RESIDENCE_HEADER}"
-        ),
     )
 
 
@@ -269,9 +262,6 @@ def _build_accounts(spreadsheet: gspread.Spreadsheet) -> list[Account]:
                     AccountType,
                     _require(record, ACCOUNT_TYPE_HEADER, f"{row_prefix}.{ACCOUNT_TYPE_HEADER}"),
                     f"{row_prefix}.{ACCOUNT_TYPE_HEADER}",
-                ),
-                owner=_parse_enum(
-                    OwnerType, _require(record, OWNER_HEADER, f"{row_prefix}.{OWNER_HEADER}"), f"{row_prefix}.{OWNER_HEADER}"
                 ),
                 monthly_contribution=(
                     _parse_money(monthly_contribution_raw, f"{row_prefix}.{MONTHLY_CONTRIBUTION_HEADER}")
@@ -309,10 +299,6 @@ def build_portfolios_from_spreadsheet(
             expected_return=_parse_rate(
                 _require(record, EXPECTED_RETURN_HEADER, f"{row_prefix}.{EXPECTED_RETURN_HEADER}"),
                 f"{row_prefix}.{EXPECTED_RETURN_HEADER}",
-            ),
-            volatility=_parse_rate(
-                _require(record, VOLATILITY_HEADER, f"{row_prefix}.{VOLATILITY_HEADER}"),
-                f"{row_prefix}.{VOLATILITY_HEADER}",
             ),
         )
         current_value = _parse_money(
@@ -558,14 +544,13 @@ def _build_expenses(
                     category=category,
                     amount=amount,
                     growth_rate=growth_rate,
-                    is_flexible=_parse_bool(record.get(IS_FLEXIBLE_HEADER, "FALSE")),
                 )
             )
     return expenses, one_time_expenses
 
 
-def _default_tax_config(user: User) -> TaxConfig:
-    return TaxConfig(residence=user.residence)
+def _default_tax_config() -> TaxConfig:
+    return TaxConfig()
 
 
 def _build_pension(settings: dict[str, str]) -> Pension:
@@ -693,7 +678,7 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         start_condition=StartCondition(StartConditionType.TODAY),
         assumptions=assumptions,
         accounts=_build_accounts(spreadsheet),
-        tax_config=_default_tax_config(user),
+        tax_config=_default_tax_config(),
         pension=_build_pension(settings),
         withdrawal_strategy=_default_withdrawal_strategy(),
         contribution_strategy=_default_contribution_strategy(),
@@ -721,7 +706,7 @@ class InputWarning:
 def collect_input_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarning]:
     """実行時に無視される入力値を検出する（実行は止めず、出力_エラーシートへの警告表示に使う）。
 
-    - 入力_支出: 単発フラグ=TRUEの行では成長率/柔軟支出フラグが使われない。
+    - 入力_支出: 単発フラグ=TRUEの行では成長率が使われない。
       単発フラグ=FALSEの行では開始条件タイプ/値が使われない。
     - 入力_収入: 終了条件タイプが未入力だと終了条件値があっても終了条件自体が設定されない
       （_build_event_conditionはtypeが空なら値を見ずにNoneを返すため）。
@@ -733,7 +718,7 @@ def collect_input_warnings(spreadsheet: gspread.Spreadsheet) -> list[InputWarnin
     return warnings
 
 
-_UNUSED_WHEN_ONE_TIME = (GROWTH_RATE_HEADER, IS_FLEXIBLE_HEADER, AMOUNT_ANNUAL_HEADER)
+_UNUSED_WHEN_ONE_TIME = (GROWTH_RATE_HEADER, AMOUNT_ANNUAL_HEADER)
 _UNUSED_WHEN_RECURRING = (START_TYPE_HEADER, START_VALUE_HEADER, ONE_TIME_AMOUNT_HEADER)
 
 

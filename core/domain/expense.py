@@ -11,4 +11,3 @@ class Expense:
     category: str
     amount: Money
     growth_rate: Rate
-    is_flexible: bool = False

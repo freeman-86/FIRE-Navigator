@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
@@ -10,7 +10,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
@@ -23,10 +23,10 @@ def build_plan() -> Plan:
     変更する場合はtests/regression/golden/を再生成しレビューを経ること。
     """
 
-    spouse = User(birth_date=date(1992, 6, 1), residence=Prefecture.TOKYO)
-    user = User(birth_date=date(1988, 3, 1), residence=Prefecture.TOKYO, spouse=spouse)
+    spouse = User(birth_date=date(1992, 6, 1))
+    user = User(birth_date=date(1988, 3, 1), spouse=spouse)
 
-    account = Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+    account = Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE)
 
     income = Income(
         income_id="income_salary_001",
@@ -40,7 +40,6 @@ def build_plan() -> Plan:
         category="living",
         amount=Money.of(4_000_000),
         growth_rate=Rate.from_percent(2),
-        is_flexible=False,
     )
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -55,7 +54,7 @@ def build_plan() -> Plan:
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(4)),
         accounts=[account],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO, deduction_settings={"spouse_deduction": True}),
+        tax_config=TaxConfig(deduction_settings={"spouse_deduction": True}),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH, AccountType.TAXABLE]),
         contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
@@ -66,7 +65,7 @@ def build_plan() -> Plan:
 
 def build_portfolios() -> dict[str, Portfolio]:
     asset = Asset(
-        asset_class="equity_sp500", expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15)
+        asset_class="equity_sp500", expected_return=Rate.from_percent(5)
     )
     holding = Holding(asset=asset, quantity=1, current_value=Money.of(2_000_000), cost_basis=Money.of(2_000_000))
     return {"acc_taxable_001": Portfolio(holdings=[holding])}

@@ -50,7 +50,6 @@ from adapters.sheets.sheet_mapping import (
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
-    IS_FLEXIBLE_HEADER,
     LIFE_EXPECTANCY_HEADER,
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
@@ -65,14 +64,12 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_PROGRESS_COMPARISON_SHEET,
     OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
-    OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PROGRESS_SHEET,
-    RESIDENCE_HEADER,
     RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
     SCENARIO_NAME_HEADER,
@@ -83,7 +80,6 @@ from adapters.sheets.sheet_mapping import (
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
     TARGET_WEIGHT_HEADER,
-    VOLATILITY_HEADER,
     YEAR_HEADER,
 )
 from adapters.sheets.sheets_number_format import (
@@ -94,10 +90,9 @@ from adapters.sheets.sheets_number_format import (
     percent_number_format_request,
     percent_row_format_requests,
 )
-from core.domain.account import AccountType, OwnerType
+from core.domain.account import AccountType
 from core.domain.asset import AssetClass
 from core.domain.pension import ClaimTimingType
-from core.domain.user import Prefecture
 from repositories.asset_class_repository import load_asset_class_registry
 
 EXAMPLES_SHEET = "入力例"
@@ -129,7 +124,6 @@ NUMERIC_HEADERS = {
     BALANCE_HEADER,
     COST_BASIS_HEADER,
     EXPECTED_RETURN_HEADER,
-    VOLATILITY_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     AMOUNT_ANNUAL_HEADER,
     ONE_TIME_AMOUNT_HEADER,
@@ -160,7 +154,7 @@ CONDITIONAL_NUMERIC_VALUE_COLUMNS: dict[str, str] = {
 AGE_CONDITION_TYPE_VALUE = "age"
 
 # チェックボックスにする列（TRUE/FALSEの自由入力によるタイプミスを防ぐ）。
-CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER, IS_FLEXIBLE_HEADER}
+CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER}
 
 # 列ヘッダーセルに付けるメモ（セルにマウスオーバーすると表示される補足説明）。
 HEADER_NOTES: dict[str, dict[str, str]] = {
@@ -186,15 +180,12 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
             [
                 ACCOUNT_ID_HEADER,
                 ACCOUNT_TYPE_HEADER,
-                OWNER_HEADER,
                 BALANCE_HEADER,
                 ASSET_CLASS_HEADER,
                 EXPECTED_RETURN_HEADER,
-                VOLATILITY_HEADER,
             ],
             {
                 ACCOUNT_TYPE_HEADER: [member.value for member in AccountType],
-                OWNER_HEADER: [member.value for member in OwnerType],
                 ASSET_CLASS_HEADER: asset_classes,
             },
         ),
@@ -234,13 +225,11 @@ PLAN_REQUIRED_KEYS = [
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     BIRTH_DATE_HEADER,
-    RESIDENCE_HEADER,
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
 ]
 
 PLAN_DROPDOWNS: dict[str, list[str]] = {
-    RESIDENCE_HEADER: [member.value for member in Prefecture],
     PENSION_CLAIM_TIMING_HEADER: [member.value for member in ClaimTimingType],
 }
 
@@ -564,11 +553,11 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
 
     # 入力_支出: 単発フラグの値に応じて使われない列をグレーアウトする。
     # FALSE(経常支出)の行では単発金額・開始条件タイプ/値が無視され、
-    # TRUE(単発支出)の行では年間金額・成長率・柔軟支出フラグが無視される。
+    # TRUE(単発支出)の行では年間金額・成長率が無視される。
     if spec.sheet_name == EXPENSES_SHEET and ONE_TIME_FLAG_HEADER in header:
         flag_col_idx = header.index(ONE_TIME_FLAG_HEADER)
         unused_when_false = [h for h in (ONE_TIME_AMOUNT_HEADER, START_TYPE_HEADER, START_VALUE_HEADER) if h in header]
-        unused_when_true = [h for h in (AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER, IS_FLEXIBLE_HEADER) if h in header]
+        unused_when_true = [h for h in (AMOUNT_ANNUAL_HEADER, GROWTH_RATE_HEADER) if h in header]
         if unused_when_false:
             requests.append(
                 _gray_out_when_one_time_flag_request(

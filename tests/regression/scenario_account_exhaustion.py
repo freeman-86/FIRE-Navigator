@@ -1,6 +1,6 @@
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
@@ -10,7 +10,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
@@ -24,16 +24,15 @@ def build_plan() -> Plan:
     変更する場合はtests/regression/golden/を再生成しレビューを経ること。
     """
 
-    user = User(birth_date=date(1960, 1, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1960, 1, 1))
 
-    account = Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+    account = Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE)
 
     expense = Expense(
         expense_id="expense_living_001",
         category="living",
         amount=Money.of(4_000_000),
         growth_rate=Rate.from_percent(2),
-        is_flexible=False,
     )
     milestone = Milestone(
         milestone_id="milestone_retire_001",
@@ -53,7 +52,7 @@ def build_plan() -> Plan:
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(3)),
         accounts=[account],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
         contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
@@ -64,7 +63,7 @@ def build_plan() -> Plan:
 
 def build_portfolios() -> dict[str, Portfolio]:
     asset = Asset(
-        asset_class="bond_us_treasury", expected_return=Rate.from_percent(3), volatility=Rate.from_percent(5)
+        asset_class="bond_us_treasury", expected_return=Rate.from_percent(3)
     )
     holding = Holding(asset=asset, quantity=1, current_value=Money.of(3_000_000), cost_basis=Money.of(3_000_000))
     return {"acc_taxable_001": Portfolio(holdings=[holding])}

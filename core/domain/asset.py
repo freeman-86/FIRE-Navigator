@@ -15,4 +15,3 @@ AssetClass = str
 class Asset:
     asset_class: AssetClass
     expected_return: Rate
-    volatility: Rate

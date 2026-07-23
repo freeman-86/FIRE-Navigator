@@ -7,7 +7,6 @@ from adapters.sheets.sheet_mapping import (
     BALANCE_HEADER,
     COST_BASIS_HEADER,
     EXPECTED_RETURN_HEADER,
-    VOLATILITY_HEADER,
 )
 from adapters.sheets.sheets_input_adapter import build_portfolios_from_spreadsheet
 from core.domain.value_objects import Money
@@ -37,7 +36,6 @@ def _record(**overrides) -> dict:
         BALANCE_HEADER: "5000000",
         ASSET_CLASS_HEADER: "cash",
         EXPECTED_RETURN_HEADER: "0.0",
-        VOLATILITY_HEADER: "0.0",
     }
     base.update(overrides)
     return base

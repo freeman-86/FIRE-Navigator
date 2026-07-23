@@ -17,12 +17,6 @@ class AccountType(str, Enum):
     CASH = "cash"
 
 
-class OwnerType(str, Enum):
-    SELF = "self"
-    SPOUSE = "spouse"
-    JOINT = "joint"
-
-
 @dataclass
 class Account:
     """Plan Aggregateに属する口座の識別情報。保有資産(Portfolio)は独立したAggregateであり、
@@ -31,5 +25,4 @@ class Account:
 
     account_id: str
     account_type: AccountType
-    owner: OwnerType
     monthly_contribution: Optional[Money] = None

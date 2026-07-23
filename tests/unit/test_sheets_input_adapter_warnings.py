@@ -12,7 +12,6 @@ from adapters.sheets.sheet_mapping import (
     GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
     INCOMES_SHEET,
-    IS_FLEXIBLE_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     SOURCE_HEADER,
@@ -41,7 +40,7 @@ class _FakeSpreadsheet:
 
 
 class CollectExpensesWarningsTest(unittest.TestCase):
-    def test_warns_when_one_time_row_has_growth_rate_or_is_flexible(self) -> None:
+    def test_warns_when_one_time_row_has_growth_rate(self) -> None:
         spreadsheet = _FakeSpreadsheet(
             {
                 EXPENSES_SHEET: _FakeWorksheet(
@@ -52,7 +51,6 @@ class CollectExpensesWarningsTest(unittest.TestCase):
                             ONE_TIME_FLAG_HEADER: "TRUE",
                             ONE_TIME_AMOUNT_HEADER: "3000000",
                             GROWTH_RATE_HEADER: "0.02",
-                            IS_FLEXIBLE_HEADER: "TRUE",
                             START_TYPE_HEADER: "age",
                             START_VALUE_HEADER: "45",
                         }
@@ -65,7 +63,6 @@ class CollectExpensesWarningsTest(unittest.TestCase):
 
         field_paths = {w.field_path for w in warnings}
         self.assertIn(f"{EXPENSES_SHEET}!row2.{GROWTH_RATE_HEADER}", field_paths)
-        self.assertIn(f"{EXPENSES_SHEET}!row2.{IS_FLEXIBLE_HEADER}", field_paths)
 
     def test_warns_when_one_time_row_has_annual_amount(self) -> None:
         spreadsheet = _FakeSpreadsheet(

@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset, AssetClass
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
@@ -12,7 +12,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 
@@ -31,13 +31,12 @@ def build_scenario_plan() -> Plan:
     変更する場合は tests/regression/golden/ を再生成しレビューを経ること。
     """
 
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
 
     accounts = [
         Account(
             account_id=account_id,
             account_type=account_type,
-            owner=OwnerType.SELF,
             monthly_contribution=Money.of(monthly_contribution) if monthly_contribution is not None else None,
         )
         for account_id, account_type, _balance, _asset_class, monthly_contribution in _ACCOUNT_SPECS
@@ -60,7 +59,6 @@ def build_scenario_plan() -> Plan:
             category="living",
             amount=Money.of(3_600_000),
             growth_rate=Rate.from_percent(2),
-            is_flexible=False,
         )
     ]
 
@@ -85,7 +83,7 @@ def build_scenario_plan() -> Plan:
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(5)),
         accounts=accounts,
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(
             order=[AccountType.CASH, AccountType.TAXABLE, AccountType.NISA_GROWTH, AccountType.IDECO]
@@ -105,6 +103,6 @@ def build_scenario_portfolios() -> dict[str, Portfolio]:
 
     portfolios = {}
     for account_id, _account_type, balance, asset_class, _monthly_contribution in _ACCOUNT_SPECS:
-        asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5), volatility=Rate.from_percent(15))
+        asset = Asset(asset_class=asset_class, expected_return=Rate.from_percent(5))
         portfolios[account_id] = Portfolio(holdings=[Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))])
     return portfolios

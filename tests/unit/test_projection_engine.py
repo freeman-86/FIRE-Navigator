@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset, AssetClass
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
@@ -12,7 +12,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import (
@@ -30,7 +30,7 @@ from tests.tax_test_fixtures import zero_tax_rules
 
 
 def _minimal_plan(**overrides) -> Plan:
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -43,7 +43,7 @@ def _minimal_plan(**overrides) -> Plan:
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
         accounts=[],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
         contribution_strategy=no_allocation_contribution_strategy(),
@@ -58,7 +58,6 @@ def _portfolio(balance: int, asset_class: AssetClass = "equity_sp500", expected_
     asset = Asset(
         asset_class=asset_class,
         expected_return=expected_return if expected_return is not None else Rate.zero(),
-        volatility=Rate.from_percent(15),
     )
     holding = Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))
     return Portfolio(holdings=[holding])
@@ -114,7 +113,7 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(result.yearly_projections[-1].age_self, 85)
 
     def test_surplus_and_growth_compound_networth(self) -> None:
-        account = Account(account_id="acc_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_001", account_type=AccountType.TAXABLE)
         income = Income(
             income_id="income_001",
             source="salary",
@@ -151,8 +150,8 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(first_year.networth, Money.of(3_095_434))
 
     def test_deterministic_engine_grows_each_account_by_its_own_expected_return(self) -> None:
-        high_growth_account = Account(account_id="acc_high", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
-        low_growth_account = Account(account_id="acc_low", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        high_growth_account = Account(account_id="acc_high", account_type=AccountType.TAXABLE)
+        low_growth_account = Account(account_id="acc_low", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(
             accounts=[high_growth_account, low_growth_account],
             # プラン全体のinvestment_growth_rateはどちらの口座の期待リターンとも異なる値にして、
@@ -172,7 +171,7 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(first_year.account_balances["acc_low"], Money.of(1_000_000))
 
     def test_account_without_portfolio_entry_starts_at_zero_balance(self) -> None:
-        account = Account(account_id="acc_no_portfolio", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_no_portfolio", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(accounts=[account])
 
         result = _run(plan)
@@ -249,7 +248,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         self.assertEqual(by_age[61], Money.of(1_504_800))
 
     def test_withdrawal_covers_post_retirement_shortfall_from_account_balance(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         expense = Expense(
             expense_id="expense_001",
             category="living",
@@ -277,7 +276,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.zero())
 
     def test_unmet_shortfall_after_accounts_exhausted_flows_to_unallocated_surplus(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         expense = Expense(
             expense_id="expense_001",
             category="living",
@@ -309,14 +308,13 @@ class NisaIdecoComparisonTest(unittest.TestCase):
     """Sprint6の終了条件：NISA・iDeCoを使った場合と使わない場合で、税引後資産推移がどれだけ変わるかを比較できる。"""
 
     def _accounts_and_portfolios(self, with_ideco: bool):
-        taxable = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        taxable = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         portfolios = {"acc_taxable": _portfolio(1_000_000)}
         accounts = [taxable]
         if with_ideco:
             ideco = Account(
                 account_id="acc_ideco",
                 account_type=AccountType.IDECO,
-                owner=OwnerType.SELF,
                 monthly_contribution=Money.of(23_000),
             )
             accounts.append(ideco)
@@ -397,7 +395,7 @@ class MonthlyProjectionsTest(unittest.TestCase):
         self.assertEqual([p.month for p in first_twelve], list(range(1, 13)))
 
     def test_year_end_snapshot_matches_last_month_of_that_year(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(
             accounts=[account],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
@@ -414,7 +412,7 @@ class MonthlyProjectionsTest(unittest.TestCase):
         self.assertEqual(last_month_of_first_year.networth, first_year.networth)
 
     def test_no_contribution_account_compounds_monthly_to_same_annual_total(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(
             accounts=[account],
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
@@ -429,7 +427,7 @@ class MonthlyProjectionsTest(unittest.TestCase):
 
 class CapitalGainsTaxIntegrationTest(unittest.TestCase):
     def test_no_gain_no_growth_withdrawal_is_not_taxed(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         expense = Expense(
             expense_id="expense_001", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero()
         )
@@ -447,7 +445,7 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
         self.assertEqual(first_year.capital_gains_tax, Money.zero())
 
     def test_growth_then_withdrawal_from_taxable_account_incurs_capital_gains_tax(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         expense = Expense(
             expense_id="expense_001", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero()
         )
@@ -466,7 +464,7 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
         self.assertGreater(first_year.capital_gains_tax.amount, 0)
 
     def test_preexisting_unrealized_gain_is_taxed_on_withdrawal(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         expense = Expense(
             expense_id="expense_001", category="living", amount=Money.of(1_200_000), growth_rate=Rate.zero()
         )
@@ -477,7 +475,7 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
         )
         # シミュレーション開始時点で既に含み益がある状態（残高5,000,000・取得原価3,000,000、
         # 入力_口座の取得原価列に相当）。成長率0%でも、この既存の含み益に対して譲渡税が発生する。
-        asset = Asset(asset_class="cash", expected_return=Rate.zero(), volatility=Rate.zero())
+        asset = Asset(asset_class="cash", expected_return=Rate.zero())
         holding = Holding(asset=asset, quantity=1, current_value=Money.of(5_000_000), cost_basis=Money.of(3_000_000))
         portfolios = {"acc_taxable": Portfolio(holdings=[holding])}
 
@@ -487,7 +485,7 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
         self.assertGreater(first_year.capital_gains_tax.amount, 0)
 
     def test_withdraw_shortfall_reports_capital_gains_tax_for_realized_gain(self) -> None:
-        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         portfolio_rules = load_portfolio_rules()
         tax_rules = load_tax_rules()
 
@@ -511,8 +509,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         # オーバーウェイトな株式の売却は、実際に生活費の不足が発生した月にのみ起きることを確認する。
         from core.domain.allocation import AllocationPolicy, AllocationTarget
 
-        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
-        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH)
+        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE)
         allocation_policy = AllocationPolicy(
             targets=[AllocationTarget(age=0, weights={"equity_sp500": Rate.of("0.5"), "bond_us_treasury": Rate.of("0.5")})]
         )
@@ -522,8 +520,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
             allocation_policy=allocation_policy,
             expenses=[expense],
         )
-        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
-        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
+        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero())
+        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero())
         portfolios = {
             "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, current_value=Money.of(900_000), cost_basis=Money.of(900_000))]),
             "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, current_value=Money.of(100_000), cost_basis=Money.of(100_000))]),
@@ -546,8 +544,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         # 一切売却しない（独立したリバランス処理は削除済み）。
         from core.domain.allocation import AllocationPolicy, AllocationTarget
 
-        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
-        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH)
+        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE)
         allocation_policy = AllocationPolicy(
             targets=[AllocationTarget(age=0, weights={"equity_sp500": Rate.of("0.5"), "bond_us_treasury": Rate.of("0.5")})]
         )
@@ -555,8 +553,8 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
             accounts=[equity_account, bond_account],
             allocation_policy=allocation_policy,
         )
-        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
-        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
+        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero())
+        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero())
         portfolios = {
             "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, current_value=Money.of(900_000), cost_basis=Money.of(900_000))]),
             "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, current_value=Money.of(100_000), cost_basis=Money.of(100_000))]),
@@ -571,11 +569,11 @@ class AllocationPolicyIntegrationTest(unittest.TestCase):
         self.assertEqual(first_month.account_balances["acc_bond"], Money.of(100_000))
 
     def test_no_allocation_policy_leaves_initial_imbalance_untouched(self) -> None:
-        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF)
-        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE, owner=OwnerType.SELF)
+        equity_account = Account(account_id="acc_equity", account_type=AccountType.NISA_GROWTH)
+        bond_account = Account(account_id="acc_bond", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(accounts=[equity_account, bond_account])
-        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero(), volatility=Rate.zero())
-        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero(), volatility=Rate.zero())
+        equity_asset = Asset(asset_class="equity_sp500", expected_return=Rate.zero())
+        bond_asset = Asset(asset_class="bond_us_treasury", expected_return=Rate.zero())
         portfolios = {
             "acc_equity": Portfolio(holdings=[Holding(asset=equity_asset, quantity=1, current_value=Money.of(900_000), cost_basis=Money.of(900_000))]),
             "acc_bond": Portfolio(holdings=[Holding(asset=bond_asset, quantity=1, current_value=Money.of(100_000), cost_basis=Money.of(100_000))]),
@@ -745,7 +743,7 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
     def test_age_triggered_one_time_expense_fires_in_birthday_month(self) -> None:
         from core.domain.one_time_expense import OneTimeExpense
 
-        user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+        user = User(birth_date=date(1990, 4, 1))
         pension = Pension(
             national_pension=PensionEntitlement(estimate_annual=Money.zero()),
             employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
@@ -761,7 +759,7 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
             start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
             assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
             accounts=[],
-            tax_config=TaxConfig(residence=Prefecture.TOKYO),
+            tax_config=TaxConfig(),
             pension=pension,
             withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
             contribution_strategy=no_allocation_contribution_strategy(),

@@ -29,19 +29,16 @@ from adapters.sheets.sheet_mapping import (
     INCOME_ID_HEADER,
     INFLATION_RATE_HEADER,
     INVESTMENT_GROWTH_RATE_HEADER,
-    IS_FLEXIBLE_HEADER,
     LIFE_EXPECTANCY_HEADER,
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
-    OWNER_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
-    RESIDENCE_HEADER,
     RETIREMENT_AGE_HEADER,
     SCENARIO_ID_HEADER,
     SCENARIO_NAME_HEADER,
@@ -51,7 +48,6 @@ from adapters.sheets.sheet_mapping import (
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
     TARGET_WEIGHT_HEADER,
-    VOLATILITY_HEADER,
     YEAR_HEADER,
 )
 
@@ -59,7 +55,6 @@ PLAN_ROWS = [
     [PLAN_ID_HEADER, "plan_001"],
     [PLAN_NAME_HEADER, "ベースプラン"],
     [BIRTH_DATE_HEADER, "1990-04-01"],
-    [RESIDENCE_HEADER, "tokyo"],
     [INFLATION_RATE_HEADER, "0.02"],
     [INVESTMENT_GROWTH_RATE_HEADER, "0.05"],
     [RETIREMENT_AGE_HEADER, "60"],
@@ -75,19 +70,17 @@ ACCOUNTS_ROWS = [
     [
         ACCOUNT_ID_HEADER,
         ACCOUNT_TYPE_HEADER,
-        OWNER_HEADER,
         BALANCE_HEADER,
         ASSET_CLASS_HEADER,
         EXPECTED_RETURN_HEADER,
-        VOLATILITY_HEADER,
         MONTHLY_CONTRIBUTION_HEADER,
         COST_BASIS_HEADER,
     ],
-    ["acc_cash_001", "cash", "self", "1000000", "cash", "0.0", "0.0", "", ""],
-    ["acc_nisa_growth_001", "nisa_growth", "self", "3000000", "equity_sp500", "0.05", "0.15", "50000", ""],
-    ["acc_ideco_001", "ideco", "self", "1500000", "bond_us_treasury", "0.02", "0.05", "23000", ""],
+    ["acc_cash_001", "cash", "1000000", "cash", "0.0", "", ""],
+    ["acc_nisa_growth_001", "nisa_growth", "3000000", "equity_sp500", "0.05", "50000", ""],
+    ["acc_ideco_001", "ideco", "1500000", "bond_us_treasury", "0.02", "23000", ""],
     # 取得原価を残高より低く指定する例（含み益500,000円がある状態からシミュレーションを開始する）
-    ["acc_taxable_001", "taxable", "self", "2000000", "equity_sp500", "0.05", "0.15", "30000", "1500000"],
+    ["acc_taxable_001", "taxable", "2000000", "equity_sp500", "0.05", "30000", "1500000"],
 ]
 
 INCOMES_ROWS = [
@@ -112,12 +105,11 @@ EXPENSES_ROWS = [
         AMOUNT_ANNUAL_HEADER,
         ONE_TIME_AMOUNT_HEADER,
         GROWTH_RATE_HEADER,
-        IS_FLEXIBLE_HEADER,
         START_TYPE_HEADER,
         START_VALUE_HEADER,
     ],
-    ["expense_living_001", "living", "FALSE", "3600000", "", "0.02", "FALSE", "", ""],
-    ["expense_car_001", "車の買い替え", "TRUE", "", "3000000", "", "", "age", "45"],
+    ["expense_living_001", "living", "FALSE", "3600000", "", "0.02", "", ""],
+    ["expense_car_001", "車の買い替え", "TRUE", "", "3000000", "", "age", "45"],
 ]
 
 SCENARIOS_ROWS = [

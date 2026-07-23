@@ -1,7 +1,7 @@
 import unittest
 from datetime import date
 
-from core.domain.account import Account, AccountType, OwnerType
+from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
@@ -9,7 +9,7 @@ from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEn
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
-from core.domain.user import Prefecture, User
+from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import run_projection
@@ -21,13 +21,12 @@ from tests.tax_test_fixtures import zero_tax_rules
 
 
 def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
-    user = User(birth_date=date(1990, 4, 1), residence=Prefecture.TOKYO)
+    user = User(birth_date=date(1990, 4, 1))
 
     def _portfolio(balance: int) -> Portfolio:
         asset = Asset(
             asset_class="equity_sp500",
             expected_return=Rate.from_percent(5),
-            volatility=Rate.from_percent(15),
         )
         return Portfolio(holdings=[Holding(asset=asset, quantity=1, current_value=Money.of(balance), cost_basis=Money.of(balance))])
 
@@ -52,10 +51,10 @@ def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
         assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
         accounts=[
-            Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE, owner=OwnerType.SELF),
-            Account(account_id="acc_nisa_001", account_type=AccountType.NISA_GROWTH, owner=OwnerType.SELF),
+            Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE),
+            Account(account_id="acc_nisa_001", account_type=AccountType.NISA_GROWTH),
         ],
-        tax_config=TaxConfig(residence=Prefecture.TOKYO),
+        tax_config=TaxConfig(),
         pension=pension,
         withdrawal_strategy=WithdrawalStrategy(order=[AccountType.CASH]),
         contribution_strategy=no_allocation_contribution_strategy(),
