@@ -1,7 +1,9 @@
 import unittest
+from datetime import date
 
 from adapters.sheets.sheets_input_adapter import (
     _build_accounts,
+    _build_event_condition,
     _build_incomes,
     _build_user,
 )
@@ -9,10 +11,12 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
+    AGE_CONDITION_LABEL,
     AMOUNT_ANNUAL_HEADER,
     ASSET_CLASS_HEADER,
     BALANCE_HEADER,
     BIRTH_DATE_HEADER,
+    DATE_CONDITION_LABEL,
     EXPECTED_RETURN_HEADER,
     GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
@@ -27,7 +31,7 @@ from adapters.sheets.sheet_mapping import (
     END_VALUE_HEADER,
 )
 from core.domain.errors import StructuralInputError
-from core.domain.value_objects import Money, Rate
+from core.domain.value_objects import EventCondition, Money, Rate
 
 
 class _FakeWorksheet:
@@ -205,6 +209,36 @@ class BuildIncomesGrowthRateDefaultTest(unittest.TestCase):
         incomes = _build_incomes(spreadsheet, Rate.of("0.02"))
 
         self.assertEqual(incomes[0].amount, Money.zero())
+
+
+class BuildEventConditionLegacyAliasTest(unittest.TestCase):
+    """新しいプルダウンには表示しないが、移行前の英語表記(today/plan_start/age/date)が
+    既存スプレッドシートのセルに残っていても、手動で書き換えなくてもそのまま読めることを保証する。
+    """
+
+    def test_legacy_today_and_plan_start_both_resolve_to_plan_start(self) -> None:
+        self.assertEqual(_build_event_condition("today", "", "path"), EventCondition.plan_start())
+        self.assertEqual(_build_event_condition("plan_start", "", "path"), EventCondition.plan_start())
+
+    def test_legacy_age_resolves_to_age_condition(self) -> None:
+        self.assertEqual(_build_event_condition("age", "45", "path"), EventCondition.at_age(45))
+
+    def test_legacy_date_resolves_to_date_condition(self) -> None:
+        self.assertEqual(
+            _build_event_condition("date", "2027-06-01", "path"),
+            EventCondition.at_date(date(2027, 6, 1)),
+        )
+
+    def test_legacy_values_are_case_insensitive(self) -> None:
+        self.assertEqual(_build_event_condition("AGE", "45", "path"), EventCondition.at_age(45))
+
+    def test_new_japanese_labels_still_work(self) -> None:
+        self.assertEqual(_build_event_condition(PLAN_START_CONDITION_LABEL, "", "path"), EventCondition.plan_start())
+        self.assertEqual(_build_event_condition(AGE_CONDITION_LABEL, "45", "path"), EventCondition.at_age(45))
+        self.assertEqual(
+            _build_event_condition(DATE_CONDITION_LABEL, "2027-06-01", "path"),
+            EventCondition.at_date(date(2027, 6, 1)),
+        )
 
 
 if __name__ == "__main__":

@@ -210,11 +210,23 @@ def _parse_date(value: object) -> date:
     return datetime.strptime(str(value).strip(), "%Y-%m-%d").date()
 
 
+# プルダウンには新しい日本語ラベルのみを表示するが、パース側は移行前の旧い英語表記
+# (today/plan_start/age/date）も後方互換で受け付ける。既存スプレッドシートに残っている
+# セルの値を手動で書き換えなくても動くようにするための互換エイリアス（大文字小文字は区別しない）。
+_LEGACY_CONDITION_TYPE_ALIASES = {
+    "today": PLAN_START_CONDITION_LABEL,
+    "plan_start": PLAN_START_CONDITION_LABEL,
+    "age": AGE_CONDITION_LABEL,
+    "date": DATE_CONDITION_LABEL,
+}
+
+
 def _build_event_condition(condition_type: object, value: object, field_path: str) -> Optional[EventCondition]:
     normalized_type = str(condition_type or "").strip()
     normalized_value = str(value or "").strip()
     if normalized_type == "" or normalized_type.lower() == "none":
         return None
+    normalized_type = _LEGACY_CONDITION_TYPE_ALIASES.get(normalized_type.lower(), normalized_type)
     if normalized_type == PLAN_START_CONDITION_LABEL:
         return EventCondition.plan_start()
     if normalized_type == AGE_CONDITION_LABEL:
