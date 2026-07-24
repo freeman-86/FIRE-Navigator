@@ -72,9 +72,12 @@ class ProjectionEngineTest(unittest.TestCase):
         plan = _minimal_plan()
         result = _run(plan)
 
-        self.assertEqual(len(result.yearly_projections), 30)
+        # 年次ループのブロックは年齢切り替え月（誕生日1990-04-01なので4月）起点になっており、
+        # プラン開始月(1月)とはずれているため、最初のブロックは1〜3月の3ヶ月だけの半端な区切りになる。
+        # そのぶん実際の西暦年としては30年ちょうどではなく31年分（2026〜2056年）にまたがる。
+        self.assertEqual(len(result.yearly_projections), 31)
         self.assertEqual(result.yearly_projections[0].year, 2026)
-        self.assertEqual(result.yearly_projections[-1].year, 2055)
+        self.assertEqual(result.yearly_projections[-1].year, 2056)
 
     def test_horizon_extends_to_life_expectancy_when_retirement_milestone_present(self) -> None:
         plan = _minimal_plan(
@@ -88,8 +91,10 @@ class ProjectionEngineTest(unittest.TestCase):
         )
         result = _run(plan)
 
-        # 1990年生まれがDEFAULT_LIFE_EXPECTANCY_AGE歳になる年まで、退職後も継続してシミュレーションする
-        expected_last_year = 1990 + DEFAULT_LIFE_EXPECTANCY_AGE
+        # 1990年生まれがDEFAULT_LIFE_EXPECTANCY_AGE歳になる年まで、退職後も継続してシミュレーションする。
+        # ブロックが年齢切り替え月（4月）起点でプラン開始月(1月)とずれているため、実際に到達する
+        # 西暦年はDEFAULT_LIFE_EXPECTANCY_AGE歳になる年の翌年（最初のブロックの半端分がずれ込むため）。
+        expected_last_year = 1990 + DEFAULT_LIFE_EXPECTANCY_AGE + 1
         self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
         self.assertEqual(result.yearly_projections[-1].age_self, DEFAULT_LIFE_EXPECTANCY_AGE)
 
@@ -108,7 +113,9 @@ class ProjectionEngineTest(unittest.TestCase):
         )
         result = _run(plan)
 
-        expected_last_year = 1990 + 85
+        # ブロックが年齢切り替え月（4月）起点でプラン開始月(1月)とずれているため、
+        # 実際に到達する西暦年は85歳になる年の翌年になる（上のテストと同じ理由）。
+        expected_last_year = 1990 + 85 + 1
         self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
         self.assertEqual(result.yearly_projections[-1].age_self, 85)
 
@@ -193,13 +200,17 @@ class ProjectionEngineTest(unittest.TestCase):
         plan = _minimal_plan(incomes=[income])
         result = _run(plan)
 
-        # 生年月日1990-04-01、終了条件は60歳(2050年4月に60歳の誕生日)。60歳に達する年（2050年）は
-        # 1〜3月の3ヶ月分のみ収入があり(1,000,000×3/12=250,000)、翌年(2051年、61歳)は0円になる。
-        # YearlyProjectionは実際の西暦年ごとに月次実績(月額を12等分して丸めた値)を合算して作るため、
-        # 端数の丸め分だけ単純計算(1,000,000・250,000)よりわずかに少なくなる。
+        # 生年月日1990-04-01、終了条件は60歳(2050年4月に60歳の誕生日)。年次ループのブロックは
+        # 年齢切り替え月(4月)起点のため、60歳になるbrockの境界とちょうど一致し、収入は59歳の
+        # ブロックまでは満額、60歳のブロックからは0円になる。ただし出力はブロックではなく実際の
+        # 西暦年ごとの集計のため、60歳に切り替わる西暦年（2050年）は1〜3月（59歳、まだ満額の
+        # ブロックの一部）と4〜12月（60歳、0円のブロック）が混在し、1〜3月の3ヶ月分だけ収入が
+        # 計上される(1,000,000×3/12=250,000相当)。翌年（2051年、61歳）は0円になる。
+        # YearlyProjectionは月次実績(月額を12等分して丸めた値)を合算して作るため、端数の丸め分だけ
+        # 単純計算よりわずかにずれる。
         by_age = {p.age_self: p.gross_income for p in result.yearly_projections}
         self.assertEqual(by_age[59], Money.of(999_996))
-        self.assertEqual(by_age[60], Money.of(249_996))
+        self.assertEqual(by_age[60], Money.of(249_999))
         self.assertEqual(by_age[61], Money.zero())
 
 
@@ -384,11 +395,24 @@ class NisaIdecoComparisonTest(unittest.TestCase):
 
 
 class MonthlyProjectionsTest(unittest.TestCase):
-    def test_monthly_projections_have_12_entries_per_year(self) -> None:
+    def test_monthly_projections_have_12_entries_per_year_except_partial_edge_years(self) -> None:
+        # YearlyProjectionは実際の西暦年ごとに月次実績を合算するため、シミュレーション期間の
+        # 最初と最後の西暦年だけは12ヶ月に満たないことがある（年次ループのブロック自体が
+        # プラン開始月や年齢切り替え月の影響で暦年の途中から始まる/終わるため）。
+        # それ以外の（期間の途中にある）年は必ず12ヶ月分になる。
         plan = _minimal_plan()
         result = _run(plan)
 
-        self.assertEqual(len(result.monthly_projections), len(result.yearly_projections) * 12)
+        counts_by_year: dict[int, int] = {}
+        for projection in result.monthly_projections:
+            counts_by_year[projection.year] = counts_by_year.get(projection.year, 0) + 1
+
+        years = sorted(counts_by_year)
+        for year in years[1:-1]:
+            self.assertEqual(counts_by_year[year], 12)
+        self.assertLessEqual(counts_by_year[years[0]], 12)
+        self.assertLessEqual(counts_by_year[years[-1]], 12)
+        self.assertEqual(sum(counts_by_year.values()), len(result.monthly_projections))
 
     def test_monthly_projections_are_labelled_in_order(self) -> None:
         plan = _minimal_plan()

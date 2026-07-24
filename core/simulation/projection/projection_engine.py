@@ -85,13 +85,19 @@ def run_projection(
     これによりmilestone評価・感応度分析・チャート・Monte Carlo/Historical Engine等の年次インターフェースは
     無改修で動作する。月次の明細はSimulationResult.monthly_projectionsに別途保持する。
 
-    内部の年次ループ自体はプラン開始月（start_month）を起点とした12ヶ月区切り（例:
-    TODAY開始・7月なら7月〜翌6月）のまま所得税・住民税・社会保険料等を計算するが（年次課税額の
-    近似計算はこの区切りの方が実態に近いため）、YearlyProjectionへの集計は月次実績
-    （MonthlyProjection）を実際の西暦年ごとに合算して作る。これにより出力_純資産推移の「西暦年」列と
-    出力_月次詳細の同じ西暦年の月次合計が一致する（以前はプラン開始月起点の12ヶ月区切りをそのまま
-    「西暦年」として表示していたため、start_monthが1月以外の場合は両シートの集計期間がずれ、
-    金額が一致しなかった）。
+    内部の年次ループ自体は「年齢が実際に切り替わる月（誕生月の翌月。誕生日が1日の場合は誕生月
+    そのもの。age_at()の判定基準と同じ）」を起点とした12ヶ月区切りで所得税・住民税・社会保険料等を
+    計算する（年齢条件による開始/終了が区切りの境界とちょうど一致し、月次按分が正しく行われるため。
+    以前はプラン開始月を起点にしていたため、年齢条件の判定がブロックの途中にずれ込み、月次詳細の
+    金額が実際の按分から外れることがあった）。最初のブロックだけ、実際のプラン開始月から直後の
+    年齢切り替え月の前月までの可変長（1〜12ヶ月）になり、以降は年齢切り替え月起点の固定12ヶ月
+    ブロックになる（`_age_transition_month()`）。日付（YYYY-MM）による開始/終了条件は誕生日と
+    無関係なため、この区切りに揃えてもブロックの途中でまたがるケースは残る（仕様として許容する）。
+
+    YearlyProjectionへの集計は月次実績（MonthlyProjection）を実際の西暦年ごとに合算して作る。
+    これにより出力_純資産推移の「西暦年」列と出力_月次詳細の同じ西暦年の月次合計が一致する
+    （以前はプラン開始月起点の12ヶ月区切りをそのまま「西暦年」として表示していたため、start_monthが
+    1月以外の場合は両シートの集計期間がずれ、金額が一致しなかった）。
 
     退職(RETIREMENT)マイルストーンがある場合、想定寿命(plan.life_expectancy_age。
     入力_プラン設定の想定寿命、未入力ならDEFAULT_LIFE_EXPECTANCY_AGE)まで
@@ -119,6 +125,9 @@ def run_projection(
     start_month = resolve_start_month(plan)
     end_year = _resolve_end_year(plan, start_year)
     birth_date = plan.user.birth_date
+    age_transition_month = _age_transition_month(birth_date)
+    first_block_length = _first_block_length(start_month, age_transition_month)
+    num_blocks = _resolve_num_blocks(birth_date, start_year, start_month, end_year)
     has_spouse = plan.user.spouse is not None
     default_monthly_rate = plan.assumptions.investment_growth_rate.monthly_equivalent()
     per_account_monthly_rate = _monthly_rate_by_account_id(portfolios)
@@ -144,10 +153,12 @@ def run_projection(
 
     monthly_projections: list[MonthlyProjection] = []
     calendar_year_accumulators: dict[int, _YearAccumulator] = {}
-    for offset_year in range(end_year - start_year + 1):
+    month_offset_cursor = 0
+    for offset_year in range(num_blocks):
+        block_length = first_block_length if offset_year == 0 else MONTHS_PER_YEAR
+        block_start_offset = month_offset_cursor
         month_pairs_this_year = [
-            calendar_year_month(start_year, start_month, offset_year * MONTHS_PER_YEAR + m)
-            for m in range(MONTHS_PER_YEAR)
+            calendar_year_month(start_year, start_month, block_start_offset + m) for m in range(block_length)
         ]
         gross_income_annual = _active_income_total(
             plan.incomes, month_pairs_this_year, start_year, start_month, birth_date, offset_year
@@ -165,23 +176,23 @@ def run_projection(
             fixed_plan.tax_deductible_amount, is_65_or_older,
         )
 
-        monthly_gross_income = _divide_by_12(gross_income_annual)
-        monthly_pension_income = _divide_by_12(pension_income_annual)
-        monthly_net_income = _divide_by_12(tax_result.net_income)
-        monthly_income_tax = _divide_by_12(tax_result.income_tax)
-        monthly_resident_tax = _divide_by_12(tax_result.resident_tax)
-        monthly_social_insurance = _divide_by_12(tax_result.social_insurance)
-        monthly_recurring_expense = _divide_by_12(total_expense_annual)
+        monthly_gross_income = _divide_by(gross_income_annual, block_length)
+        monthly_pension_income = _divide_by(pension_income_annual, block_length)
+        monthly_net_income = _divide_by(tax_result.net_income, block_length)
+        monthly_income_tax = _divide_by(tax_result.income_tax, block_length)
+        monthly_resident_tax = _divide_by(tax_result.resident_tax, block_length)
+        monthly_social_insurance = _divide_by(tax_result.social_insurance, block_length)
+        monthly_recurring_expense = _divide_by(total_expense_annual, block_length)
         monthly_fixed_contributions = {
-            account_id: _divide_by_12(amount) for account_id, amount in fixed_plan.contributions.items()
+            account_id: _divide_by(amount, block_length) for account_id, amount in fixed_plan.contributions.items()
         }
         discretionary_contributed_this_year: dict[str, Money] = {}
 
         balances_snapshot: dict[str, Money] = {}
         networth = Money.zero()
-        for month in range(1, MONTHS_PER_YEAR + 1):
-            month_offset = offset_year * MONTHS_PER_YEAR + (month - 1)
-            calendar_year, calendar_month = calendar_year_month(start_year, start_month, month_offset)
+        for month_index in range(block_length):
+            month_offset = block_start_offset + month_index
+            calendar_year, calendar_month = month_pairs_this_year[month_index]
             age_this_month = age_at(birth_date, calendar_year, calendar_month)
             growth_rate = (
                 growth_rate_provider(month_offset) if growth_rate_provider is not None else default_monthly_rate
@@ -305,6 +316,8 @@ def run_projection(
             year_acc.account_balances = dict(balances_snapshot)  # 同様に、その年最後の月の残高スナップショットになる
             year_acc.networth = networth
 
+        month_offset_cursor += block_length
+
     yearly_projections = [
         _build_yearly_projection(calendar_year, year_acc)
         for calendar_year, year_acc in sorted(calendar_year_accumulators.items())
@@ -366,8 +379,15 @@ def _monthly_rate_by_account_id(portfolios: dict[str, Portfolio]) -> dict[str, R
     return result
 
 
-def _divide_by_12(amount: Money) -> Money:
-    return Money.of(amount.amount / MONTHS_PER_YEAR)
+def _divide_by(amount: Money, block_length: int) -> Money:
+    """ブロック（年次ループの1回分）の年額をそのブロックの実際の月数で割り、月額を求める。
+
+    最初のブロックはプラン開始月から年齢切り替え月の前月までの可変長（1〜12ヶ月）になりうるため、
+    常に12で割るのではなくブロックの実際の月数（block_length）で割る必要がある
+    （でないと、ブロックの月数分だけ合計しても元の年額に一致しなくなる）。
+    """
+
+    return Money.of(amount.amount / block_length)
 
 
 def _total(amounts: dict[str, Money]) -> Money:
@@ -416,6 +436,32 @@ def resolve_start_month(plan: Plan) -> int:
     return date.today().month
 
 
+def _age_transition_month(birth_date: date) -> int:
+    """年齢が実際に切り替わる月（1〜12）を返す。
+
+    age_at()は「その月の1日時点で誕生日を迎えているか」で年齢を判定するため、誕生日が月の
+    2日以降の場合、年齢表示が切り替わるのは誕生月の翌月から（_age_reached_month()と同じ基準）。
+    誕生日が1日の場合は誕生月そのものになる。年次ループのブロック境界をこの月に揃えることで、
+    年齢条件による開始/終了がちょうどブロックの境界と一致するようにする。
+    """
+
+    if birth_date.day == 1:
+        return birth_date.month
+    return birth_date.month + 1 if birth_date.month < 12 else 1
+
+
+def _first_block_length(start_month: int, age_transition_month: int) -> int:
+    """年次ループの最初のブロックの月数（1〜12）を返す。
+
+    プラン開始月が年齢切り替え月と同じなら最初から12ヶ月の通常ブロックになる。それ以外は、
+    プラン開始月から直後の年齢切り替え月の前月までの月数（1〜11ヶ月）が最初のブロックになり、
+    2番目以降は年齢切り替え月起点の固定12ヶ月ブロックになる。
+    """
+
+    diff = (age_transition_month - start_month) % MONTHS_PER_YEAR
+    return diff if diff != 0 else MONTHS_PER_YEAR
+
+
 def calendar_year_month(start_year: int, start_month: int, month_offset: int) -> tuple[int, int]:
     """月次オフセット(0始まり)を実際の西暦年・月に変換する。
 
@@ -435,6 +481,21 @@ def _resolve_end_year(plan: Plan, start_year: int) -> int:
         life_expectancy_year = plan.user.birth_date.year + plan.life_expectancy_age
         return max(retirement_year, life_expectancy_year, start_year)
     return start_year + DEFAULT_PROJECTION_YEARS - 1
+
+
+def _resolve_num_blocks(birth_date: date, start_year: int, start_month: int, end_year: int) -> int:
+    """年次ループのブロック数を返す。
+
+    ブロックが年齢切り替え月起点になった（_first_block_length()）ため、end_year（西暦年）を
+    単純に「start_yearからのオフセット」でブロック数に変換することはできない。代わりに、
+    end_yearを「誕生年からの経過年数」とみなして目標年齢に変換し、プラン開始時点の年齢から
+    その目標年齢まで到達するのに必要なブロック数を計算する（最初のブロックは開始時点の年齢の
+    まま、2番目以降の各ブロックで年齢が1つずつ上がる）。
+    """
+
+    age_at_start = age_at(birth_date, start_year, start_month)
+    target_age = end_year - birth_date.year
+    return max(target_age - age_at_start + 1, 1)
 
 
 def _retirement_year(plan: Plan, start_year: int) -> Optional[int]:

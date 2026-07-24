@@ -162,8 +162,8 @@ CHECKBOX_HEADERS = {ONE_TIME_FLAG_HEADER}
 # 両シートで共通のメモ文を使う。
 _CONDITION_VALUE_NOTE = (
     f"「{AGE_CONDITION_LABEL}」を選んだ場合は年齢の数字（例: 45）、「{DATE_CONDITION_LABEL}」を"
-    f"選んだ場合は日付（例: 2027-06-01）を入力してください。「{PLAN_START_CONDITION_LABEL}」の場合は"
-    "空欄のままで構いません。"
+    f"選んだ場合は年月（例: 2027-06。日付までは使われないためYYYY-MM形式で入力してください）を"
+    f"入力してください。「{PLAN_START_CONDITION_LABEL}」の場合は空欄のままで構いません。"
 )
 _END_CONDITION_TYPE_NOTE = f"空欄の場合はプランの最後まで継続する扱いになります。（{_CONDITION_VALUE_NOTE}）"
 

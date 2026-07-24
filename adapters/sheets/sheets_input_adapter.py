@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -210,6 +211,31 @@ def _parse_date(value: object) -> date:
     return datetime.strptime(str(value).strip(), "%Y-%m-%d").date()
 
 
+_YEAR_MONTH_PATTERN = re.compile(r"^(\d{4})-(\d{1,2})(?:-\d{1,2})?$")
+
+
+def _parse_year_month_field(value: object, field_path: str) -> date:
+    """「日付で指定」の開始/終了条件値をYYYY-MM形式でパースする。
+
+    resolve_condition_year()/resolve_condition_month()はcondition.dateの年・月しか見ず
+    （シミュレーション自体が月次粒度のため）、日は完全に無視される。以前はYYYY-MM-DD形式で
+    日まで入力させていたが、実際には使われない情報で無駄に精度が高く見え誤解を招くため、
+    YYYY-MM形式に簡略化した。ただしGoogle Sheets側がセルの書式によって"2028-12"のような
+    入力を自動的に日付として解釈し、日付を補完して"2028-12-01"のように保存してしまうことが
+    あるため、末尾に"-日"が付いていても無視して寛容に受け付ける。内部的にはdateオブジェクトの
+    1日固定値として保持する（日を使わないことに変わりはない）。
+    """
+
+    match = _YEAR_MONTH_PATTERN.match(str(value).strip())
+    if match is None:
+        raise StructuralInputError(f"年月(YYYY-MM形式)として解釈できない値です: {value!r}", field_path)
+    year, month = int(match.group(1)), int(match.group(2))
+    try:
+        return date(year, month, 1)
+    except ValueError as e:
+        raise StructuralInputError(f"年月(YYYY-MM形式)として解釈できない値です: {value!r}", field_path) from e
+
+
 # プルダウンには新しい日本語ラベルのみを表示するが、パース側は移行前の旧い英語表記
 # (today/plan_start/age/date）も後方互換で受け付ける。既存スプレッドシートに残っている
 # セルの値を手動で書き換えなくても動くようにするための互換エイリアス（大文字小文字は区別しない）。
@@ -232,7 +258,7 @@ def _build_event_condition(condition_type: object, value: object, field_path: st
     if normalized_type == AGE_CONDITION_LABEL:
         return EventCondition.at_age(_parse_int(normalized_value, field_path))
     if normalized_type == DATE_CONDITION_LABEL:
-        return EventCondition.at_date(_parse_date_field(normalized_value, field_path))
+        return EventCondition.at_date(_parse_year_month_field(normalized_value, field_path))
     allowed = ", ".join((PLAN_START_CONDITION_LABEL, AGE_CONDITION_LABEL, DATE_CONDITION_LABEL))
     raise StructuralInputError(f"未知の条件タイプです: {normalized_type!r}（有効な値: {allowed}）", field_path)
 

@@ -225,7 +225,7 @@ class BuildEventConditionLegacyAliasTest(unittest.TestCase):
 
     def test_legacy_date_resolves_to_date_condition(self) -> None:
         self.assertEqual(
-            _build_event_condition("date", "2027-06-01", "path"),
+            _build_event_condition("date", "2027-06", "path"),
             EventCondition.at_date(date(2027, 6, 1)),
         )
 
@@ -236,8 +236,17 @@ class BuildEventConditionLegacyAliasTest(unittest.TestCase):
         self.assertEqual(_build_event_condition(PLAN_START_CONDITION_LABEL, "", "path"), EventCondition.plan_start())
         self.assertEqual(_build_event_condition(AGE_CONDITION_LABEL, "45", "path"), EventCondition.at_age(45))
         self.assertEqual(
-            _build_event_condition(DATE_CONDITION_LABEL, "2027-06-01", "path"),
+            _build_event_condition(DATE_CONDITION_LABEL, "2027-06", "path"),
             EventCondition.at_date(date(2027, 6, 1)),
+        )
+
+    def test_date_value_still_works_when_google_sheets_pads_it_to_a_full_date(self) -> None:
+        # Google Sheetsのセル書式によっては"2028-12"と入力しても自動的に日付型と解釈され、
+        # "2028-12-26"のように日が補完されて保存されることがある。日は元々使われないため、
+        # 補完された日付が入っていても寛容に受け付ける。
+        self.assertEqual(
+            _build_event_condition(DATE_CONDITION_LABEL, "2028-12-26", "path"),
+            EventCondition.at_date(date(2028, 12, 1)),
         )
 
 
