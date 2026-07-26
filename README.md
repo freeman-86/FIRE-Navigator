@@ -74,7 +74,7 @@ PYTHONPATH=. python3 scripts/run_full_simulation.py
 
 ```bash
 PYTHONPATH=. python3 scripts/run_full_simulation.py --quick             # 両方省略して高速実行
-PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000       # モンテカルロの試行回数を指定（既定5000）
+PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000       # モンテカルロの試行回数を指定（既定1000）
 PYTHONPATH=. python3 scripts/run_full_simulation.py --spreadsheet-name "自分のシート名"
 ```
 
