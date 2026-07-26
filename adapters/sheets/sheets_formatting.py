@@ -186,10 +186,19 @@ HEADER_NOTES: dict[str, dict[str, str]] = {
 
 
 class TabularSheetSpec:
-    def __init__(self, sheet_name: str, required_headers: list[str], dropdowns: Optional[dict[str, list[str]]] = None):
+    def __init__(
+        self,
+        sheet_name: str,
+        required_headers: list[str],
+        dropdowns: Optional[dict[str, list[str]]] = None,
+        frozen_columns: int = 1,
+    ):
         self.sheet_name = sheet_name
         self.required_headers = required_headers
         self.dropdowns = dropdowns or {}
+        # ヘッダー行と一緒に固定する左端の列数（ID・キーとなる列。行数が少なくても全シートで
+        # 一貫した操作性にするため、ヘッダー行(1行)と合わせて必ず固定する）。
+        self.frozen_columns = frozen_columns
 
 
 def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularSheetSpec]:
@@ -207,23 +216,27 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
                 ACCOUNT_TYPE_HEADER: [member.value for member in AccountType],
                 ASSET_CLASS_HEADER: asset_classes,
             },
+            frozen_columns=2,  # 口座ID・口座タイプ
         ),
         TabularSheetSpec(
             INCOMES_SHEET,
             [INCOME_ID_HEADER, SOURCE_HEADER, START_TYPE_HEADER, START_VALUE_HEADER],
             {START_TYPE_HEADER: CONDITION_TYPE_CHOICES, END_TYPE_HEADER: CONDITION_TYPE_CHOICES},
+            frozen_columns=2,  # 収入ID・収入源
         ),
         TabularSheetSpec(
             EXPENSES_SHEET,
             [EXPENSE_ID_HEADER, CATEGORY_HEADER, ONE_TIME_FLAG_HEADER],
             {START_TYPE_HEADER: CONDITION_TYPE_CHOICES, END_TYPE_HEADER: CONDITION_TYPE_CHOICES},
+            frozen_columns=3,  # 支出ID・カテゴリ・単発フラグ
         ),
-        TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER]),
-        TabularSheetSpec(PROGRESS_SHEET, [YEAR_HEADER, ACTUAL_NETWORTH_HEADER]),
+        TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER], frozen_columns=2),  # シナリオID・シナリオ名
+        TabularSheetSpec(PROGRESS_SHEET, [YEAR_HEADER, ACTUAL_NETWORTH_HEADER], frozen_columns=1),  # 西暦年
         TabularSheetSpec(
             ALLOCATION_POLICY_SHEET,
             [AGE_HEADER, ASSET_CLASS_HEADER, TARGET_WEIGHT_HEADER],
             {ASSET_CLASS_HEADER: asset_classes},
+            frozen_columns=2,  # 年齢・資産クラス
         ),
         TabularSheetSpec(
             EDUCATION_EXPENSES_SHEET,
@@ -235,6 +248,7 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
                 START_AGE_HEADER,
                 END_AGE_HEADER,
             ],
+            frozen_columns=2,  # 教育費ID・子供ID
         ),
     ]
 
@@ -261,6 +275,20 @@ def _column_letter(index: int) -> str:
         index, remainder = divmod(index - 1, 26)
         letters = chr(65 + remainder) + letters
     return letters
+
+
+def _freeze_panes_request(sheet_id: int, frozen_rows: int, frozen_columns: int) -> dict:
+    """ヘッダー行・左端のID/キー列を固定し、右/下にスクロールしても常に見えるようにする。"""
+
+    return {
+        "updateSheetProperties": {
+            "properties": {
+                "sheetId": sheet_id,
+                "gridProperties": {"frozenRowCount": frozen_rows, "frozenColumnCount": frozen_columns},
+            },
+            "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
+        }
+    }
 
 
 def _repeat_cell_color_request(sheet_id: int, start_row: int, end_row: int, start_col: int, end_col: int, color: dict) -> dict:
@@ -530,6 +558,7 @@ def _tabular_sheet_requests(spreadsheet: gspread.Spreadsheet, spec: TabularSheet
     header = values[0] if values else []
     requests = _clear_range_requests(sheet_id, FORMAT_ROW_COUNT, FORMAT_CLEAR_COL_COUNT)
     requests.extend(_clear_conditional_format_requests(spreadsheet, sheet_id))
+    requests.append(_freeze_panes_request(sheet_id, frozen_rows=1, frozen_columns=spec.frozen_columns))
 
     data_row_count = max(len(values) - 1, 0)  # ヘッダーを除いた実データ行数
     first_future_row = 1 + data_row_count  # 0-indexed。この行以降はまだ実データがない
@@ -603,6 +632,9 @@ def _plan_sheet_requests(spreadsheet: gspread.Spreadsheet) -> list[dict]:
     sheet_id = worksheet.id
     rows = worksheet.get_all_values()
     requests = _clear_range_requests(sheet_id, FORMAT_ROW_COUNT, FORMAT_CLEAR_COL_COUNT)
+    # 縦持ち(A列=キー/B列=値)シートのためヘッダー行は存在しないが、キー列(A列)は
+    # 他シートと一貫した操作性のため固定する。
+    requests.append(_freeze_panes_request(sheet_id, frozen_rows=0, frozen_columns=1))
 
     for row_idx, row in enumerate(rows):
         key = row[0] if row else ""

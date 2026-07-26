@@ -125,6 +125,9 @@ def run_projection(
     start_month = resolve_start_month(plan)
     end_year = _resolve_end_year(plan, start_year)
     birth_date = plan.user.birth_date
+    # 入力_プラン設定の年金見込額は「プラン開始時点での見込み額」として扱う（pension_engine.py
+    # calculate_pension_income()が、受給開始年齢までの年数をインフレ率で複利計算する基準点に使う）。
+    pension_estimate_reference_age = age_at(birth_date, start_year, start_month)
     age_transition_month = _age_transition_month(birth_date)
     first_block_length = _first_block_length(start_month, age_transition_month)
     num_blocks = _resolve_num_blocks(birth_date, start_year, start_month, end_year)
@@ -163,7 +166,14 @@ def run_projection(
         gross_income_annual = _active_income_total(
             plan.incomes, month_pairs_this_year, start_year, start_month, birth_date, offset_year
         )
-        pension_income_annual = _pension_income_for_year(birth_date, plan.pension, pension_rules, month_pairs_this_year)
+        pension_income_annual = _pension_income_for_year(
+            birth_date,
+            plan.pension,
+            pension_rules,
+            plan.assumptions.inflation_rate,
+            pension_estimate_reference_age,
+            month_pairs_this_year,
+        )
         total_expense_annual = _active_expense_total(
             plan.expenses, month_pairs_this_year, start_year, start_month, birth_date, offset_year
         )
@@ -226,6 +236,7 @@ def run_projection(
                 contributions_this_month = _merge(monthly_fixed_contributions, _negate(withdrawal_outcome.withdrawals))
                 unallocated_delta = -withdrawal_outcome.remaining_shortfall
                 capital_gains_tax_month = withdrawal_outcome.capital_gains_tax
+                remaining_shortfall_month = withdrawal_outcome.remaining_shortfall
                 withdrawals_by_asset_class_month = {
                     asset_class: withdrawal_outcome.withdrawals_by_asset_class.get(asset_class, Money.zero())
                     for asset_class in all_asset_classes
@@ -251,6 +262,7 @@ def run_projection(
                 contributions_this_month = _merge(monthly_fixed_contributions, discretionary_contributions)
                 unallocated_delta = unallocated_leftover
                 capital_gains_tax_month = Money.zero()
+                remaining_shortfall_month = Money.zero()
                 withdrawals_by_asset_class_month = {asset_class: Money.zero() for asset_class in all_asset_classes}
                 discretionary_contributed_this_year = _merge(
                     discretionary_contributed_this_year, discretionary_contributions
@@ -296,6 +308,7 @@ def run_projection(
                     account_balances=dict(balances_snapshot),
                     networth=networth,
                     withdrawals_by_asset_class=dict(withdrawals_by_asset_class_month),
+                    remaining_shortfall=remaining_shortfall_month,
                 )
             )
 
@@ -635,19 +648,30 @@ def _pension_eligible_months(birth_date: date, claim_age: int, month_pairs: list
 
 
 def _pension_income_for_year(
-    birth_date: date, pension: Pension, pension_rules: PensionRules, month_pairs: list[tuple[int, int]]
+    birth_date: date,
+    pension: Pension,
+    pension_rules: PensionRules,
+    inflation_rate: Rate,
+    estimate_reference_age: int,
+    month_pairs: list[tuple[int, int]],
 ) -> Money:
     """その年の年金収入を、受給資格を得た月数で按分して返す（受給資格を得る年の按分計算）。
 
-    受給開始タイミングによる増減率(繰上げ/繰下げ)はcalculate_pension_income内で固定額として
-    決まるため、まず満額(claim_timing.age時点の額)を求め、その年のうち資格がある月数分だけ
-    按分する。年金は所得税・住民税と同様に年1回のみ確定する既存の設計を維持する。
+    受給開始タイミングによる増減率(繰上げ/繰下げ)はcalculate_pension_income内で受給開始時点の
+    基準額に対して固定額として決まるが、受給開始後はインフレ率で毎年増え続けるため、その年の
+    ブロックの年齢（block内は年齢切り替え月起点の一定区間のため、month_pairsの最後の月の年齢が
+    ブロック全体の年齢と一致する）でcalculate_pension_incomeを呼ぶ。その満額を、その年のうち
+    資格がある月数分だけ按分する。年金は所得税・住民税と同様に年1回のみ確定する既存の設計を維持する。
     """
 
     eligible_months = _pension_eligible_months(birth_date, pension.claim_timing.age, month_pairs)
     if eligible_months == 0:
         return Money.zero()
-    full_year_amount = calculate_pension_income(pension.claim_timing.age, pension, pension_rules)
+    calendar_year, calendar_month = month_pairs[-1]
+    block_age = age_at(birth_date, calendar_year, calendar_month)
+    full_year_amount = calculate_pension_income(
+        block_age, pension, pension_rules, inflation_rate, estimate_reference_age
+    )
     if eligible_months >= MONTHS_PER_YEAR:
         return full_year_amount
     return full_year_amount * (Decimal(eligible_months) / Decimal(MONTHS_PER_YEAR))

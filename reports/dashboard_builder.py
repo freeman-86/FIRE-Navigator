@@ -41,6 +41,32 @@ def _ending_networth(result: SimulationResult) -> Money:
     return result.yearly_projections[-1].networth
 
 
+def compute_asset_allocation(portfolios: dict[str, Portfolio]) -> list[dict[str, object]]:
+    """全口座の保有資産を資産クラスごとに合算し、評価額の大きい順に金額・構成比率を返す。
+
+    合計評価額が0円の場合は比率が定義できないため、全クラスの比率を0とする。
+    """
+
+    totals_by_asset_class: dict[str, Money] = {}
+    total = Money.zero()
+    for portfolio in portfolios.values():
+        for holding in portfolio.holdings:
+            asset_class = holding.asset.asset_class
+            totals_by_asset_class[asset_class] = totals_by_asset_class.get(asset_class, Money.zero()) + holding.current_value
+            total = total + holding.current_value
+
+    if total.amount == 0:
+        return [
+            {"asset_class": asset_class, "amount": amount, "weight": Rate.zero()}
+            for asset_class, amount in sorted(totals_by_asset_class.items())
+        ]
+
+    return [
+        {"asset_class": asset_class, "amount": amount, "weight": Rate.of(amount.amount / total.amount)}
+        for asset_class, amount in sorted(totals_by_asset_class.items(), key=lambda item: item[1].amount, reverse=True)
+    ]
+
+
 def _run_with_extra_annual_expense(
     plan: Plan,
     portfolios: dict[str, Portfolio],
@@ -123,4 +149,5 @@ def build_dashboard(
         "target_ending_networth": target_ending_networth,
         "ending_networth": ending_networth,
         "surplus_vs_target": ending_networth - target_ending_networth,
+        "asset_allocation": compute_asset_allocation(portfolios),
     }

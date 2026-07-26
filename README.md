@@ -74,7 +74,7 @@ PYTHONPATH=. python3 scripts/run_full_simulation.py
 
 ```bash
 PYTHONPATH=. python3 scripts/run_full_simulation.py --quick             # 両方省略して高速実行
-PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000       # モンテカルロの試行回数を指定（既定200）
+PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000       # モンテカルロの試行回数を指定（既定5000）
 PYTHONPATH=. python3 scripts/run_full_simulation.py --spreadsheet-name "自分のシート名"
 ```
 
@@ -299,8 +299,10 @@ docs/                 設計書・ロードマップ
   使うには別途`config/market_data/`に過去リターン系列を追加する必要があり、未追加の資産クラス
   （例: `btc`）はこれらのEngineの加重平均リターン計算で実質0%リターン扱いになる
   （決定論的なProjection Engineはこの制約を受けない）。
-- `config/market_data/historical_returns_2001_2024.yaml`の過去リターン系列（S&P500・米国長期国債）
+- `config/market_data/historical_returns_1928_2024.yaml`の過去リターン系列（S&P500・米国長期国債）
   はAswath Damodaran教授（NYU Stern）の公開データセットに基づく実データ（詳細はファイル内コメント参照）。
+  1928年から収録しているのは、ヒストリカルバックテストが必要とする長期の窓（想定寿命までの
+  60年前後）を過去データから作れるようにするため。
 - `inflation_rate`（`入力_プラン設定`）は、`入力_収入`/`入力_支出`で成長率が未入力の行の既定値として
   使われる（入力済みの行はそちらを優先）。この解決はスプレッドシート読込時に行われるため、
   感度分析（`出力_感応度分析`）でinflation_rateを仮に振っても、既に読み込み済みのIncome/Expenseの

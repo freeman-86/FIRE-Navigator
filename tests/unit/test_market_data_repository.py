@@ -7,7 +7,7 @@ class LoadHistoricalDatasetTest(unittest.TestCase):
     def test_loads_both_asset_classes_for_committed_dataset(self) -> None:
         dataset = load_historical_dataset()
 
-        self.assertEqual(dataset.start_year, 2001)
+        self.assertEqual(dataset.start_year, 1928)
         self.assertEqual(dataset.end_year, 2024)
         self.assertEqual(set(dataset.series_by_asset_class.keys()), {"equity_sp500", "bond_us_treasury"})
 

@@ -240,6 +240,47 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         self.assertEqual(by_age[65], Money.of(1_485_000))
         self.assertEqual(by_age[66], Money.of(1_980_000))
 
+    def test_pension_inflation_adjusts_pre_and_post_claim(self) -> None:
+        from core.simulation.pension.pension_engine import calculate_pension_income
+
+        pension_rules = load_pension_rules()
+        inflation_rate = Rate.of("0.02")
+        pension = Pension(
+            national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
+            employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
+            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        )
+        milestone = Milestone(
+            milestone_id="milestone_retire_001",
+            milestone_type=MilestoneType.RETIREMENT,
+            trigger=EventCondition.at_age(65),
+        )
+        plan = _minimal_plan(
+            pension=pension,
+            milestones=[milestone],
+            assumptions=Assumptions(inflation_rate=inflation_rate, investment_growth_rate=Rate.zero()),
+        )
+
+        result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules(), pension_rules)
+
+        # 生年月日1990-04-01、プラン開始2026-01-01 -> プラン開始時点で35歳。受給開始65歳まで30年分、
+        # 見込み額(1,980,000)をインフレ率で複利計算した額が受給開始時点の基準額になるはず
+        # （据え置きの1,980,000より増額）。年次ループの内部ブロックは誕生月（4月、誕生日が1日のため
+        # 誕生月そのもの）起点で年齢が切り替わるため、西暦年（1〜12月）単位のyearly_projectionsは
+        # 前後2つのブロック（年齢）にまたがることがあり、単純な年齢引きでは比較できない。月次は
+        # 1ブロック＝1年齢に対応するため、monthly_projectionsで特定の年齢の月額を確認する。
+        monthly_by_age = {p.age_self: p.pension_income for p in result.monthly_projections}
+        actual_annual_at_66 = monthly_by_age[66] * 12
+        expected_annual_at_66 = calculate_pension_income(66, pension, pension_rules, inflation_rate, estimate_reference_age=35)
+        self.assertAlmostEqual(int(actual_annual_at_66.amount), int(expected_annual_at_66.amount), delta=12)
+        self.assertGreater(actual_annual_at_66, Money.of(1_980_000))
+
+        # 受給開始後もインフレ率で毎年増え続ける（据え置きにならない）。
+        actual_annual_at_70 = monthly_by_age[70] * 12
+        self.assertGreater(actual_annual_at_70, actual_annual_at_66)
+        expected_annual_at_70 = calculate_pension_income(70, pension, pension_rules, inflation_rate, estimate_reference_age=35)
+        self.assertAlmostEqual(int(actual_annual_at_70.amount), int(expected_annual_at_70.amount), delta=12)
+
     def test_early_claim_reduces_pension_income(self) -> None:
         pension_rules = load_pension_rules()
         pension = Pension(
@@ -318,6 +359,17 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         # 口座残高100万円しかないのに支出300万円 -> 100万円取り崩して枯渇、残り200万円はunallocated_surplusがマイナスに
         self.assertEqual(first_year.account_balances["acc_taxable"], Money.zero())
         self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(-2_000_000))
+
+        # 口座が枯渇して以降の月は、収支がマイナスであること自体ではなく、取り崩しきれなかった
+        # 不足額(remaining_shortfall)がMonthlyProjectionに残ることで「本当に資産が足りていない月」
+        # と判別できる（出力_月次詳細の条件付き書式が参照する値）。資金が足りている最初の月は
+        # 全額取り崩しで賄えるためshortfall=0、口座が枯渇してから十分経った最後の月は必ず
+        # shortfall>0になる（ちょうど残高を使い切る境界の月はshortfall=0になりうるため、
+        # 境界そのものではなく明確に片側の月で確認する）。
+        first_month = result.monthly_projections[0]
+        last_month = result.monthly_projections[-1]
+        self.assertEqual(first_month.remaining_shortfall, Money.zero())
+        self.assertGreater(last_month.remaining_shortfall, Money.zero())
 
 
 class NisaIdecoComparisonTest(unittest.TestCase):

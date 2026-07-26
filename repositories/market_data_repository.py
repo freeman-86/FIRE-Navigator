@@ -10,7 +10,7 @@ from core.domain.market_data import AnnualReturnSeries, HistoricalDataset
 from core.domain.value_objects import Rate
 
 DEFAULT_HISTORICAL_DATASET_PATH = (
-    Path(__file__).resolve().parent.parent / "config" / "market_data" / "historical_returns_2001_2024.yaml"
+    Path(__file__).resolve().parent.parent / "config" / "market_data" / "historical_returns_1928_2024.yaml"
 )
 
 

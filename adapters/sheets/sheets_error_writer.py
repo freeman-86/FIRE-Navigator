@@ -33,6 +33,22 @@ def write_errors(spreadsheet: gspread.Spreadsheet, errors: list[FireNavigatorErr
         worksheet = spreadsheet.add_worksheet(title=OUTPUT_ERRORS_SHEET, rows=max(len(rows), 10), cols=3)
 
     worksheet.update(values=rows, range_name="A1")
+    spreadsheet.batch_update(
+        {
+            "requests": [
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": worksheet.id,
+                            # ヘッダー行と、種別・エラー箇所（どこで何が起きたかを識別する列）を固定する。
+                            "gridProperties": {"frozenRowCount": 1, "frozenColumnCount": 2},
+                        },
+                        "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
+                    }
+                }
+            ]
+        }
+    )
 
 
 def write_warnings(spreadsheet: gspread.Spreadsheet, warnings: list[InputWarning]) -> None:

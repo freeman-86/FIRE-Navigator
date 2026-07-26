@@ -152,6 +152,17 @@ def _percent_format_requests(spreadsheet, sheet_id):
     ]
 
 
+def _freeze_pane_request(spreadsheet, sheet_id):
+    matches = [
+        r["updateSheetProperties"]
+        for body in spreadsheet.batch_updates
+        for r in body["requests"]
+        if "updateSheetProperties" in r and r["updateSheetProperties"]["properties"]["sheetId"] == sheet_id
+    ]
+    assert len(matches) == 1
+    return matches[0]["properties"]["gridProperties"]
+
+
 def _validation_requests(spreadsheet, sheet_id):
     return [
         r["setDataValidation"]
@@ -198,6 +209,13 @@ class ApplyInputFormattingAccountsSheetTest(unittest.TestCase):
         for col in optional_columns:
             self.assertEqual(color_by_column[col], sheets_formatting.OPTIONAL_CELL_COLOR)
         self.assertNotEqual(sheets_formatting.OPTIONAL_CELL_COLOR, sheets_formatting.REQUIRED_CELL_COLOR)
+
+    def test_freezes_header_row_and_id_columns(self):
+        sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
+
+        grid_properties = _freeze_pane_request(self.spreadsheet, self.worksheet.id)
+        self.assertEqual(grid_properties["frozenRowCount"], 1)
+        self.assertEqual(grid_properties["frozenColumnCount"], 2)  # 口座ID・口座タイプ
 
     def test_clears_previous_formatting_before_reapplying(self):
         sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
@@ -334,6 +352,13 @@ class ApplyInputFormattingExpensesSheetTest(unittest.TestCase):
         ]
         data_row = ["expense_001", "living", "FALSE", "3600000", "", "0.02", "", "", "", ""]
         self.worksheet = self.spreadsheet.add_sheet(EXPENSES_SHEET, [header, data_row])
+
+    def test_freezes_header_row_and_id_columns(self):
+        sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
+
+        grid_properties = _freeze_pane_request(self.spreadsheet, self.worksheet.id)
+        self.assertEqual(grid_properties["frozenRowCount"], 1)
+        self.assertEqual(grid_properties["frozenColumnCount"], 3)  # 支出ID・カテゴリ・単発フラグ
 
     def test_one_time_flag_becomes_checkbox(self):
         sheets_formatting.apply_input_formatting(self.spreadsheet, _asset_class_registry())
@@ -501,6 +526,17 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
         validation_requests = _validation_requests(spreadsheet, worksheet.id)
         validation_rows = {r["range"]["startRowIndex"] for r in validation_requests}
         self.assertEqual(validation_rows, {4})  # PENSION_CLAIM_TIMING
+
+    def test_freezes_key_column_but_not_a_header_row(self):
+        spreadsheet = _FakeSpreadsheet()
+        rows = [[PLAN_ID_HEADER, "plan_001"], [PLAN_NAME_HEADER, "ベースプラン"]]
+        worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
+
+        sheets_formatting.apply_input_formatting(spreadsheet, _asset_class_registry())
+
+        grid_properties = _freeze_pane_request(spreadsheet, worksheet.id)
+        self.assertEqual(grid_properties["frozenRowCount"], 0)  # 縦持ちシートのためヘッダー行はない
+        self.assertEqual(grid_properties["frozenColumnCount"], 1)  # キー列(A列)
 
     def test_money_rows_get_comma_number_format_but_age_row_does_not(self):
         spreadsheet = _FakeSpreadsheet()

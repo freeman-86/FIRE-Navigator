@@ -17,7 +17,11 @@ from core.domain.errors import SemanticValidationError, StructuralInputError
 
 
 class _FakeWorksheet:
+    _next_id = 1
+
     def __init__(self):
+        self.id = _FakeWorksheet._next_id
+        _FakeWorksheet._next_id += 1
         self.updated_values = None
         self.updates: list[tuple[list, str]] = []
         self.cleared = False
@@ -36,15 +40,20 @@ class _FakeWorksheet:
 class _FakeSpreadsheetExisting:
     def __init__(self, worksheet: _FakeWorksheet):
         self._worksheet = worksheet
+        self.batch_updates: list[dict] = []
 
     def worksheet(self, name):
         assert name == OUTPUT_ERRORS_SHEET
         return self._worksheet
 
+    def batch_update(self, body):
+        self.batch_updates.append(body)
+
 
 class _FakeSpreadsheetMissing:
     def __init__(self):
         self.added_worksheet = None
+        self.batch_updates: list[dict] = []
 
     def worksheet(self, name):
         raise gspread.exceptions.WorksheetNotFound(name)
@@ -52,6 +61,9 @@ class _FakeSpreadsheetMissing:
     def add_worksheet(self, title, rows, cols):
         self.added_worksheet = _FakeWorksheet()
         return self.added_worksheet
+
+    def batch_update(self, body):
+        self.batch_updates.append(body)
 
 
 class WriteErrorsTest(unittest.TestCase):
@@ -82,6 +94,23 @@ class WriteErrorsTest(unittest.TestCase):
 
         self.assertIsNotNone(spreadsheet.added_worksheet)
         self.assertEqual(spreadsheet.added_worksheet.updated_values, [[KIND_HEADER, FIELD_PATH_HEADER, MESSAGE_HEADER]])
+
+    def test_freezes_header_row_and_id_columns(self) -> None:
+        worksheet = _FakeWorksheet()
+        spreadsheet = _FakeSpreadsheetExisting(worksheet)
+
+        write_errors(spreadsheet, [])
+
+        freeze_requests = [
+            r["updateSheetProperties"]
+            for body in spreadsheet.batch_updates
+            for r in body["requests"]
+            if "updateSheetProperties" in r and r["updateSheetProperties"]["properties"]["sheetId"] == worksheet.id
+        ]
+        self.assertEqual(len(freeze_requests), 1)
+        grid_properties = freeze_requests[0]["properties"]["gridProperties"]
+        self.assertEqual(grid_properties["frozenRowCount"], 1)
+        self.assertEqual(grid_properties["frozenColumnCount"], 2)  # 種別・エラー箇所
 
 
 class WriteWarningsTest(unittest.TestCase):

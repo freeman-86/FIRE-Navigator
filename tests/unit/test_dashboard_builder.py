@@ -15,6 +15,7 @@ from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from reports.dashboard_builder import (
     build_dashboard,
+    compute_asset_allocation,
     compute_asset_depletion_age,
     compute_reverse_annual_budget,
 )
@@ -124,6 +125,39 @@ class ComputeReverseAnnualBudgetTest(unittest.TestCase):
         self.assertEqual(budget.amount, 100_000_000)
 
 
+class ComputeAssetAllocationTest(unittest.TestCase):
+    def test_sorts_by_amount_descending_and_computes_weights(self) -> None:
+        equity = Asset(asset_class="equity_sp500", expected_return=Rate.zero())
+        cash = Asset(asset_class="cash", expected_return=Rate.zero())
+        portfolios = {
+            "acc_a": Portfolio(
+                holdings=[Holding(asset=equity, quantity=1, current_value=Money.of(7_000_000), cost_basis=Money.of(7_000_000))]
+            ),
+            "acc_b": Portfolio(
+                holdings=[Holding(asset=cash, quantity=1, current_value=Money.of(3_000_000), cost_basis=Money.of(3_000_000))]
+            ),
+        }
+
+        allocation = compute_asset_allocation(portfolios)
+
+        self.assertEqual([entry["asset_class"] for entry in allocation], ["equity_sp500", "cash"])
+        self.assertEqual(allocation[0]["amount"], Money.of(7_000_000))
+        self.assertAlmostEqual(float(allocation[0]["weight"].value), 0.7)
+        self.assertAlmostEqual(float(allocation[1]["weight"].value), 0.3)
+
+    def test_returns_zero_weights_when_total_is_zero(self) -> None:
+        cash = Asset(asset_class="cash", expected_return=Rate.zero())
+        portfolios = {
+            "acc_a": Portfolio(
+                holdings=[Holding(asset=cash, quantity=1, current_value=Money.zero(), cost_basis=Money.zero())]
+            )
+        }
+
+        allocation = compute_asset_allocation(portfolios)
+
+        self.assertEqual(allocation, [{"asset_class": "cash", "amount": Money.zero(), "weight": Rate.zero()}])
+
+
 class BuildDashboardTest(unittest.TestCase):
     def test_assembles_all_expected_fields(self) -> None:
         plan = _plan()
@@ -139,6 +173,7 @@ class BuildDashboardTest(unittest.TestCase):
         )
         self.assertIsNone(dashboard["depletion_age"])
         self.assertEqual(dashboard["target_ending_networth"], Money.zero())
+        self.assertEqual(dashboard["asset_allocation"], compute_asset_allocation(portfolios))
 
 
 if __name__ == "__main__":

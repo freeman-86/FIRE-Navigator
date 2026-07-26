@@ -29,6 +29,9 @@ class MonthlyProjection:
     追跡するための明細（Sprint12 月次化）。gross_income/pension_income/net_income/total_expenseは
     年額を12等分した値（税額は年1回の確定計算をそのまま月割りする簡略化。設計書v1.1採用ロードマップ）。
     capital_gains_taxは課税口座からの取り崩し時に発生した譲渡税（Sprint13 譲渡税・取得原価管理）。
+    remaining_shortfallは口座残高を取り崩してもなお賄いきれなかった不足額（withdraw_shortfallの
+    戻り値をそのまま転記。口座を強制的に取り崩すことはしないため、資産が尽きた月はここに残る）。
+    net_cashflowがマイナスでも口座から取り崩せていれば0円（FIRE後の取り崩しは正常な状態のため）。
     """
 
     year: int
@@ -43,6 +46,7 @@ class MonthlyProjection:
     networth: Money
     capital_gains_tax: Money = field(default_factory=Money.zero)
     withdrawals_by_asset_class: dict[str, Money] = field(default_factory=dict)
+    remaining_shortfall: Money = field(default_factory=Money.zero)
 
 
 @dataclass

@@ -18,12 +18,17 @@ cd "$REPO_ROOT" || { echo "リポジトリのディレクトリに移動でき�
 echo "作業ディレクトリ: $REPO_ROOT"
 echo
 
-if [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
-  # shellcheck disable=SC1091
-  source "$REPO_ROOT/.venv/bin/activate"
-  PYTHON_BIN="python3"
+# venv内のpython3を「場所」で直接指定する（sourceでactivateしない）。
+# activateスクリプトはvenv作成時のパスを内部に記録しているため、
+# リポジトリフォルダを移動した後にsourceすると壊れて誤ったpython3
+# （システム側）を掴んでしまうことがある。実行ファイルのパスを直接
+# 指定すればフォルダを移動しても常に正しいvenvのpython3が使われる。
+if [ -x "$REPO_ROOT/.venv/bin/python3" ]; then
+  PYTHON_BIN="$REPO_ROOT/.venv/bin/python3"
+elif [ -x "$REPO_ROOT/venv/bin/python3" ]; then
+  PYTHON_BIN="$REPO_ROOT/venv/bin/python3"
 elif command -v python3 >/dev/null 2>&1; then
-  echo "[注意] .venv が見つからなかったため、システムのpython3を使用します。"
+  echo "[注意] 仮想環境（.venv）が見つからなかったため、システムのpython3を使用します。"
   echo "       README.mdの「セットアップ」手順に従って仮想環境を作成することを推奨します。"
   echo
   PYTHON_BIN="python3"

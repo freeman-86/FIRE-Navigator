@@ -119,6 +119,10 @@ MONTH_HEADER = "月"
 NET_INCOME_HEADER = "手取り収入"
 TOTAL_EXPENSE_HEADER = "支出"
 NET_CASHFLOW_HEADER = "収支"
+# 口座残高を取り崩してもなお賄いきれなかった不足額（MonthlyProjection.remaining_shortfall）。
+# net_cashflowがマイナスでも取り崩せていれば0円になる（FIRE後の取り崩し自体は正常な状態のため、
+# この列が0より大きい月＝本当に資産が足りていない月を条件付き書式で強調する）。
+SHORTFALL_HEADER = "取り崩し不足額"
 
 # Output_モンテカルロ: 「手法」列でモンテカルロ/ヒストリカルバックテストの結果を区別する
 # （旧Output_ヒストリカルバックテストを統合）。
@@ -148,6 +152,11 @@ DASHBOARD_TARGET_NETWORTH_LABEL = "目標資産（想定寿命時点）"
 DASHBOARD_ENDING_NETWORTH_LABEL = "想定寿命時点の予測純資産"
 DASHBOARD_SURPLUS_LABEL = "目標資産との余裕（想定寿命時点）"
 DASHBOARD_NO_DEPLETION_TEXT = "枯渇なし"
+# モンテカルロ・ヒストリカルバックテストの成功確率をダッシュボードにも要約表示する行。
+DASHBOARD_MONTECARLO_SUCCESS_LABEL = "モンテカルロ成功確率"
+DASHBOARD_HISTORICAL_SUCCESS_LABEL = "ヒストリカル成功確率"
+# 現在の資産配分（資産クラスごとの比率）の簡易表。
+DASHBOARD_ALLOCATION_WEIGHT_HEADER = "配分比率"
 
 # --- シート・セル・JSONフィールドパスの対応表（設計書7.3）。programmatic には未使用だが、
 # レイアウト変更時の一元的な参照ドキュメントとして維持する。 ---

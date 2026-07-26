@@ -20,7 +20,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "secrets" / "gsheets_credentials.json"
-DEFAULT_MONTECARLO_TRIALS = 1000
+DEFAULT_MONTECARLO_TRIALS = 5000
 
 
 def main() -> None:
@@ -158,8 +158,8 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     print("\n[5/9] ダッシュボード（今月使える金額の逆算等）を計算しています...")
     target_ending_networth = read_target_ending_networth(spreadsheet)
     dashboard = build_dashboard(plan, portfolios, tax_rules, portfolio_rules, pension_rules, target_ending_networth)
-    write_dashboard(spreadsheet, dashboard)
     print(f"      完了（資産枯渇年齢: {dashboard['depletion_age'] or '枯渇なし'}）")
+    print("      ※ モンテカルロ/ヒストリカルの成功確率が出そろってから出力_ダッシュボードへ書き込みます")
 
     print("\n[6/9] シナリオ比較を実行しています...")
     scenarios = build_scenarios_from_spreadsheet(spreadsheet, plan.plan_id)
@@ -219,6 +219,15 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
 
     if montecarlo_entry is not None or historical_entry is not None:
         write_montecarlo_and_historical_result(spreadsheet, montecarlo_entry, historical_entry)
+
+    write_dashboard(
+        spreadsheet,
+        dashboard,
+        simulation_result=result,
+        montecarlo=montecarlo_entry[0] if montecarlo_entry is not None else None,
+        historical=historical_entry[0] if historical_entry is not None else None,
+    )
+    print("      出力_ダッシュボードへ書き込みました（純資産推移グラフ・資産配分・成功確率を含む）")
 
     print("\n[実績比較] 入力_実績を確認しています...")
     progress_records = build_progress_records_from_spreadsheet(spreadsheet)
