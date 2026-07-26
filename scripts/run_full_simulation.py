@@ -21,6 +21,10 @@ if str(REPO_ROOT) not in sys.path:
 
 DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "secrets" / "gsheets_credentials.json"
 DEFAULT_MONTECARLO_TRIALS = 1000
+# 出力_ダッシュボードの参考値用: 金本位制終了（ニクソン・ショック）以降のデータだけで
+# 分布・相関を推定し直したモンテカルロの基準年。メインのモンテカルロ・ヒストリカルは
+# 引き続きconfig/market_data/historical_returns_1928_2024.yamlの全期間データを使う。
+GOLD_STANDARD_END_YEAR = 1971
 
 
 def main() -> None:
@@ -106,6 +110,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         write_scenario_comparison,
         write_sensitivity_table,
     )
+    from core.domain.market_data import filter_from_year
     from core.domain.scenario import apply_scenario
     from core.domain.value_objects import AgeAt
     from core.services.validation_service import validate_plan
@@ -181,6 +186,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     print("      完了")
 
     montecarlo_entry = None
+    montecarlo_reference_1971_result = None
     historical_entry = None
 
     if args.quick or args.skip_montecarlo:
@@ -199,6 +205,24 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         montecarlo_entry = (montecarlo_result, build_percentile_band_chart(montecarlo_result))
         elapsed = time.time() - started
         print(f"      完了（成功確率: {montecarlo_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")
+
+        print(
+            f"      モンテカルロ（参考: {GOLD_STANDARD_END_YEAR}年以降のデータで分布推定）を"
+            "実行しています..."
+        )
+        dataset_1971 = filter_from_year(dataset, GOLD_STANDARD_END_YEAR)
+        distributions_1971 = distributions_from_historical_dataset(dataset_1971)
+        correlation_matrix_1971 = compute_correlation_matrix(dataset_1971)
+        started = time.time()
+        montecarlo_reference_1971_result = run_montecarlo(
+            plan, portfolios, tax_rules, portfolio_rules, pension_rules,
+            distributions_1971, correlation_matrix_1971, trials=args.trials,
+        )
+        elapsed = time.time() - started
+        print(
+            f"      完了（成功確率: {montecarlo_reference_1971_result.success_rate:.1%}、"
+            f"所要時間: {elapsed:.1f}秒）"
+        )
 
     if args.quick or args.skip_historical:
         print("\n[9/9] ヒストリカルバックテストをスキップしました（--quick/--skip-historical）")
@@ -226,6 +250,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         simulation_result=result,
         montecarlo=montecarlo_entry[0] if montecarlo_entry is not None else None,
         historical=historical_entry[0] if historical_entry is not None else None,
+        montecarlo_reference_1971=montecarlo_reference_1971_result,
     )
     print("      出力_ダッシュボードへ書き込みました（純資産推移グラフ・資産配分・成功確率を含む）")
 

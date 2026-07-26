@@ -12,6 +12,7 @@ from adapters.sheets.sheet_mapping import (
     DASHBOARD_CURRENT_NETWORTH_LABEL,
     DASHBOARD_DEPLETION_AGE_LABEL,
     DASHBOARD_HISTORICAL_SUCCESS_LABEL,
+    DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL,
     DASHBOARD_MONTECARLO_SUCCESS_LABEL,
     DASHBOARD_NO_DEPLETION_TEXT,
     DASHBOARD_SURPLUS_LABEL,
@@ -274,6 +275,45 @@ class WriteDashboardTest(unittest.TestCase):
         self.assertIn("87.0%", rows[DASHBOARD_MONTECARLO_SUCCESS_LABEL])
         self.assertIn("87/100", rows[DASHBOARD_MONTECARLO_SUCCESS_LABEL])
         self.assertIn("80.0%", rows[DASHBOARD_HISTORICAL_SUCCESS_LABEL])
+
+    def test_writes_montecarlo_reference_1971_row_between_main_montecarlo_and_historical(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        montecarlo = MonteCarloResult(trials=100, success_count=87, success_rate=0.87)
+        reference_1971 = MonteCarloResult(trials=100, success_count=91, success_rate=0.91)
+        historical = MonteCarloResult(trials=50, success_count=40, success_rate=0.8)
+
+        output_adapter.write_dashboard(
+            spreadsheet,
+            self._base_dashboard(),
+            montecarlo=montecarlo,
+            historical=historical,
+            montecarlo_reference_1971=reference_1971,
+        )
+
+        worksheet = spreadsheet.worksheet(OUTPUT_DASHBOARD_SHEET)
+        values = worksheet.last_values
+        rows = dict(values[:10])
+        self.assertIn("91.0%", rows[DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL])
+        self.assertIn("91/100", rows[DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL])
+        # メインのモンテカルロ→参考値(1971年以降)→ヒストリカルの順で並ぶ
+        labels = [row[0] for row in values]
+        self.assertEqual(
+            labels.index(DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL),
+            labels.index(DASHBOARD_MONTECARLO_SUCCESS_LABEL) + 1,
+        )
+        self.assertEqual(
+            labels.index(DASHBOARD_HISTORICAL_SUCCESS_LABEL),
+            labels.index(DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL) + 1,
+        )
+
+    def test_no_montecarlo_reference_1971_row_when_omitted(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+
+        output_adapter.write_dashboard(spreadsheet, self._base_dashboard())
+
+        worksheet = spreadsheet.worksheet(OUTPUT_DASHBOARD_SHEET)
+        labels = [row[0] for row in worksheet.last_values]
+        self.assertNotIn(DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL, labels)
 
     def test_writes_asset_allocation_table_with_percent_format(self) -> None:
         spreadsheet = _FakeSpreadsheet()

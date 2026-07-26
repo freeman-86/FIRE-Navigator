@@ -15,6 +15,7 @@ from adapters.sheets.sheet_mapping import (
     DASHBOARD_EXTRA_ANNUAL_BUDGET_LABEL,
     DASHBOARD_EXTRA_MONTHLY_BUDGET_LABEL,
     DASHBOARD_HISTORICAL_SUCCESS_LABEL,
+    DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL,
     DASHBOARD_MONTECARLO_SUCCESS_LABEL,
     DASHBOARD_NO_DEPLETION_TEXT,
     DASHBOARD_SURPLUS_LABEL,
@@ -169,14 +170,20 @@ def write_dashboard(
     simulation_result: Optional[SimulationResult] = None,
     montecarlo: Optional[MonteCarloResult] = None,
     historical: Optional[MonteCarloResult] = None,
+    montecarlo_reference_1971: Optional[MonteCarloResult] = None,
 ) -> None:
     """reports.dashboard_builder.build_dashboard()の出力を、旧ドラフトのDashboardシートを踏襲した
     縦持ちの1画面要約ビュー（出力_ダッシュボード）として書き込む。
 
     A/B列のサマリ（既存7行 + モンテカルロ/ヒストリカルの成功確率）の下に、現在の資産配分の簡易表と
-    純資産推移の折れ線グラフを積み上げる。simulation_result/montecarlo/historicalは実行パイプライン上
-    ダッシュボード本体の計算より後に出そろうため任意引数とし、省略時はその項目を書かない
-    （呼び出し側の都合による省略であり、既存の7行サマリの構造・行位置は変えない）。
+    純資産推移の折れ線グラフを積み上げる。simulation_result/montecarlo/historical/
+    montecarlo_reference_1971は実行パイプライン上ダッシュボード本体の計算より後に出そろうため
+    任意引数とし、省略時はその項目を書かない（呼び出し側の都合による省略であり、既存の7行サマリの
+    構造・行位置は変えない）。
+
+    montecarlo_reference_1971は、金本位制終了(1971年)以降のデータだけで分布・相関を推定し直した
+    補足的な参考値（メインのモンテカルロ・ヒストリカルの計算・表示はそのまま、参考情報として1行
+    追加するだけ）。
     """
 
     depletion_age = dashboard["depletion_age"]
@@ -194,6 +201,8 @@ def write_dashboard(
 
     if montecarlo is not None:
         rows.append([DASHBOARD_MONTECARLO_SUCCESS_LABEL, _success_rate_text(montecarlo)])
+    if montecarlo_reference_1971 is not None:
+        rows.append([DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL, _success_rate_text(montecarlo_reference_1971)])
     if historical is not None:
         rows.append([DASHBOARD_HISTORICAL_SUCCESS_LABEL, _success_rate_text(historical)])
 
