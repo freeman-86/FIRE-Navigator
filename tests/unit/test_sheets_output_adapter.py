@@ -727,6 +727,48 @@ class WriteMontecarloAndHistoricalResultTest(unittest.TestCase):
         with self.assertRaises(gspread.exceptions.WorksheetNotFound):
             spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
 
+    def test_reference_1971_summary_line_sits_between_main_montecarlo_and_historical(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        montecarlo_result = _percentile_result(100, 87, 0.87)
+        historical_result = _percentile_result(50, 40, 0.8)
+        reference_1971_result = _percentile_result(100, 91, 0.91)
+
+        output_adapter.write_montecarlo_and_historical_result(
+            spreadsheet,
+            (montecarlo_result, _percentile_chart()),
+            (historical_result, _percentile_chart()),
+            reference_1971_result,
+        )
+
+        worksheet = spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
+        summary_values = worksheet.updates[1][0]
+        self.assertEqual(len(summary_values), 3)
+        self.assertIn(MONTECARLO_METHOD_LABEL, summary_values[0][0])
+        self.assertIn("87.0%", summary_values[0][0])
+        self.assertIn(MONTECARLO_METHOD_LABEL, summary_values[1][0])
+        self.assertIn("（参考: 1971年以降のデータで分布推定）", summary_values[1][0])
+        self.assertIn("91.0%", summary_values[1][0])
+        self.assertIn("91/100", summary_values[1][0])
+        self.assertIn(HISTORICAL_METHOD_LABEL, summary_values[2][0])
+        self.assertIn("80.0%", summary_values[2][0])
+
+        # 参考行専用の表・チャートは作らない
+        charts = spreadsheet.charts_by_sheet_id[worksheet.id]
+        self.assertEqual(len(charts), 2)
+
+    def test_no_reference_1971_summary_line_when_omitted(self) -> None:
+        spreadsheet = _FakeSpreadsheet()
+        montecarlo_result = _percentile_result(100, 87, 0.87)
+        historical_result = _percentile_result(50, 40, 0.8)
+
+        output_adapter.write_montecarlo_and_historical_result(
+            spreadsheet, (montecarlo_result, _percentile_chart()), (historical_result, _percentile_chart())
+        )
+
+        worksheet = spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
+        summary_values = worksheet.updates[1][0]
+        self.assertEqual(len(summary_values), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

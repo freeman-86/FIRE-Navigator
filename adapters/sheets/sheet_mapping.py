@@ -156,8 +156,10 @@ DASHBOARD_NO_DEPLETION_TEXT = "枯渇なし"
 DASHBOARD_MONTECARLO_SUCCESS_LABEL = "モンテカルロ成功確率"
 DASHBOARD_HISTORICAL_SUCCESS_LABEL = "ヒストリカル成功確率"
 # 参考値: 金本位制終了(1971年)以降のデータだけで分布・相関を推定し直したモンテカルロ。
-# メインのモンテカルロ(1928年〜全期間のデータ)はそのまま、補足情報として1行追加する。
-DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL = "モンテカルロ成功確率（参考: 1971年以降のデータで分布推定）"
+# メインのモンテカルロ(1928年〜全期間のデータ)はそのまま、補足情報として1行追加する
+# （出力_ダッシュボード・出力_モンテカルロの両方で使う共通の注記文言）。
+MONTECARLO_REFERENCE_1971_NOTE = "（参考: 1971年以降のデータで分布推定）"
+DASHBOARD_MONTECARLO_REFERENCE_1971_LABEL = f"{DASHBOARD_MONTECARLO_SUCCESS_LABEL}{MONTECARLO_REFERENCE_1971_NOTE}"
 # 現在の資産配分（資産クラスごとの比率）の簡易表。
 DASHBOARD_ALLOCATION_WEIGHT_HEADER = "配分比率"
 

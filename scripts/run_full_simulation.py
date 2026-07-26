@@ -242,7 +242,9 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         print(f"      完了（成功確率: {historical_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")
 
     if montecarlo_entry is not None or historical_entry is not None:
-        write_montecarlo_and_historical_result(spreadsheet, montecarlo_entry, historical_entry)
+        write_montecarlo_and_historical_result(
+            spreadsheet, montecarlo_entry, historical_entry, montecarlo_reference_1971_result
+        )
 
     write_dashboard(
         spreadsheet,

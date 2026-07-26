@@ -24,6 +24,7 @@ from adapters.sheets.sheet_mapping import (
     HISTORICAL_METHOD_LABEL,
     METHOD_HEADER,
     MONTECARLO_METHOD_LABEL,
+    MONTECARLO_REFERENCE_1971_NOTE,
     MONTH_HEADER,
     NET_CASHFLOW_HEADER,
     NET_INCOME_HEADER,
@@ -320,6 +321,7 @@ def write_montecarlo_and_historical_result(
     spreadsheet: gspread.Spreadsheet,
     montecarlo: Optional[tuple[MonteCarloResult, dict]] = None,
     historical: Optional[tuple[MonteCarloResult, dict]] = None,
+    montecarlo_reference_1971: Optional[MonteCarloResult] = None,
 ) -> None:
     """モンテカルロ・ヒストリカルバックテストの結果（成功確率＋年次パーセンタイル分布）を、
     「手法」列で区別しつつ1枚の出力_モンテカルロシートへまとめて書き込む
@@ -329,6 +331,10 @@ def write_montecarlo_and_historical_result(
     省略（None）された方は書かない（--skip-montecarlo/--skip-historical実行時に対応）。
     手法ごとに専用のヘッダー行付きブロックとして縦に積み上げる（チャートのデータ範囲・
     成功確率の要約行を手法ごとに独立させるため）。両方Noneの場合は何もしない。
+
+    montecarlo_reference_1971は、金本位制終了(1971年)以降のデータだけで分布・相関を推定し直した
+    補足的な参考値（出力_ダッシュボードと同様、専用の年次パーセンタイル表・チャートは作らず、
+    メインのモンテカルロ成功確率の要約行のすぐ下に参考行を1行追加するだけ）。
     """
 
     header = [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER]
@@ -360,10 +366,16 @@ def write_montecarlo_and_historical_result(
     # 手法・西暦年の列は他シートと一貫した操作性のため固定する。
     _freeze_panes(spreadsheet, worksheet, frozen_rows=1, frozen_columns=2)  # 手法・西暦年
 
-    summary_lines = [
-        [f"{method_label} 成功確率: {result.success_rate:.1%}（{result.success_count}/{result.trials}試行）"]
-        for method_label, result, _, _ in blocks
-    ]
+    summary_lines: list[list[object]] = []
+    for method_label, result, _, _ in blocks:
+        summary_lines.append([f"{method_label} 成功確率: {_success_rate_text(result)}"])
+        if method_label == MONTECARLO_METHOD_LABEL and montecarlo_reference_1971 is not None:
+            summary_lines.append(
+                [
+                    f"{MONTECARLO_METHOD_LABEL} 成功確率{MONTECARLO_REFERENCE_1971_NOTE}: "
+                    f"{_success_rate_text(montecarlo_reference_1971)}"
+                ]
+            )
     summary_start_row = len(rows) + 2  # 1始まりのシート行番号（データの後に空行を1つ挟む）
     required_rows = summary_start_row + len(summary_lines) - 1
     if worksheet.row_count < required_rows:
