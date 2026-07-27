@@ -11,6 +11,9 @@ class EducationExpenseBand:
 
     同じ子供に複数のBandが同時に該当してもよい（例: 小学校＋塾を並行して計上）。
     end_ageは含む（start_age <= 年齢 <= end_ageの間、毎月monthly_amountが発生する）。
+    monthly_amountは「プラン開始時点（今日）の価値」として入力する前提で、発生する年まで
+    プラン共通のインフレ率で複利計算してから計上される
+    （core/simulation/projection/projection_engine.py の_education_expense_monthly_total）。
     """
 
     band_id: str

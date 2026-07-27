@@ -132,7 +132,7 @@ def run_projection(
     has_spouse = plan.user.spouse is not None
     per_account_monthly_rate = _monthly_rate_by_account_id(portfolios)
     one_time_expenses_by_month_offset = _one_time_expenses_by_month_offset(
-        plan.one_time_expenses, start_year, start_month, birth_date
+        plan.one_time_expenses, start_year, start_month, birth_date, plan.assumptions.inflation_rate
     )
 
     account_balances = {
@@ -208,7 +208,12 @@ def run_projection(
 
             one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
             education_expense_this_month = _education_expense_monthly_total(
-                plan.children, plan.education_expenses, calendar_year, calendar_month
+                plan.children,
+                plan.education_expenses,
+                calendar_year,
+                calendar_month,
+                start_year,
+                plan.assumptions.inflation_rate,
             )
             monthly_expense = monthly_recurring_expense + one_time_expense_this_month + education_expense_this_month
 
@@ -691,11 +696,18 @@ def _school_year_age(birth_date: date, calendar_year: int, calendar_month: int) 
 
 
 def _education_expense_monthly_total(
-    children: list[Child], bands: list[EducationExpenseBand], calendar_year: int, calendar_month: int
+    children: list[Child],
+    bands: list[EducationExpenseBand],
+    calendar_year: int,
+    calendar_month: int,
+    start_year: int,
+    inflation_rate: Rate,
 ) -> Money:
     """その月が属する年度の4月1日時点の子供の年齢に基づき、教育費バンド（小学校・塾等）の
     月額合計を返す（ギャップ分析3.2）。年齢帯の切り替わりは誕生月ではなく学年（4月1日）を基準にする。
-    物価上昇は考慮しない（既存のinflation_rate同様、現時点では未対応）。
+
+    monthly_amountは「プラン開始時点(今日)の価値」として入力される前提のため、経常支出・
+    単発支出と同様、その年（calendar_year）までインフレ率で複利計算してから計上する。
     """
 
     age_by_child_id = {
@@ -705,15 +717,19 @@ def _education_expense_monthly_total(
     for band in bands:
         age = age_by_child_id.get(band.child_id)
         if age is not None and band.applies_to_age(age):
-            total = total + band.monthly_amount
+            total = total + _grown_amount(band.monthly_amount, inflation_rate, calendar_year - start_year)
     return total
 
 
 def _one_time_expenses_by_month_offset(
-    one_time_expenses: list[OneTimeExpense], start_year: int, start_month: int, birth_date: date
+    one_time_expenses: list[OneTimeExpense], start_year: int, start_month: int, birth_date: date, inflation_rate: Rate
 ) -> dict[int, Money]:
     """車・旅行・住宅購入等の単発支出（ギャップ分析3.3）を、発生する月次オフセットごとに
     集計する。同じ月に複数の単発支出が重なる場合は合算する。
+
+    amountは「プラン開始時点(今日)の価値」として入力される前提のため、経常支出・年金見込額
+    （pension_engine.py）と同様、発生年までインフレ率で複利計算してから計上する
+    （発生時期が遠いほど、その頃の名目金額はインフレ分だけ大きくなるため）。
     """
 
     result: dict[int, Money] = {}
@@ -723,5 +739,6 @@ def _one_time_expenses_by_month_offset(
             continue
         target_year, target_month = resolved
         target_offset = (target_year - start_year) * MONTHS_PER_YEAR + (target_month - start_month)
-        result[target_offset] = result.get(target_offset, Money.zero()) + expense.amount
+        grown_amount = _grown_amount(expense.amount, inflation_rate, target_year - start_year)
+        result[target_offset] = result.get(target_offset, Money.zero()) + grown_amount
     return result

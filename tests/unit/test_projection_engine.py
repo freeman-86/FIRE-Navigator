@@ -747,6 +747,33 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
         april_2026 = next(p for p in result.monthly_projections if p.year == 2026 and p.month == 4)
         self.assertEqual(april_2026.total_expense, Money.of(30_000))
 
+    def test_education_expense_amount_compounds_with_inflation_from_plan_start_year(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import EducationExpenseBand
+
+        # monthly_amountは「プラン開始時点(今日)の価値」として入力される前提のため、
+        # 発生する年(2028年度、プラン開始2026年から2年後)までインフレ率2%で複利計算されるはず
+        # （20,000 * 1.02^2 = 20,808）。
+        child = Child(child_id="child_001", birth_date=date(2022, 4, 1))
+        band = EducationExpenseBand(
+            band_id="band_elementary",
+            child_id="child_001",
+            category="小学校",
+            start_age=6,
+            end_age=6,
+            monthly_amount=Money.of(20_000),
+        )
+        plan = _minimal_plan(
+            assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
+            children=[child],
+            education_expenses=[band],
+        )
+
+        result = _run(plan)
+
+        april_2028 = next(p for p in result.monthly_projections if p.year == 2028 and p.month == 4)
+        self.assertEqual(april_2028.total_expense, Money.of(20_808))
+
     def test_education_expense_is_added_only_during_applicable_age_band(self) -> None:
         from core.domain.child import Child
         from core.domain.education_expense import EducationExpenseBand
@@ -873,6 +900,29 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
         # 開始月(2026年7月)はmonth_offset=0で、実際のカレンダー通りに(2026,7)とラベル付けされる
         first_month = result.monthly_projections[0]
         self.assertEqual((first_month.year, first_month.month), (2026, 7))
+
+    def test_one_time_expense_amount_compounds_with_inflation_until_trigger_year(self) -> None:
+        from core.domain.one_time_expense import OneTimeExpense
+
+        # amountは「プラン開始時点(今日)の価値」として入力される前提のため、発生年(start_yearから
+        # 2年後)までインフレ率2%で複利計算されてから計上されるはず（3,000,000 * 1.02^2 = 3,121,200）。
+        car_purchase = OneTimeExpense(
+            expense_id="expense_car",
+            category="車",
+            amount=Money.of(3_000_000),
+            trigger=EventCondition.at_date(date(2028, 1, 1)),
+        )
+        plan = _minimal_plan(
+            assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
+            one_time_expenses=[car_purchase],
+        )
+
+        result = _run(plan)
+
+        triggering_month = next(
+            p for p in result.monthly_projections if p.year == 2028 and p.month == 1
+        )
+        self.assertEqual(triggering_month.total_expense, Money.of(3_121_200))
 
 
 if __name__ == "__main__":
