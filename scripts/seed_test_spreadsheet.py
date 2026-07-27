@@ -17,6 +17,7 @@ from adapters.sheets.sheet_mapping import (
     PROGRESS_SHEET,
     SPREADSHEET_NAME,
 )
+from adapters.sheets.sheets_formatting import apply_input_formatting
 from adapters.sheets.sheets_input_adapter import build_client, open_spreadsheet
 
 
@@ -40,6 +41,11 @@ def main() -> None:
     _seed_sheet(spreadsheet, PROGRESS_SHEET, PROGRESS_ROWS)
     _seed_sheet(spreadsheet, ALLOCATION_POLICY_SHEET, ALLOCATION_POLICY_ROWS)
     _seed_sheet(spreadsheet, EDUCATION_EXPENSES_SHEET, EDUCATION_EXPENSES_ROWS)
+
+    # worksheet.update()はセルの値を書き込み直す際に、そのセルへ既に適用されていた
+    # ％表示・チェックボックス等の明示的な書式/入力規則を消してしまう(Sheets APIの挙動)。
+    # そのため書き込み直後に必ず書式を再適用する。
+    apply_input_formatting(spreadsheet)
 
     print(f"サンプルデータを投入しました: {spreadsheet.url}")
 

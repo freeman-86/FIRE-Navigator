@@ -5,7 +5,7 @@ from adapters.sheets.sheets_input_adapter import DEFAULT_CREDENTIALS_PATH, load_
 from core.domain.account import AccountType
 from core.domain.plan import Plan
 
-SAMPLE_ACCOUNT_IDS = {"acc_cash_001", "acc_nisa_growth_001", "acc_ideco_001"}
+SAMPLE_ACCOUNT_IDS = {"acc_cash_001", "acc_nisa_growth_001", "acc_ideco_001", "acc_taxable_001"}
 
 
 @unittest.skipUnless(
@@ -28,8 +28,9 @@ class SheetsInputAdapterIntegrationTest(unittest.TestCase):
         self.assertEqual(plan.incomes[0].source, "salary")
         self.assertEqual(plan.incomes[0].end_condition.age, 60)
 
-        self.assertEqual(len(plan.expenses), 1)
+        self.assertEqual(len(plan.expenses), 2)
         self.assertEqual(plan.expenses[0].category, "living")
+        self.assertEqual(plan.expenses[1].category, "親の介護費用")
 
     def test_load_portfolios_are_keyed_by_account_id(self) -> None:
         portfolios = load_portfolios()
