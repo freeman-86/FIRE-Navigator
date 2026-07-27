@@ -48,7 +48,7 @@ pip install -r requirements.txt
 1. GCPでサービスアカウントを作成し、認証キー（JSON）を発行する。
 2. 発行したキーを `secrets/gsheets_credentials.json` として保存する（`secrets/` は `.gitignore` 対象）。
 3. 動作確認用のGoogleスプレッドシートを作成し、サービスアカウントのメールアドレスに編集権限を付与する。
-4. スプレッドシート名を `FIRE-Navigator-test` にする（`adapters/sheets/sheet_mapping.py` の `SPREADSHEET_NAME` で変更可能）。
+4. スプレッドシート名を `FIRE-Navigator` にする（`adapters/sheets/sheet_mapping.py` の `SPREADSHEET_NAME` で変更可能）。
 
 ## 使い方
 

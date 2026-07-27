@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-SPREADSHEET_NAME = "FIRE-Navigator-test"
+SPREADSHEET_NAME = "FIRE-Navigator"
 
 # シートのタブ名。すべてこのファイルの定数を経由し、他ファイルに生文字列を持たせない
 # （読み書きで表記が食い違うのを防ぐため）。

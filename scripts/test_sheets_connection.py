@@ -8,7 +8,7 @@ creds = Credentials.from_service_account_file("secrets/gsheets_credentials.json"
 client = gspread.authorize(creds)
 
 # テスト用スプレッドシートを開く
-sheet = client.open("FIRE-Navigator-test").sheet1
+sheet = client.open("FIRE-Navigator").sheet1
 
 # A1セルを読み込む
 value = sheet.acell("A1").value
