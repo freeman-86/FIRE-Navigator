@@ -8,13 +8,11 @@ PLAN_SHEET = "入力_プラン設定"
 ACCOUNTS_SHEET = "入力_口座"
 INCOMES_SHEET = "入力_収入"
 EXPENSES_SHEET = "入力_支出"
-PROGRESS_SHEET = "入力_実績"
 ALLOCATION_POLICY_SHEET = "入力_配分方針"
 EDUCATION_EXPENSES_SHEET = "入力_教育費"
 OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
 OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "出力_感応度分析"
 OUTPUT_MONTECARLO_SHEET = "出力_モンテカルロ"
-OUTPUT_PROGRESS_COMPARISON_SHEET = "出力_計画実績比較"
 OUTPUT_ERRORS_SHEET = "出力_エラー"
 OUTPUT_DASHBOARD_SHEET = "出力_ダッシュボード"
 OUTPUT_MONTHLY_DETAIL_SHEET = "出力_月次詳細"
@@ -94,9 +92,8 @@ START_AGE_HEADER = "開始年齢"
 END_AGE_HEADER = "終了年齢"
 MONTHLY_AMOUNT_HEADER = "月額"
 
-# Input_実績 / Output_純資産推移等で共通
+# Output_純資産推移等で共通
 YEAR_HEADER = "西暦年"
-ACTUAL_NETWORTH_HEADER = "実績純資産"
 NETWORTH_HEADER = "純資産"
 CAPITAL_GAINS_TAX_HEADER = "譲渡税"
 
@@ -171,12 +168,6 @@ ACCOUNTS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (ASSET_CLASS_HEADER, "portfolios[account_id].holdings[].asset.asset_class", "asset_class"),
     (EXPECTED_RETURN_HEADER, "portfolios[account_id].holdings[].asset.expected_return", "rate"),
     (MONTHLY_CONTRIBUTION_HEADER, "plan.accounts[].monthly_contribution", "money_optional"),
-)
-
-# Input_実績: ヘッダー行付きテーブル。1行=1年分の実績ネットワース。
-PROGRESS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    (YEAR_HEADER, "progress_record.year", "int"),
-    (ACTUAL_NETWORTH_HEADER, "progress_record.actual_networth", "money"),
 )
 
 # Input_配分方針: ヘッダー行付きテーブル。1行=(年齢, 資産クラス, 目標比率)。任意入力。

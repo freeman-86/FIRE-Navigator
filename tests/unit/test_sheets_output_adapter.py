@@ -27,7 +27,6 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_SHEET,
-    OUTPUT_PROGRESS_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
     P10_HEADER,
     P50_HEADER,
@@ -560,46 +559,6 @@ class WriteMonthlyDetailTableTest(unittest.TestCase):
         self.assertEqual(len(charts), 1)
         self.assertEqual(charts[0]["spec"]["title"], output_adapter.MONTHLY_NETWORTH_CHART_TITLE)
         self.assertEqual(charts[0]["spec"]["basicChart"]["chartType"], "LINE")
-
-
-class WriteChartsTest(unittest.TestCase):
-    def _chart(self) -> dict:
-        return {
-            "x": [2026, 2027],
-            "series": [
-                {"name": "taxable", "values": [1_000_000, 1_100_000]},
-                {"name": "nisa_growth", "values": [500_000, None]},
-            ],
-        }
-
-    def test_progress_comparison_chart_is_not_stacked(self) -> None:
-        spreadsheet = _FakeSpreadsheet()
-
-        output_adapter.write_progress_comparison(spreadsheet, self._chart())
-
-        worksheet = spreadsheet.worksheet(OUTPUT_PROGRESS_COMPARISON_SHEET)
-        charts = spreadsheet.charts_by_sheet_id[worksheet.id]
-        self.assertNotIn("stackedType", charts[0]["spec"]["basicChart"])
-        self.assertEqual(charts[0]["spec"]["basicChart"]["chartType"], "LINE")
-
-    def test_freezes_header_row_and_year_and_first_series_columns(self) -> None:
-        spreadsheet = _FakeSpreadsheet()
-
-        output_adapter.write_progress_comparison(spreadsheet, self._chart())
-
-        worksheet = spreadsheet.worksheet(OUTPUT_PROGRESS_COMPARISON_SHEET)
-        grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
-        self.assertEqual(grid_properties["frozenRowCount"], 1)
-        self.assertEqual(grid_properties["frozenColumnCount"], 2)  # 西暦年・1つ目の系列
-
-    def test_freezes_only_available_columns_when_chart_has_no_series(self) -> None:
-        spreadsheet = _FakeSpreadsheet()
-
-        output_adapter.write_progress_comparison(spreadsheet, {"x": [2026], "series": []})
-
-        worksheet = spreadsheet.worksheet(OUTPUT_PROGRESS_COMPARISON_SHEET)
-        grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
-        self.assertEqual(grid_properties["frozenColumnCount"], 1)  # 西暦年列しかないため1列に収まる
 
 
 class WriteSensitivityTableTest(unittest.TestCase):

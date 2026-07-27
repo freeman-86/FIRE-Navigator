@@ -22,6 +22,7 @@ from adapters.sheets.sheet_mapping import (
     GROWTH_RATE_HEADER,
     INCOME_ID_HEADER,
     INCOMES_SHEET,
+    ALLOCATION_POLICY_SHEET,
     INFLATION_RATE_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     ONE_TIME_AMOUNT_HEADER,
@@ -31,7 +32,6 @@ from adapters.sheets.sheet_mapping import (
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
-    PROGRESS_SHEET,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
@@ -607,7 +607,7 @@ class OrganizeSheetTabsTest(unittest.TestCase):
         # わざと逆順・バラバラに作成し、TAB_LAYOUT通りに並べ替えられることを確認する。
         # ACCOUNTS_SHEET等の中間シートはあえて作らず、存在しないシートがスキップされることも確認する。
         ws_dashboard = spreadsheet.add_sheet(OUTPUT_DASHBOARD_SHEET)
-        ws_progress = spreadsheet.add_sheet(PROGRESS_SHEET)
+        ws_allocation = spreadsheet.add_sheet(ALLOCATION_POLICY_SHEET)
         ws_expenses = spreadsheet.add_sheet(EXPENSES_SHEET)
         ws_plan = spreadsheet.add_sheet(PLAN_SHEET)
 
@@ -617,13 +617,13 @@ class OrganizeSheetTabsTest(unittest.TestCase):
         index_by_sheet_id = {r["properties"]["sheetId"]: r["properties"]["index"] for r in requests}
         color_by_sheet_id = {r["properties"]["sheetId"]: r["properties"]["tabColor"] for r in requests}
 
-        # プラン設定(頻繁)→支出(頻繁)→実績(たまに)→ダッシュボード(出力)の順
+        # プラン設定(頻繁)→支出(頻繁)→配分方針(たまに)→ダッシュボード(出力)の順
         self.assertLess(index_by_sheet_id[ws_plan.id], index_by_sheet_id[ws_expenses.id])
-        self.assertLess(index_by_sheet_id[ws_expenses.id], index_by_sheet_id[ws_progress.id])
-        self.assertLess(index_by_sheet_id[ws_progress.id], index_by_sheet_id[ws_dashboard.id])
+        self.assertLess(index_by_sheet_id[ws_expenses.id], index_by_sheet_id[ws_allocation.id])
+        self.assertLess(index_by_sheet_id[ws_allocation.id], index_by_sheet_id[ws_dashboard.id])
         self.assertEqual(color_by_sheet_id[ws_plan.id], sheets_formatting.FREQUENT_INPUT_TAB_COLOR)
         self.assertEqual(color_by_sheet_id[ws_expenses.id], sheets_formatting.FREQUENT_INPUT_TAB_COLOR)
-        self.assertEqual(color_by_sheet_id[ws_progress.id], sheets_formatting.OCCASIONAL_INPUT_TAB_COLOR)
+        self.assertEqual(color_by_sheet_id[ws_allocation.id], sheets_formatting.OCCASIONAL_INPUT_TAB_COLOR)
         self.assertEqual(color_by_sheet_id[ws_dashboard.id], sheets_formatting.OUTPUT_TAB_COLOR)
 
     def test_does_nothing_when_no_known_sheets_exist(self):

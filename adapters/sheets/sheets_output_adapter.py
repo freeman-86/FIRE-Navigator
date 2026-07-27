@@ -33,7 +33,6 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_SHEET,
-    OUTPUT_PROGRESS_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
     P10_HEADER,
     P50_HEADER,
@@ -53,7 +52,6 @@ from core.domain.simulation_result import SimulationResult
 from core.domain.value_objects import Money
 
 BREAKDOWN_CHART_TITLE = "純資産推移（口座種別内訳）"
-PROGRESS_COMPARISON_CHART_TITLE = "計画 vs 実績"
 MONTECARLO_CHART_TITLE = "モンテカルロ・シミュレーション（p10/p50/p90）"
 HISTORICAL_BACKTEST_CHART_TITLE = "ヒストリカル・バックテスト（p10/p50/p90）"
 DASHBOARD_NETWORTH_CHART_TITLE = "純資産推移"
@@ -298,23 +296,6 @@ def write_sensitivity_table(spreadsheet: gspread.Spreadsheet, table: dict) -> No
     spreadsheet.batch_update({"requests": requests})
 
 
-def write_progress_comparison(spreadsheet: gspread.Spreadsheet, comparison_chart: dict) -> None:
-    """計画線と実績線を折れ線グラフ（2系列）として可視化する。"""
-
-    worksheet, requests, header = _write_chart_table(spreadsheet, OUTPUT_PROGRESS_COMPARISON_SHEET, comparison_chart)
-    sheet_state = _sheet_state(spreadsheet, worksheet.id)
-    requests += _native_chart_requests(
-        worksheet,
-        sheet_state,
-        title=PROGRESS_COMPARISON_CHART_TITLE,
-        chart_type="LINE",
-        stacked_type=None,
-        num_rows=len(comparison_chart["x"]) + 1,
-        num_series=len(comparison_chart["series"]),
-    )
-    spreadsheet.batch_update({"requests": requests})
-
-
 def write_montecarlo_and_historical_result(
     spreadsheet: gspread.Spreadsheet,
     montecarlo: Optional[tuple[MonteCarloResult, dict]] = None,
@@ -404,25 +385,6 @@ def write_montecarlo_and_historical_result(
             anchor_col=anchor_col,
         )
     spreadsheet.batch_update({"requests": chart_requests})
-
-
-def _write_chart_table(
-    spreadsheet: gspread.Spreadsheet, sheet_name: str, chart: dict
-) -> tuple[gspread.Worksheet, list[dict], list[str]]:
-    header = [YEAR_HEADER] + [series["name"] for series in chart["series"]]
-    rows: list[list[object]] = [header]
-    for row_index, year in enumerate(chart["x"]):
-        rows.append(
-            [year] + [_cell_value(series["values"][row_index]) for series in chart["series"]]
-        )
-
-    worksheet, requests = _get_or_create_worksheet(spreadsheet, sheet_name, rows)
-    worksheet.update(values=rows, range_name="A1")
-    requests += _money_column_format_requests(worksheet.id, rows)
-    requests.append(
-        _freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=min(2, len(header)))
-    )  # 西暦年・1つ目の系列
-    return worksheet, requests, header
 
 
 def _cell_value(value: object) -> object:

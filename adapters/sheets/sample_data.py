@@ -9,7 +9,6 @@ from __future__ import annotations
 from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
     ACCOUNT_TYPE_HEADER,
-    ACTUAL_NETWORTH_HEADER,
     AGE_CONDITION_LABEL,
     AGE_HEADER,
     AMOUNT_ANNUAL_HEADER,
@@ -45,7 +44,6 @@ from adapters.sheets.sheet_mapping import (
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
     TARGET_WEIGHT_HEADER,
-    YEAR_HEADER,
 )
 
 PLAN_ROWS = [
@@ -120,12 +118,6 @@ EXPENSES_ROWS = [
         "60",
     ],
     ["expense_car_001", "車の買い替え", "TRUE", "", "3000000", "", AGE_CONDITION_LABEL, "45", "", ""],
-]
-
-PROGRESS_ROWS = [
-    [YEAR_HEADER, ACTUAL_NETWORTH_HEADER],
-    ["2026", "6800000"],
-    ["2027", "7900000"],
 ]
 
 ALLOCATION_POLICY_ROWS = [

@@ -13,7 +13,6 @@ from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
     ACCOUNT_TYPE_HEADER,
     ACCOUNTS_SHEET,
-    ACTUAL_NETWORTH_HEADER,
     AGE_CONDITION_LABEL,
     AGE_HEADER,
     ALLOCATION_POLICY_SHEET,
@@ -49,7 +48,6 @@ from adapters.sheets.sheet_mapping import (
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PLAN_START_CONDITION_LABEL,
-    PROGRESS_SHEET,
     SOURCE_HEADER,
     SPREADSHEET_NAME,
     START_AGE_HEADER,
@@ -57,7 +55,6 @@ from adapters.sheets.sheet_mapping import (
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
     TARGET_WEIGHT_HEADER,
-    YEAR_HEADER,
 )
 from core.domain.account import Account, AccountType
 from core.domain.allocation import AllocationPolicy, AllocationTarget
@@ -73,7 +70,6 @@ from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE, Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
-from core.domain.progress_record import ProgressRecord
 from core.domain.tax_config import TaxConfig
 from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
@@ -352,32 +348,6 @@ def build_portfolios_from_spreadsheet(
         holding = Holding(asset=asset, quantity=1, current_value=current_value, cost_basis=cost_basis)
         portfolios[account_id] = Portfolio(holdings=[holding])
     return portfolios
-
-
-def build_progress_records_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> list[ProgressRecord]:
-    """実績ネットワースを入力_実績シートから読み込む。
-
-    入力_実績シートが存在しない場合は空リストを返す（Progress比較はオプション機能）。
-    """
-
-    try:
-        worksheet = spreadsheet.worksheet(PROGRESS_SHEET)
-    except gspread.exceptions.WorksheetNotFound:
-        return []
-
-    records = []
-    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
-        row_prefix = f"{PROGRESS_SHEET}!row{row_number}"
-        records.append(
-            ProgressRecord(
-                year=_parse_int(_require(record, YEAR_HEADER, f"{row_prefix}.{YEAR_HEADER}"), f"{row_prefix}.{YEAR_HEADER}"),
-                actual_networth=_parse_money(
-                    _require(record, ACTUAL_NETWORTH_HEADER, f"{row_prefix}.{ACTUAL_NETWORTH_HEADER}"),
-                    f"{row_prefix}.{ACTUAL_NETWORTH_HEADER}",
-                ),
-            )
-        )
-    return records
 
 
 def _build_allocation_policy(
@@ -788,15 +758,6 @@ def load_portfolios(
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
     return build_portfolios_from_spreadsheet(spreadsheet)
-
-
-def load_progress_records(
-    spreadsheet_name: str = SPREADSHEET_NAME,
-    credentials_path: str = DEFAULT_CREDENTIALS_PATH,
-) -> list[ProgressRecord]:
-    client = build_client(credentials_path)
-    spreadsheet = open_spreadsheet(client, spreadsheet_name)
-    return build_progress_records_from_spreadsheet(spreadsheet)
 
 
 def load_target_ending_networth(

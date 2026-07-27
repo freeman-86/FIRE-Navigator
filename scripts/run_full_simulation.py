@@ -96,7 +96,6 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     from adapters.sheets.sheets_input_adapter import (
         build_plan_from_spreadsheet,
         build_portfolios_from_spreadsheet,
-        build_progress_records_from_spreadsheet,
         collect_input_warnings,
         read_target_ending_networth,
     )
@@ -105,7 +104,6 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         write_monthly_detail_table,
         write_montecarlo_and_historical_result,
         write_networth_table,
-        write_progress_comparison,
         write_sensitivity_table,
     )
     from core.domain.market_data import filter_from_year
@@ -120,7 +118,6 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     from reports.chart_builder import build_networth_chart
     from reports.dashboard_builder import build_dashboard
     from reports.montecarlo_report_builder import build_percentile_band_chart
-    from reports.progress_comparison_builder import build_progress_comparison_chart
     from reports.sensitivity_analysis_builder import build_sensitivity_table
     from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
     from repositories.market_data_repository import load_historical_dataset
@@ -237,14 +234,6 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         montecarlo_reference_1971=montecarlo_reference_1971_result,
     )
     print("      出力_ダッシュボードへ書き込みました（純資産推移グラフ・資産配分・成功確率を含む）")
-
-    print("\n[実績比較] 入力_実績を確認しています...")
-    progress_records = build_progress_records_from_spreadsheet(spreadsheet)
-    if progress_records:
-        write_progress_comparison(spreadsheet, build_progress_comparison_chart(result, progress_records))
-        print(f"      完了（{len(progress_records)}件の実績データと比較）")
-    else:
-        print("      入力_実績が未設定のためスキップしました")
 
     return True
 
