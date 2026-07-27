@@ -34,7 +34,6 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_PROGRESS_COMPARISON_SHEET,
-    OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
     P10_HEADER,
     P50_HEADER,
@@ -54,7 +53,6 @@ from core.domain.simulation_result import SimulationResult
 from core.domain.value_objects import Money
 
 BREAKDOWN_CHART_TITLE = "純資産推移（口座種別内訳）"
-SCENARIO_COMPARISON_CHART_TITLE = "シナリオ比較（純資産推移）"
 PROGRESS_COMPARISON_CHART_TITLE = "計画 vs 実績"
 MONTECARLO_CHART_TITLE = "モンテカルロ・シミュレーション（p10/p50/p90）"
 HISTORICAL_BACKTEST_CHART_TITLE = "ヒストリカル・バックテスト（p10/p50/p90）"
@@ -89,15 +87,16 @@ def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: Si
             + breakdown_values
         )
 
-    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_NETWORTH_SHEET, rows)
+    worksheet, requests = _get_or_create_worksheet(spreadsheet, OUTPUT_NETWORTH_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
-    _apply_money_column_format(spreadsheet, worksheet, rows)
-    _freeze_panes(spreadsheet, worksheet, frozen_rows=1, frozen_columns=2)  # 西暦年・純資産
+    requests += _money_column_format_requests(worksheet.id, rows)
+    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=2))  # 西暦年・純資産
 
     if breakdown_names:
-        _replace_native_chart(
-            spreadsheet,
+        sheet_state = _sheet_state(spreadsheet, worksheet.id)
+        requests += _native_chart_requests(
             worksheet,
+            sheet_state,
             title=BREAKDOWN_CHART_TITLE,
             chart_type="AREA",
             stacked_type="STACKED",
@@ -106,6 +105,8 @@ def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: Si
             series_cols=list(range(3, 3 + len(breakdown_names))),
             anchor_col=len(header) + 2,
         )
+
+    spreadsheet.batch_update({"requests": requests})
 
 
 def write_monthly_detail_table(spreadsheet: gspread.Spreadsheet, simulation_result: SimulationResult) -> None:
@@ -144,16 +145,20 @@ def write_monthly_detail_table(spreadsheet: gspread.Spreadsheet, simulation_resu
         + [int(projection.withdrawals_by_asset_class.get(asset_class, Money.zero()).amount) for asset_class in asset_classes]
         for projection in simulation_result.monthly_projections
     ]
-    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_MONTHLY_DETAIL_SHEET, rows)
+    worksheet, requests = _get_or_create_worksheet(spreadsheet, OUTPUT_MONTHLY_DETAIL_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
-    _apply_money_column_format(spreadsheet, worksheet, rows)
-    _freeze_panes(spreadsheet, worksheet, MONTHLY_DETAIL_FROZEN_ROW_COUNT, MONTHLY_DETAIL_FROZEN_COLUMN_COUNT)
-    _replace_shortfall_conditional_format(spreadsheet, worksheet, header, len(rows))
+    requests += _money_column_format_requests(worksheet.id, rows)
+    requests.append(_freeze_panes_request(worksheet.id, MONTHLY_DETAIL_FROZEN_ROW_COUNT, MONTHLY_DETAIL_FROZEN_COLUMN_COUNT))
+
+    # 条件付き書式・チャートの両方でシートの既存状態（conditionalFormats/charts）を参照するため、
+    # fetch_sheet_metadata()は1回だけ呼んで使い回す（Google Sheets APIの読み取り回数を節約する）。
+    sheet_state = _sheet_state(spreadsheet, worksheet.id)
+    requests += _shortfall_conditional_format_requests(worksheet.id, sheet_state, header, len(rows))
 
     if len(rows) > 1:
-        _replace_native_chart(
-            spreadsheet,
+        requests += _native_chart_requests(
             worksheet,
+            sheet_state,
             title=MONTHLY_NETWORTH_CHART_TITLE,
             chart_type="LINE",
             stacked_type=None,
@@ -163,6 +168,8 @@ def write_monthly_detail_table(spreadsheet: gspread.Spreadsheet, simulation_resu
             series_cols=[header.index(NETWORTH_HEADER)],
             anchor_col=len(header) + 2,
         )
+
+    spreadsheet.batch_update({"requests": requests})
 
 
 def write_dashboard(
@@ -226,28 +233,28 @@ def write_dashboard(
             [projection.year, int(projection.networth.amount)] for projection in simulation_result.yearly_projections
         ]
 
-    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_DASHBOARD_SHEET, rows)
+    worksheet, requests = _get_or_create_worksheet(spreadsheet, OUTPUT_DASHBOARD_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
-    _apply_money_row_format(spreadsheet, worksheet, rows)
-    _replace_dashboard_conditional_formats(spreadsheet, worksheet, depletion_age_row, surplus_row)
+    requests += _money_row_format_requests(worksheet.id, rows)
+
+    sheet_state = _sheet_state(spreadsheet, worksheet.id)
+    requests += _dashboard_conditional_format_requests(worksheet.id, sheet_state, depletion_age_row, surplus_row)
     # 縦持ち(A列=項目/B列=値)の要約に加え資産配分・純資産推移の表も積み上げるため、ヘッダー行という
     # 概念はないが、項目名が並ぶA列は他シートと一貫した操作性のため固定する。
-    _freeze_panes(spreadsheet, worksheet, frozen_rows=0, frozen_columns=1)
+    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=0, frozen_columns=1))
 
     if allocation_header_row is not None:
-        percent_requests = percent_column_format_requests(
+        requests += percent_column_format_requests(
             worksheet.id,
             rows[allocation_header_row],
             allocation_header_row + 1,
             allocation_header_row + 1 + len(allocation),
         )
-        if percent_requests:
-            spreadsheet.batch_update({"requests": percent_requests})
 
     if networth_header_row is not None:
-        _replace_native_chart(
-            spreadsheet,
+        requests += _native_chart_requests(
             worksheet,
+            sheet_state,
             title=DASHBOARD_NETWORTH_CHART_TITLE,
             chart_type="LINE",
             stacked_type=None,
@@ -260,24 +267,11 @@ def write_dashboard(
             anchor_col=3,
         )
 
+    spreadsheet.batch_update({"requests": requests})
+
 
 def _success_rate_text(result: MonteCarloResult) -> str:
     return f"{result.success_rate:.1%}（{result.success_count}/{result.trials}試行）"
-
-
-def write_scenario_comparison(spreadsheet: gspread.Spreadsheet, comparison_chart: dict) -> None:
-    """複数シナリオのネットワース推移を折れ線グラフ（シナリオごとに1系列）として可視化する。"""
-
-    worksheet = _write_chart_table(spreadsheet, OUTPUT_SCENARIO_COMPARISON_SHEET, comparison_chart)
-    _replace_native_chart(
-        spreadsheet,
-        worksheet,
-        title=SCENARIO_COMPARISON_CHART_TITLE,
-        chart_type="LINE",
-        stacked_type=None,
-        num_rows=len(comparison_chart["x"]) + 1,
-        num_series=len(comparison_chart["series"]),
-    )
 
 
 def write_sensitivity_table(spreadsheet: gspread.Spreadsheet, table: dict) -> None:
@@ -290,31 +284,35 @@ def write_sensitivity_table(spreadsheet: gspread.Spreadsheet, table: dict) -> No
     for row_label, cell_row in zip(table["row_labels"], table["cells"]):
         rows.append([row_label] + list(cell_row))
 
-    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_SENSITIVITY_ANALYSIS_SHEET, rows)
+    worksheet, requests = _get_or_create_worksheet(spreadsheet, OUTPUT_SENSITIVITY_ANALYSIS_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
-    _freeze_panes(spreadsheet, worksheet, frozen_rows=1, frozen_columns=1)  # 投資成長率(行ラベル)
+    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=1))  # 投資成長率(行ラベル)
 
-    _replace_heatmap_conditional_format(
-        spreadsheet,
-        worksheet,
+    sheet_state = _sheet_state(spreadsheet, worksheet.id)
+    requests += _heatmap_conditional_format_requests(
+        worksheet.id,
+        sheet_state,
         num_data_rows=len(table["row_labels"]),
         num_data_cols=len(table["column_labels"]),
     )
+    spreadsheet.batch_update({"requests": requests})
 
 
 def write_progress_comparison(spreadsheet: gspread.Spreadsheet, comparison_chart: dict) -> None:
     """計画線と実績線を折れ線グラフ（2系列）として可視化する。"""
 
-    worksheet = _write_chart_table(spreadsheet, OUTPUT_PROGRESS_COMPARISON_SHEET, comparison_chart)
-    _replace_native_chart(
-        spreadsheet,
+    worksheet, requests, header = _write_chart_table(spreadsheet, OUTPUT_PROGRESS_COMPARISON_SHEET, comparison_chart)
+    sheet_state = _sheet_state(spreadsheet, worksheet.id)
+    requests += _native_chart_requests(
         worksheet,
+        sheet_state,
         title=PROGRESS_COMPARISON_CHART_TITLE,
         chart_type="LINE",
         stacked_type=None,
         num_rows=len(comparison_chart["x"]) + 1,
         num_series=len(comparison_chart["series"]),
     )
+    spreadsheet.batch_update({"requests": requests})
 
 
 def write_montecarlo_and_historical_result(
@@ -359,12 +357,12 @@ def write_montecarlo_and_historical_result(
     if not rows:
         return
 
-    worksheet = _get_or_create_worksheet(spreadsheet, OUTPUT_MONTECARLO_SHEET, rows)
+    worksheet, requests = _get_or_create_worksheet(spreadsheet, OUTPUT_MONTECARLO_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
-    _apply_money_column_format(spreadsheet, worksheet, rows)
+    requests += _money_column_format_requests(worksheet.id, rows)
     # 手法ブロックが縦に積み上がるため先頭ブロックのヘッダー行のみが対象になるが、
     # 手法・西暦年の列は他シートと一貫した操作性のため固定する。
-    _freeze_panes(spreadsheet, worksheet, frozen_rows=1, frozen_columns=2)  # 手法・西暦年
+    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=2))  # 手法・西暦年
 
     summary_lines: list[list[object]] = []
     for method_label, result, _, _ in blocks:
@@ -379,15 +377,21 @@ def write_montecarlo_and_historical_result(
     summary_start_row = len(rows) + 2  # 1始まりのシート行番号（データの後に空行を1つ挟む）
     required_rows = summary_start_row + len(summary_lines) - 1
     if worksheet.row_count < required_rows:
-        worksheet.resize(rows=required_rows)
+        requests.append(_resize_request(worksheet.id, rows=required_rows))
+
+    # 行数を広げるリクエストは、その行へ値を書き込むworksheet.update()より先に確定させる必要が
+    # あるため、ここで一度まとめて送る（以降のチャート関連リクエストは別バッチでよい）。
+    spreadsheet.batch_update({"requests": requests})
     worksheet.update(values=summary_lines, range_name=f"A{summary_start_row}")
 
     chart_titles = {MONTECARLO_METHOD_LABEL: MONTECARLO_CHART_TITLE, HISTORICAL_METHOD_LABEL: HISTORICAL_BACKTEST_CHART_TITLE}
     anchor_col = len(header) + 2
+    sheet_state = _sheet_state(spreadsheet, worksheet.id)
+    chart_requests: list[dict] = []
     for chart_index, (method_label, _, block_start, block_end) in enumerate(blocks):
-        _replace_native_chart(
-            spreadsheet,
+        chart_requests += _native_chart_requests(
             worksheet,
+            sheet_state,
             title=chart_titles[method_label],
             chart_type="LINE",
             stacked_type=None,
@@ -399,9 +403,12 @@ def write_montecarlo_and_historical_result(
             anchor_row=chart_index * 20,
             anchor_col=anchor_col,
         )
+    spreadsheet.batch_update({"requests": chart_requests})
 
 
-def _write_chart_table(spreadsheet: gspread.Spreadsheet, sheet_name: str, chart: dict) -> gspread.Worksheet:
+def _write_chart_table(
+    spreadsheet: gspread.Spreadsheet, sheet_name: str, chart: dict
+) -> tuple[gspread.Worksheet, list[dict], list[str]]:
     header = [YEAR_HEADER] + [series["name"] for series in chart["series"]]
     rows: list[list[object]] = [header]
     for row_index, year in enumerate(chart["x"]):
@@ -409,35 +416,33 @@ def _write_chart_table(spreadsheet: gspread.Spreadsheet, sheet_name: str, chart:
             [year] + [_cell_value(series["values"][row_index]) for series in chart["series"]]
         )
 
-    worksheet = _get_or_create_worksheet(spreadsheet, sheet_name, rows)
+    worksheet, requests = _get_or_create_worksheet(spreadsheet, sheet_name, rows)
     worksheet.update(values=rows, range_name="A1")
-    _apply_money_column_format(spreadsheet, worksheet, rows)
-    _freeze_panes(spreadsheet, worksheet, frozen_rows=1, frozen_columns=min(2, len(header)))  # 西暦年・1つ目の系列
-    return worksheet
+    requests += _money_column_format_requests(worksheet.id, rows)
+    requests.append(
+        _freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=min(2, len(header)))
+    )  # 西暦年・1つ目の系列
+    return worksheet, requests, header
 
 
 def _cell_value(value: object) -> object:
     return "" if value is None else value
 
 
-def _apply_money_column_format(spreadsheet: gspread.Spreadsheet, worksheet: gspread.Worksheet, rows: list[list[object]]) -> None:
-    """ヘッダー行付きテーブルの金額列にカンマ区切りの表示形式を設定する（1行目をヘッダーとみなす）。"""
+def _money_column_format_requests(worksheet_id: int, rows: list[list[object]]) -> list[dict]:
+    """ヘッダー行付きテーブルの金額列にカンマ区切りの表示形式を設定するリクエストを作る（1行目をヘッダーとみなす）。"""
 
     if not rows:
-        return
+        return []
     header = [str(h) for h in rows[0]]
-    requests = money_column_format_requests(worksheet.id, header, 1, len(rows))
-    if requests:
-        spreadsheet.batch_update({"requests": requests})
+    return money_column_format_requests(worksheet_id, header, 1, len(rows))
 
 
-def _apply_money_row_format(spreadsheet: gspread.Spreadsheet, worksheet: gspread.Worksheet, rows: list[list[object]]) -> None:
-    """縦持ち(A列=ラベル/B列=値)シートの金額行にカンマ区切りの表示形式を設定する。"""
+def _money_row_format_requests(worksheet_id: int, rows: list[list[object]]) -> list[dict]:
+    """縦持ち(A列=ラベル/B列=値)シートの金額行にカンマ区切りの表示形式を設定するリクエストを作る。"""
 
     row_labels = [str(row[0]) if row else "" for row in rows]
-    requests = money_row_format_requests(worksheet.id, row_labels)
-    if requests:
-        spreadsheet.batch_update({"requests": requests})
+    return money_row_format_requests(worksheet_id, row_labels)
 
 
 CLEAR_FORMAT_ROW_COUNT = 500
@@ -446,7 +451,12 @@ CLEAR_FORMAT_COL_COUNT = 30
 
 def _get_or_create_worksheet(
     spreadsheet: gspread.Spreadsheet, sheet_name: str, rows: list[list[object]]
-) -> gspread.Worksheet:
+) -> tuple[gspread.Worksheet, list[dict]]:
+    """シートを取得（なければ作成）し、そのシートに追加で積むべきリクエスト（既存シートの場合は
+    表示形式クリア）を合わせて返す。呼び出し元はこのリクエストを他の書式・グラフ等のリクエストと
+    まとめて1回のbatch_update()で送ることで、Google Sheets APIの呼び出し回数を抑える。
+    """
+
     try:
         worksheet = spreadsheet.worksheet(sheet_name)
         worksheet.clear()
@@ -454,37 +464,68 @@ def _get_or_create_worksheet(
         # 変わりうる出力シート（純資産推移の内訳列、モンテカルロ等）では、以前の実行で別の列に
         # 付けたカンマ区切り表示形式が新しい列構成に残存してしまう（例: 列がずれて年の列に
         # カンマ書式が残る）ため、書き込み前に明示的に表示形式をクリアする。
-        spreadsheet.batch_update(
-            {
-                "requests": [
-                    {
-                        "repeatCell": {
-                            "range": {
-                                "sheetId": worksheet.id,
-                                "startRowIndex": 0,
-                                "endRowIndex": CLEAR_FORMAT_ROW_COUNT,
-                                "startColumnIndex": 0,
-                                "endColumnIndex": CLEAR_FORMAT_COL_COUNT,
-                            },
-                            "cell": {"userEnteredFormat": {"numberFormat": None}},
-                            "fields": "userEnteredFormat.numberFormat",
-                        }
-                    }
-                ]
-            }
-        )
-        return worksheet
+        return worksheet, [_clear_number_format_request(worksheet.id)]
     except gspread.exceptions.WorksheetNotFound:
         # ダッシュボードのような縦持ちシートは先頭行(rows[0])より後方の行の方が列数が多いことがある
         # （資産配分表・純資産推移表がA/B2列のサマリより右まで伸びるため）ため、全行の最大列数を見る。
         cols = max((len(row) for row in rows), default=2)
         cols = max(cols, 2)
-        return spreadsheet.add_worksheet(title=sheet_name, rows=max(len(rows), 10), cols=cols)
+        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=max(len(rows), 10), cols=cols)
+        return worksheet, []
 
 
-def _replace_native_chart(
-    spreadsheet: gspread.Spreadsheet,
+def _clear_number_format_request(sheet_id: int) -> dict:
+    return {
+        "repeatCell": {
+            "range": {
+                "sheetId": sheet_id,
+                "startRowIndex": 0,
+                "endRowIndex": CLEAR_FORMAT_ROW_COUNT,
+                "startColumnIndex": 0,
+                "endColumnIndex": CLEAR_FORMAT_COL_COUNT,
+            },
+            "cell": {"userEnteredFormat": {"numberFormat": None}},
+            "fields": "userEnteredFormat.numberFormat",
+        }
+    }
+
+
+def _resize_request(sheet_id: int, rows: Optional[int] = None, cols: Optional[int] = None) -> dict:
+    """worksheet.resize()相当のリクエストをbatch_update用のdictとして組み立てる
+    （即座にAPI呼び出しするworksheet.resize()の代わりに、他のリクエストとまとめて送るため）。
+    """
+
+    grid_properties: dict[str, int] = {}
+    if rows is not None:
+        grid_properties["rowCount"] = rows
+    if cols is not None:
+        grid_properties["columnCount"] = cols
+    fields = ",".join(f"gridProperties.{p}" for p in grid_properties)
+    return {
+        "updateSheetProperties": {
+            "properties": {"sheetId": sheet_id, "gridProperties": grid_properties},
+            "fields": fields,
+        }
+    }
+
+
+def _sheet_state(spreadsheet: gspread.Spreadsheet, sheet_id: int) -> dict:
+    """指定シートの現在のメタデータ（charts/conditionalFormats）をfetch_sheet_metadata()の
+    1回の呼び出しでまとめて取得する。チャートの張り替えと条件付き書式の張り替えを両方行うシート
+    （出力_月次詳細・出力_ダッシュボード）で、個別に同じ内容を2回読みに行かないようにするため
+    （Google Sheets APIの読み取り回数上限に達しやすい問題への対策）。
+    """
+
+    metadata = spreadsheet.fetch_sheet_metadata()
+    for sheet in metadata.get("sheets", []):
+        if sheet["properties"]["sheetId"] == sheet_id:
+            return sheet
+    return {"charts": [], "conditionalFormats": []}
+
+
+def _native_chart_requests(
     worksheet: gspread.Worksheet,
+    sheet_state: dict,
     title: str,
     chart_type: str,
     stacked_type: Optional[str],
@@ -495,11 +536,15 @@ def _replace_native_chart(
     series_cols: Optional[list[int]] = None,
     anchor_row: int = 0,
     anchor_col: Optional[int] = None,
-) -> None:
-    """num_rows/num_seriesはヘッダー行込みの行数・系列数の基本形（domain=列0、系列=列1..num_series、
+) -> list[dict]:
+    """指定タイトルのチャートを削除して新しく作り直すリクエスト一覧を返す（既存チャートの更新の
+    代わりに削除→再作成する方が、系列の増減等を含めた差分をシンプルに扱える）。
+
+    num_rows/num_seriesはヘッダー行込みの行数・系列数の基本形（domain=列0、系列=列1..num_series、
     アンカーは表の右側）。1枚のシートに複数の表・チャートを配置する場合（純資産推移の内訳、
     モンテカルロ/ヒストリカルの統合等）は、row_start/domain_col/series_cols/anchor_row/anchor_colで
-    データ範囲・アンカー位置を明示的に指定する。
+    データ範囲・アンカー位置を明示的に指定する。sheet_stateは_sheet_state()の戻り値（既存チャートの
+    有無をAPI呼び出しなしで判定するために使う）。
     """
 
     sheet_id = worksheet.id
@@ -507,13 +552,16 @@ def _replace_native_chart(
     anchor_col = anchor_col if anchor_col is not None else num_series + 2
     row_end = row_start + num_rows
 
+    requests: list[dict] = []
+
     # チャートのアンカーセルがグリッド範囲外だとAPIエラーになるため、データ列より右側に余白を確保する。
     required_cols = anchor_col + 10
     if worksheet.col_count < required_cols:
-        worksheet.resize(cols=required_cols)
+        requests.append(_resize_request(sheet_id, cols=required_cols))
 
-    for chart_id in _existing_chart_ids(spreadsheet, sheet_id, title):
-        spreadsheet.batch_update({"requests": [{"deleteEmbeddedObject": {"objectId": chart_id}}]})
+    requests += [
+        {"deleteEmbeddedObject": {"objectId": chart_id}} for chart_id in _chart_ids_in_state(sheet_state, title)
+    ]
 
     def _column_range(col: int) -> dict:
         return {
@@ -550,56 +598,48 @@ def _replace_native_chart(
     if stacked_type is not None:
         basic_chart["stackedType"] = stacked_type
 
-    add_chart_request = {
-        "requests": [
-            {
-                "addChart": {
-                    "chart": {
-                        "spec": {
-                            "title": title,
-                            "basicChart": basic_chart,
-                        },
-                        "position": {
-                            "overlayPosition": {
-                                "anchorCell": {
-                                    "sheetId": sheet_id,
-                                    "rowIndex": anchor_row,
-                                    "columnIndex": anchor_col,
-                                }
+    requests.append(
+        {
+            "addChart": {
+                "chart": {
+                    "spec": {
+                        "title": title,
+                        "basicChart": basic_chart,
+                    },
+                    "position": {
+                        "overlayPosition": {
+                            "anchorCell": {
+                                "sheetId": sheet_id,
+                                "rowIndex": anchor_row,
+                                "columnIndex": anchor_col,
                             }
-                        },
-                    }
+                        }
+                    },
                 }
             }
-        ]
-    }
-    spreadsheet.batch_update(add_chart_request)
+        }
+    )
+    return requests
 
 
-def _existing_chart_ids(spreadsheet: gspread.Spreadsheet, sheet_id: int, title: str) -> list[int]:
-    metadata = spreadsheet.fetch_sheet_metadata()
-    chart_ids = []
-    for sheet in metadata.get("sheets", []):
-        if sheet["properties"]["sheetId"] != sheet_id:
-            continue
-        for chart in sheet.get("charts", []):
-            if chart.get("spec", {}).get("title") == title:
-                chart_ids.append(chart["chartId"])
-    return chart_ids
+def _chart_ids_in_state(sheet_state: dict, title: str) -> list[int]:
+    return [
+        chart["chartId"]
+        for chart in sheet_state.get("charts", [])
+        if chart.get("spec", {}).get("title") == title
+    ]
 
 
-def _replace_heatmap_conditional_format(
-    spreadsheet: gspread.Spreadsheet,
-    worksheet: gspread.Worksheet,
+def _heatmap_conditional_format_requests(
+    sheet_id: int,
+    sheet_state: dict,
     num_data_rows: int,
     num_data_cols: int,
-) -> None:
-    sheet_id = worksheet.id
-
+) -> list[dict]:
     # 削除するたびにindexが詰まるため、常にindex=0を指定すればよい。
     requests = [
         {"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}}
-        for _ in range(_existing_conditional_format_rule_count(spreadsheet, sheet_id))
+        for _ in range(_conditional_format_rule_count_in_state(sheet_state))
     ]
 
     requests.append(
@@ -630,7 +670,7 @@ def _replace_heatmap_conditional_format(
         }
     )
 
-    spreadsheet.batch_update({"requests": requests})
+    return requests
 
 
 def _column_letter(index: int) -> str:
@@ -644,27 +684,22 @@ def _column_letter(index: int) -> str:
     return letters
 
 
-def _existing_conditional_format_rule_count(spreadsheet: gspread.Spreadsheet, sheet_id: int) -> int:
-    metadata = spreadsheet.fetch_sheet_metadata()
-    for sheet in metadata.get("sheets", []):
-        if sheet["properties"]["sheetId"] == sheet_id:
-            return len(sheet.get("conditionalFormats", []))
-    return 0
+def _conditional_format_rule_count_in_state(sheet_state: dict) -> int:
+    return len(sheet_state.get("conditionalFormats", []))
 
 
-def _replace_dashboard_conditional_formats(
-    spreadsheet: gspread.Spreadsheet, worksheet: gspread.Worksheet, depletion_age_row: int, surplus_row: int
-) -> None:
+def _dashboard_conditional_format_requests(
+    sheet_id: int, sheet_state: dict, depletion_age_row: int, surplus_row: int
+) -> list[dict]:
     """資産枯渇年齢・目標資産との余裕のセルを、健全(枯渇なし・余裕がプラス)なら緑、
-    危険(枯渇あり・余裕がマイナス)なら赤の背景色にする条件付き書式を張り替える。
+    危険(枯渇あり・余裕がマイナス)なら赤の背景色にする条件付き書式リクエストを作る。
     行番号(0始まり)はwrite_dashboard内で常に固定（先頭7行のサマリ構造は不変）のため引数で受け取る。
     """
 
-    sheet_id = worksheet.id
     # 削除するたびにindexが詰まるため、常にindex=0を指定すればよい。
     requests = [
         {"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}}
-        for _ in range(_existing_conditional_format_rule_count(spreadsheet, sheet_id))
+        for _ in range(_conditional_format_rule_count_in_state(sheet_state))
     ]
 
     def _value_cell_range(row: int) -> dict:
@@ -728,48 +763,41 @@ def _replace_dashboard_conditional_formats(
         }
     )
 
-    spreadsheet.batch_update({"requests": requests})
+    return requests
 
 
-def _freeze_panes(spreadsheet: gspread.Spreadsheet, worksheet: gspread.Worksheet, frozen_rows: int, frozen_columns: int) -> None:
-    """ヘッダー行と左端のID・キー列を固定し、右/下にスクロールしても常に見えるようにする
-    （全シートで一貫した操作性にするため、出力シート側もこのヘルパーで統一する）。
+def _freeze_panes_request(sheet_id: int, frozen_rows: int, frozen_columns: int) -> dict:
+    """ヘッダー行と左端のID・キー列を固定するリクエストを作る（右/下にスクロールしても常に見える
+    ようにする。全シートで一貫した操作性にするため、出力シート側もこのヘルパーで統一する）。
     """
 
-    spreadsheet.batch_update(
-        {
-            "requests": [
-                {
-                    "updateSheetProperties": {
-                        "properties": {
-                            "sheetId": worksheet.id,
-                            "gridProperties": {
-                                "frozenRowCount": frozen_rows,
-                                "frozenColumnCount": frozen_columns,
-                            },
-                        },
-                        "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
-                    }
-                }
-            ]
+    return {
+        "updateSheetProperties": {
+            "properties": {
+                "sheetId": sheet_id,
+                "gridProperties": {
+                    "frozenRowCount": frozen_rows,
+                    "frozenColumnCount": frozen_columns,
+                },
+            },
+            "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
         }
-    )
+    }
 
 
-def _replace_shortfall_conditional_format(
-    spreadsheet: gspread.Spreadsheet, worksheet: gspread.Worksheet, header: list[str], row_count: int
-) -> None:
+def _shortfall_conditional_format_requests(
+    sheet_id: int, sheet_state: dict, header: list[str], row_count: int
+) -> list[dict]:
     """取り崩し不足額(SHORTFALL_HEADER列)が0より大きい月（口座残高を取り崩してもなお賄いきれず、
-    本当に資産が足りていない月）の行全体を赤系の背景色にする条件付き書式を張り替える。
+    本当に資産が足りていない月）の行全体を赤系の背景色にする条件付き書式リクエストを作る。
 
     収支(NET_CASHFLOW_HEADER)がマイナスであること自体はFIRE後の取り崩し局面では正常な状態のため、
     それだけでは判定しない（収支マイナス基準だとほとんどの月が赤くなり、本当に危険な月が埋もれる）。
     """
 
-    sheet_id = worksheet.id
     requests = [
         {"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": 0}}
-        for _ in range(_existing_conditional_format_rule_count(spreadsheet, sheet_id))
+        for _ in range(_conditional_format_rule_count_in_state(sheet_state))
     ]
 
     if row_count > 1 and SHORTFALL_HEADER in header:
@@ -800,4 +828,4 @@ def _replace_shortfall_conditional_format(
             }
         )
 
-    spreadsheet.batch_update({"requests": requests})
+    return requests

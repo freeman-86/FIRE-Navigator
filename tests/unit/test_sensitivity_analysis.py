@@ -5,7 +5,7 @@ from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -24,7 +24,7 @@ def _plan() -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
     income = Income(
         income_id="income_001",
@@ -38,7 +38,7 @@ def _plan() -> Plan:
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(5)),
+        assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
         accounts=[Account(account_id="acc_001", account_type=AccountType.TAXABLE)],
         tax_config=TaxConfig(),
         pension=pension,
@@ -89,9 +89,14 @@ class RunSensitivityAnalysisTest(unittest.TestCase):
 
     def test_base_plan_assumptions_are_not_mutated(self) -> None:
         plan = _plan()
-        original_growth_rate = plan.assumptions.investment_growth_rate
-        run_sensitivity_analysis(plan, _portfolios(), zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
-        self.assertEqual(plan.assumptions.investment_growth_rate, original_growth_rate)
+        portfolios = _portfolios()
+        original_inflation_rate = plan.assumptions.inflation_rate
+        original_expected_return = portfolios["acc_001"].holdings[0].asset.expected_return
+
+        run_sensitivity_analysis(plan, portfolios, zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
+
+        self.assertEqual(plan.assumptions.inflation_rate, original_inflation_rate)
+        self.assertEqual(portfolios["acc_001"].holdings[0].asset.expected_return, original_expected_return)
 
 
 class BuildSensitivityTableTest(unittest.TestCase):

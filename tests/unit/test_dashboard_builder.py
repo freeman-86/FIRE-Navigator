@@ -6,7 +6,7 @@ from core.domain.asset import Asset
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -33,7 +33,7 @@ def _plan() -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
     income = Income(
         income_id="income_001",
@@ -53,7 +53,7 @@ def _plan() -> Plan:
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
+        assumptions=Assumptions(inflation_rate=Rate.zero()),
         accounts=[Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)],
         tax_config=TaxConfig(),
         pension=pension,
@@ -61,6 +61,10 @@ def _plan() -> Plan:
         contribution_strategy=no_allocation_contribution_strategy(),
         incomes=[income],
         expenses=[expense],
+        # 想定寿命65歳を明示することで、ComputeReverseAnnualBudgetTestが前提とする
+        # 「シミュレーション期間30年」を維持する（常に想定寿命まで計算する仕様のため、
+        # 未指定だとDEFAULT_LIFE_EXPECTANCY_AGE=100歳まで計算され前提が崩れる）。
+        life_expectancy_age=65,
     )
 
 

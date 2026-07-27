@@ -20,7 +20,6 @@ from adapters.sheets.sample_data import (
     INCOMES_ROWS,
     PLAN_ROWS,
     PROGRESS_ROWS,
-    SCENARIOS_ROWS,
 )
 from adapters.sheets.sheet_mapping import (
     ACCOUNT_ID_HEADER,
@@ -51,7 +50,6 @@ from adapters.sheets.sheet_mapping import (
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
-    INVESTMENT_GROWTH_RATE_HEADER,
     LIFE_EXPECTANCY_HEADER,
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
@@ -64,19 +62,13 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_SHEET,
     OUTPUT_PROGRESS_COMPARISON_SHEET,
-    OUTPUT_SCENARIO_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
     PENSION_CLAIM_AGE_HEADER,
-    PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PLAN_START_CONDITION_LABEL,
     PROGRESS_SHEET,
-    RETIREMENT_AGE_HEADER,
-    SCENARIO_ID_HEADER,
-    SCENARIO_NAME_HEADER,
-    SCENARIOS_SHEET,
     SOURCE_HEADER,
     START_AGE_HEADER,
     START_TYPE_HEADER,
@@ -95,7 +87,6 @@ from adapters.sheets.sheets_number_format import (
 )
 from core.domain.account import AccountType
 from core.domain.asset import AssetClass
-from core.domain.pension import ClaimTimingType
 from repositories.asset_class_repository import load_asset_class_registry
 
 EXAMPLES_SHEET = "入力例"
@@ -138,14 +129,12 @@ NUMERIC_HEADERS = {
     TARGET_WEIGHT_HEADER,
     YEAR_HEADER,
     ACTUAL_NETWORTH_HEADER,
-    RETIREMENT_AGE_HEADER,
     LIFE_EXPECTANCY_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
     EMPLOYEE_PENSION_ESTIMATE_HEADER,
     PENSION_CLAIM_AGE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
     INFLATION_RATE_HEADER,
-    INVESTMENT_GROWTH_RATE_HEADER,
 }
 
 # 開始/終了条件値は、対応する条件タイプが「年齢で指定」の行に限り数値変換する（「日付で指定」等の
@@ -230,7 +219,6 @@ def _tabular_specs(asset_class_registry: dict[AssetClass, str]) -> list[TabularS
             {START_TYPE_HEADER: CONDITION_TYPE_CHOICES, END_TYPE_HEADER: CONDITION_TYPE_CHOICES},
             frozen_columns=3,  # 支出ID・カテゴリ・単発フラグ
         ),
-        TabularSheetSpec(SCENARIOS_SHEET, [SCENARIO_ID_HEADER, SCENARIO_NAME_HEADER], frozen_columns=2),  # シナリオID・シナリオ名
         TabularSheetSpec(PROGRESS_SHEET, [YEAR_HEADER, ACTUAL_NETWORTH_HEADER], frozen_columns=1),  # 西暦年
         TabularSheetSpec(
             ALLOCATION_POLICY_SHEET,
@@ -258,12 +246,9 @@ PLAN_REQUIRED_KEYS = [
     PLAN_NAME_HEADER,
     BIRTH_DATE_HEADER,
     INFLATION_RATE_HEADER,
-    INVESTMENT_GROWTH_RATE_HEADER,
 ]
 
-PLAN_DROPDOWNS: dict[str, list[str]] = {
-    PENSION_CLAIM_TIMING_HEADER: [member.value for member in ClaimTimingType],
-}
+PLAN_DROPDOWNS: dict[str, list[str]] = {}
 
 
 def _column_letter(index: int) -> str:
@@ -683,7 +668,7 @@ def apply_input_formatting(
 
 # よく使う入力シート(青)。プラン作成後、日常的に更新する。
 FREQUENT_INPUT_TAB_COLOR = {"red": 0.26, "green": 0.52, "blue": 0.96}
-# たまにしか使わない入力シート(グレー)。シナリオ比較・配分方針・実績記録・教育費等、
+# たまにしか使わない入力シート(グレー)。配分方針・実績記録・教育費等、
 # 初期設定後は更新頻度が低い。
 OCCASIONAL_INPUT_TAB_COLOR = {"red": 0.62, "green": 0.62, "blue": 0.62}
 # 出力シート(緑)。シミュレーション実行のたびに再生成される結果ビュー。
@@ -697,7 +682,6 @@ TAB_LAYOUT: list[tuple[str, dict]] = [
     (ACCOUNTS_SHEET, FREQUENT_INPUT_TAB_COLOR),
     (INCOMES_SHEET, FREQUENT_INPUT_TAB_COLOR),
     (EXPENSES_SHEET, FREQUENT_INPUT_TAB_COLOR),
-    (SCENARIOS_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
     (ALLOCATION_POLICY_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
     (PROGRESS_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
     (EDUCATION_EXPENSES_SHEET, OCCASIONAL_INPUT_TAB_COLOR),
@@ -706,7 +690,6 @@ TAB_LAYOUT: list[tuple[str, dict]] = [
     (OUTPUT_DASHBOARD_SHEET, OUTPUT_TAB_COLOR),
     (OUTPUT_NETWORTH_SHEET, OUTPUT_TAB_COLOR),
     (OUTPUT_MONTHLY_DETAIL_SHEET, OUTPUT_TAB_COLOR),
-    (OUTPUT_SCENARIO_COMPARISON_SHEET, OUTPUT_TAB_COLOR),
     (OUTPUT_SENSITIVITY_ANALYSIS_SHEET, OUTPUT_TAB_COLOR),
     (OUTPUT_MONTECARLO_SHEET, OUTPUT_TAB_COLOR),
     (OUTPUT_PROGRESS_COMPARISON_SHEET, OUTPUT_TAB_COLOR),
@@ -748,7 +731,6 @@ _EXAMPLE_SECTIONS: list[tuple[str, list[list[str]]]] = [
     (ACCOUNTS_SHEET, ACCOUNTS_ROWS),
     (INCOMES_SHEET, INCOMES_ROWS),
     (EXPENSES_SHEET, EXPENSES_ROWS),
-    (SCENARIOS_SHEET, SCENARIOS_ROWS),
     (ALLOCATION_POLICY_SHEET, ALLOCATION_POLICY_ROWS),
     (PROGRESS_SHEET, PROGRESS_ROWS),
     (EDUCATION_EXPENSES_SHEET, EDUCATION_EXPENSES_ROWS),

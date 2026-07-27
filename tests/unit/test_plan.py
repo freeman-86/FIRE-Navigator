@@ -6,7 +6,7 @@ from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
 from core.domain.milestone import Milestone, MilestoneType
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -42,7 +42,7 @@ def _build_plan() -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
         employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
 
     return Plan(
@@ -52,7 +52,6 @@ def _build_plan() -> Plan:
         start_condition=StartCondition(StartConditionType.TODAY),
         assumptions=Assumptions(
             inflation_rate=Rate.from_percent(2),
-            investment_growth_rate=Rate.from_percent(5),
         ),
         accounts=[account],
         tax_config=TaxConfig(),

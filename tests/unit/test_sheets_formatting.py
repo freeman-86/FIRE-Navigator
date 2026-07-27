@@ -23,17 +23,15 @@ from adapters.sheets.sheet_mapping import (
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
-    INVESTMENT_GROWTH_RATE_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     OUTPUT_DASHBOARD_SHEET,
-    PENSION_CLAIM_TIMING_HEADER,
+    PENSION_CLAIM_AGE_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PROGRESS_SHEET,
-    RETIREMENT_AGE_HEADER,
     START_TYPE_HEADER,
     START_VALUE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
@@ -504,8 +502,8 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
             [PLAN_ID_HEADER, "plan_001"],
             [PLAN_NAME_HEADER, "ベースプラン"],
             [BIRTH_DATE_HEADER, "1990-04-01"],
-            [RETIREMENT_AGE_HEADER, "60"],
-            [PENSION_CLAIM_TIMING_HEADER, "standard"],
+            [TARGET_ENDING_NETWORTH_HEADER, "20000000"],
+            [PENSION_CLAIM_AGE_HEADER, "65"],
         ]
         worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
 
@@ -517,15 +515,16 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
             r["range"]["startRowIndex"]: r["cell"]["userEnteredFormat"]["backgroundColor"] for r in single_row_requests
         }
 
-        # PLAN_ID(0), PLAN_NAME(1), BIRTH_DATE(2) are required; RETIREMENT_AGE(3)/PENSION_CLAIM_TIMING(4) are not.
+        # PLAN_ID(0), PLAN_NAME(1), BIRTH_DATE(2) are required; TARGET_ENDING_NETWORTH(3)/PENSION_CLAIM_AGE(4) are not.
         for row in (0, 1, 2):
             self.assertEqual(color_by_row[row], sheets_formatting.REQUIRED_CELL_COLOR)
         for row in (3, 4):
             self.assertEqual(color_by_row[row], sheets_formatting.OPTIONAL_CELL_COLOR)
 
+        # 入力_プラン設定にはプルダウン選択肢のある項目がない（年金受給タイミングの選択項目は
+        # 廃止済み。繰上げ/繰下げは年金受給開始年齢の数字だけから自動的に決まる）。
         validation_requests = _validation_requests(spreadsheet, worksheet.id)
-        validation_rows = {r["range"]["startRowIndex"] for r in validation_requests}
-        self.assertEqual(validation_rows, {4})  # PENSION_CLAIM_TIMING
+        self.assertEqual(validation_requests, [])
 
     def test_freezes_key_column_but_not_a_header_row(self):
         spreadsheet = _FakeSpreadsheet()
@@ -543,7 +542,7 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
         rows = [
             [PLAN_ID_HEADER, "plan_001"],
             [TARGET_ENDING_NETWORTH_HEADER, "20000000"],
-            [RETIREMENT_AGE_HEADER, "60"],
+            [PENSION_CLAIM_AGE_HEADER, "60"],
         ]
         worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
 
@@ -553,15 +552,14 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
         formatted_rows = {r["range"]["startRowIndex"] for r in number_format_requests}
 
         self.assertIn(1, formatted_rows)  # TARGET_ENDING_NETWORTH_HEADER(目標資産)
-        self.assertNotIn(2, formatted_rows)  # RETIREMENT_AGE_HEADER(年齢)
+        self.assertNotIn(2, formatted_rows)  # PENSION_CLAIM_AGE_HEADER(年齢)
 
     def test_rate_rows_get_percent_number_format(self):
         spreadsheet = _FakeSpreadsheet()
         rows = [
             [PLAN_ID_HEADER, "plan_001"],
             [INFLATION_RATE_HEADER, "0.02"],
-            [INVESTMENT_GROWTH_RATE_HEADER, "0.05"],
-            [RETIREMENT_AGE_HEADER, "60"],
+            [PENSION_CLAIM_AGE_HEADER, "60"],
         ]
         worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
 
@@ -570,13 +568,13 @@ class ApplyInputFormattingPlanSheetTest(unittest.TestCase):
         percent_format_requests = _percent_format_requests(spreadsheet, worksheet.id)
         formatted_rows = {r["range"]["startRowIndex"] for r in percent_format_requests}
 
-        self.assertEqual(formatted_rows, {1, 2})  # INFLATION_RATE_HEADER, INVESTMENT_GROWTH_RATE_HEADER
+        self.assertEqual(formatted_rows, {1})  # INFLATION_RATE_HEADER
 
     def test_converts_numeric_plan_values_to_numbers(self):
         spreadsheet = _FakeSpreadsheet()
         rows = [
             [PLAN_ID_HEADER, "plan_001"],
-            [RETIREMENT_AGE_HEADER, "60"],
+            [PENSION_CLAIM_AGE_HEADER, "60"],
         ]
         worksheet = spreadsheet.add_sheet(PLAN_SHEET, rows)
 

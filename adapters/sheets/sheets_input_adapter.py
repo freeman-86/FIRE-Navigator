@@ -38,7 +38,6 @@ from adapters.sheets.sheet_mapping import (
     INCOME_ID_HEADER,
     INCOMES_SHEET,
     INFLATION_RATE_HEADER,
-    INVESTMENT_GROWTH_RATE_HEADER,
     LIFE_EXPECTANCY_HEADER,
     MONTHLY_AMOUNT_HEADER,
     MONTHLY_CONTRIBUTION_HEADER,
@@ -46,16 +45,11 @@ from adapters.sheets.sheet_mapping import (
     ONE_TIME_AMOUNT_HEADER,
     ONE_TIME_FLAG_HEADER,
     PENSION_CLAIM_AGE_HEADER,
-    PENSION_CLAIM_TIMING_HEADER,
     PLAN_ID_HEADER,
     PLAN_NAME_HEADER,
     PLAN_SHEET,
     PLAN_START_CONDITION_LABEL,
     PROGRESS_SHEET,
-    RETIREMENT_AGE_HEADER,
-    SCENARIO_ID_HEADER,
-    SCENARIO_NAME_HEADER,
-    SCENARIOS_SHEET,
     SOURCE_HEADER,
     SPREADSHEET_NAME,
     START_AGE_HEADER,
@@ -75,13 +69,11 @@ from core.domain.errors import StructuralInputError
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
-from core.domain.milestone import Milestone, MilestoneType
 from core.domain.one_time_expense import OneTimeExpense
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE, Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.progress_record import ProgressRecord
-from core.domain.scenario import Scenario
 from core.domain.tax_config import TaxConfig
 from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
@@ -97,8 +89,14 @@ DEFAULT_CREDENTIALS_PATH = "secrets/gsheets_credentials.json"
 
 
 def build_client(credentials_path: str = DEFAULT_CREDENTIALS_PATH) -> gspread.Client:
+    """gspreadのBackOffHTTPClientを使い、429(利用回数制限)/408/5xxエラー時に指数バックオフで
+    自動リトライするクライアントを作る。フルシミュレーション実行は1回の実行で多数のシートへ
+    書き込むため、Google Sheets APIの分間リクエスト数上限に達しやすく、以前はエラーで
+    実行が丸ごと止まっていた（ユーザーが手動で1分待って再実行する必要があった）。
+    """
+
     creds = Credentials.from_service_account_file(credentials_path, scopes=SCOPES)
-    return gspread.authorize(creds)
+    return gspread.authorize(creds, http_client=gspread.BackOffHTTPClient)
 
 
 def open_spreadsheet(client: gspread.Client, spreadsheet_name: str = SPREADSHEET_NAME) -> gspread.Spreadsheet:
@@ -289,10 +287,6 @@ def _build_assumptions(settings: dict[str, str]) -> Assumptions:
         inflation_rate=_parse_rate(
             _require_setting(settings, INFLATION_RATE_HEADER), f"{PLAN_SHEET}!{INFLATION_RATE_HEADER}"
         ),
-        investment_growth_rate=_parse_rate(
-            _require_setting(settings, INVESTMENT_GROWTH_RATE_HEADER),
-            f"{PLAN_SHEET}!{INVESTMENT_GROWTH_RATE_HEADER}",
-        ),
     )
 
 
@@ -358,35 +352,6 @@ def build_portfolios_from_spreadsheet(
         holding = Holding(asset=asset, quantity=1, current_value=current_value, cost_basis=cost_basis)
         portfolios[account_id] = Portfolio(holdings=[holding])
     return portfolios
-
-
-def build_scenarios_from_spreadsheet(spreadsheet: gspread.Spreadsheet, plan_id: str) -> list[Scenario]:
-    """Scenario Aggregate（plan_idで参照される独立集約）を入力_シナリオシートから組み立てる。
-
-    入力_シナリオシートが存在しない場合は空リストを返す（シナリオ比較はオプション機能）。
-    """
-
-    try:
-        worksheet = spreadsheet.worksheet(SCENARIOS_SHEET)
-    except gspread.exceptions.WorksheetNotFound:
-        return []
-
-    scenarios = []
-    for row_number, record in enumerate(worksheet.get_all_records(), start=2):
-        row_prefix = f"{SCENARIOS_SHEET}!row{row_number}"
-        overrides = {}
-        retirement_age_raw = str(record.get(RETIREMENT_AGE_HEADER, "")).strip()
-        if retirement_age_raw:
-            overrides["retirement_age"] = _parse_int(retirement_age_raw, f"{row_prefix}.{RETIREMENT_AGE_HEADER}")
-        scenarios.append(
-            Scenario(
-                scenario_id=str(_require(record, SCENARIO_ID_HEADER, f"{row_prefix}.{SCENARIO_ID_HEADER}")),
-                plan_id=plan_id,
-                name=str(_require(record, SCENARIO_NAME_HEADER, f"{row_prefix}.{SCENARIO_NAME_HEADER}")),
-                overrides=overrides,
-            )
-        )
-    return scenarios
 
 
 def build_progress_records_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> list[ProgressRecord]:
@@ -603,15 +568,16 @@ def _default_tax_config() -> TaxConfig:
 
 
 def _build_pension(settings: dict[str, str]) -> Pension:
-    """入力_プラン設定（Master的な要約入力ビュー）の年金4項目からPensionを組み立てる。
+    """入力_プラン設定（Master的な要約入力ビュー）の年金3項目からPensionを組み立てる。
 
     すべて任意入力。未入力の項目は年金見込額ゼロ・標準65歳受給という後方互換のデフォルトを使う
     （このMaster項目が追加される以前は、年金条件はSheetsから一切編集できなかった）。
+    繰上げ/繰下げによる増減率はPENSION_CLAIM_AGE_HEADER（受給開始年齢）の数字だけから自動的に
+    決まる（pension_engine.calculate_pension_income()参照）ため、種別を別途入力する項目はない。
     """
 
     national_raw = settings.get(NATIONAL_PENSION_ESTIMATE_HEADER, "").strip()
     employee_raw = settings.get(EMPLOYEE_PENSION_ESTIMATE_HEADER, "").strip()
-    claim_timing_raw = settings.get(PENSION_CLAIM_TIMING_HEADER, "").strip()
     claim_age_raw = settings.get(PENSION_CLAIM_AGE_HEADER, "").strip()
 
     national_amount = (
@@ -624,42 +590,13 @@ def _build_pension(settings: dict[str, str]) -> Pension:
         if employee_raw
         else Money.zero()
     )
-    claim_timing_type = (
-        _parse_enum(ClaimTimingType, claim_timing_raw, f"{PLAN_SHEET}!{PENSION_CLAIM_TIMING_HEADER}")
-        if claim_timing_raw
-        else ClaimTimingType.STANDARD
-    )
     claim_age = _parse_int(claim_age_raw, f"{PLAN_SHEET}!{PENSION_CLAIM_AGE_HEADER}") if claim_age_raw else 65
 
     return Pension(
         national_pension=PensionEntitlement(estimate_annual=national_amount),
         employee_pension=PensionEntitlement(estimate_annual=employee_amount),
-        claim_timing=ClaimTiming(timing_type=claim_timing_type, age=claim_age),
+        claim_timing=ClaimTiming(age=claim_age),
     )
-
-
-def _build_milestones(settings: dict[str, str]) -> list[Milestone]:
-    """入力_プラン設定のシミュレーション終了年齢（RETIREMENT_AGE_HEADER、任意入力）から
-    RETIREMENTマイルストーンを組み立てる。
-
-    この値は収入を止める機能ではなく、シミュレーション期間をどこまで計算するかだけを制御する
-    （未入力なら30年間、入力するとその年齢に達する年以降・想定寿命まで自動延長する。
-    既存のprojection_engine._resolve_end_yearのロジック）。給与収入等がいつ止まるかは
-    入力_収入の終了条件タイプ/値で個別に設定する。
-    """
-
-    retirement_age_raw = settings.get(RETIREMENT_AGE_HEADER, "").strip()
-    if not retirement_age_raw:
-        return []
-
-    age = _parse_int(retirement_age_raw, f"{PLAN_SHEET}!{RETIREMENT_AGE_HEADER}")
-    return [
-        Milestone(
-            milestone_id="milestone_retirement",
-            milestone_type=MilestoneType.RETIREMENT,
-            trigger=EventCondition.at_age(age),
-        )
-    ]
 
 
 def _build_life_expectancy_age(settings: dict[str, str]) -> int:
@@ -733,7 +670,6 @@ def build_plan_from_spreadsheet(spreadsheet: gspread.Spreadsheet) -> Plan:
         contribution_strategy=_default_contribution_strategy(),
         incomes=_build_incomes(spreadsheet, assumptions.inflation_rate),
         expenses=expenses,
-        milestones=_build_milestones(settings),
         allocation_policy=_build_allocation_policy(spreadsheet),
         children=children,
         education_expenses=education_expenses,
@@ -852,16 +788,6 @@ def load_portfolios(
     client = build_client(credentials_path)
     spreadsheet = open_spreadsheet(client, spreadsheet_name)
     return build_portfolios_from_spreadsheet(spreadsheet)
-
-
-def load_scenarios(
-    plan_id: str,
-    spreadsheet_name: str = SPREADSHEET_NAME,
-    credentials_path: str = DEFAULT_CREDENTIALS_PATH,
-) -> list[Scenario]:
-    client = build_client(credentials_path)
-    spreadsheet = open_spreadsheet(client, spreadsheet_name)
-    return build_scenarios_from_spreadsheet(spreadsheet, plan_id)
 
 
 def load_progress_records(

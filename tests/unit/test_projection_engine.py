@@ -8,7 +8,7 @@ from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
 from core.domain.milestone import Milestone, MilestoneType
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -34,14 +34,14 @@ def _minimal_plan(**overrides) -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
     defaults = dict(
         plan_id="plan_test",
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
+        assumptions=Assumptions(inflation_rate=Rate.zero()),
         accounts=[],
         tax_config=TaxConfig(),
         pension=pension,
@@ -68,19 +68,24 @@ def _run(plan: Plan, portfolios: dict[str, Portfolio] = None):
 
 
 class ProjectionEngineTest(unittest.TestCase):
-    def test_default_horizon_is_30_years_without_retirement_milestone(self) -> None:
+    def test_horizon_always_extends_to_life_expectancy_without_any_milestone(self) -> None:
+        # 「シミュレーション終了年齢」廃止に伴い、マイルストーンの有無に関わらず常に
+        # 想定寿命(未設定ならDEFAULT_LIFE_EXPECTANCY_AGE)まで計算する。
         plan = _minimal_plan()
         result = _run(plan)
 
-        # 年次ループのブロックは年齢切り替え月（誕生日1990-04-01なので4月）起点になっており、
-        # プラン開始月(1月)とはずれているため、最初のブロックは1〜3月の3ヶ月だけの半端な区切りになる。
-        # そのぶん実際の西暦年としては30年ちょうどではなく31年分（2026〜2056年）にまたがる。
-        self.assertEqual(len(result.yearly_projections), 31)
-        self.assertEqual(result.yearly_projections[0].year, 2026)
-        self.assertEqual(result.yearly_projections[-1].year, 2056)
+        # 1990年生まれがDEFAULT_LIFE_EXPECTANCY_AGE歳になる年まで計算する。ブロックが年齢切り替え月
+        # （誕生日1990-04-01なので4月）起点でプラン開始月(1月)とずれているため、実際に到達する
+        # 西暦年はDEFAULT_LIFE_EXPECTANCY_AGE歳になる年の翌年（最初のブロックの半端分がずれ込むため）。
+        expected_last_year = 1990 + DEFAULT_LIFE_EXPECTANCY_AGE + 1
+        self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
+        self.assertEqual(result.yearly_projections[-1].age_self, DEFAULT_LIFE_EXPECTANCY_AGE)
 
-    def test_horizon_extends_to_life_expectancy_when_retirement_milestone_present(self) -> None:
-        plan = _minimal_plan(
+    def test_milestones_no_longer_affect_horizon(self) -> None:
+        # 旧仕様ではRETIREMENTマイルストーンの有無で計算期間が切り替わっていたが、現在は
+        # マイルストーンが存在しても・しなくても常に想定寿命まで計算する（結果は同一になる）。
+        plan_without_milestone = _minimal_plan()
+        plan_with_milestone = _minimal_plan(
             milestones=[
                 Milestone(
                     milestone_id="milestone_retire_001",
@@ -89,28 +94,17 @@ class ProjectionEngineTest(unittest.TestCase):
                 )
             ]
         )
-        result = _run(plan)
 
-        # 1990年生まれがDEFAULT_LIFE_EXPECTANCY_AGE歳になる年まで、退職後も継続してシミュレーションする。
-        # ブロックが年齢切り替え月（4月）起点でプラン開始月(1月)とずれているため、実際に到達する
-        # 西暦年はDEFAULT_LIFE_EXPECTANCY_AGE歳になる年の翌年（最初のブロックの半端分がずれ込むため）。
-        expected_last_year = 1990 + DEFAULT_LIFE_EXPECTANCY_AGE + 1
-        self.assertEqual(result.yearly_projections[-1].year, expected_last_year)
-        self.assertEqual(result.yearly_projections[-1].age_self, DEFAULT_LIFE_EXPECTANCY_AGE)
+        result_without = _run(plan_without_milestone)
+        result_with = _run(plan_with_milestone)
+
+        self.assertEqual(result_with.yearly_projections[-1].year, result_without.yearly_projections[-1].year)
+        self.assertEqual(result_with.yearly_projections[-1].age_self, DEFAULT_LIFE_EXPECTANCY_AGE)
 
     def test_horizon_uses_plans_own_life_expectancy_age_when_set(self) -> None:
         # 入力_プラン設定の想定寿命(Plan.life_expectancy_age)が設定されている場合、
         # DEFAULT_LIFE_EXPECTANCY_AGE(100)ではなくその値まで計算する。
-        plan = _minimal_plan(
-            milestones=[
-                Milestone(
-                    milestone_id="milestone_retire_001",
-                    milestone_type=MilestoneType.RETIREMENT,
-                    trigger=EventCondition.at_age(60),
-                )
-            ],
-            life_expectancy_age=85,
-        )
+        plan = _minimal_plan(life_expectancy_age=85)
         result = _run(plan)
 
         # ブロックが年齢切り替え月（4月）起点でプラン開始月(1月)とずれているため、
@@ -138,9 +132,8 @@ class ProjectionEngineTest(unittest.TestCase):
             accounts=[account],
             incomes=[income],
             expenses=[expense],
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
         )
-        # 決定論的エンジンは口座ごとのexpected_returnで成長させるため、投資成長率(5%)と合わせて指定する
         portfolios = {"acc_001": _portfolio(1_000_000, expected_return=Rate.from_percent(5))}
 
         result = _run(plan, portfolios)
@@ -153,20 +146,18 @@ class ProjectionEngineTest(unittest.TestCase):
         self.assertEqual(first_year.total_expense, Money.of(3_000_000))
         self.assertEqual(first_year.net_cashflow, Money.of(2_000_004))
         # 口座残高: 追加拠出なしの口座は月次複利でも年率複利と一致する: 1,000,000 * 1.05 = 1,050,000
-        # 余剰: 毎月の余剰(2,000,000/12)がその都度その年の残り月数分だけ月次複利で増える
-        # （Sprint12月次化により、年末に一括計上していた旧仕様より高くなる。ドルコスト平均的な効果）
+        # 余剰(unallocated_surplus)はどの資産クラスとして運用されるか不明なためゼロ成長で扱う
+        # （複利せず、毎月の余剰(2,000,004/12)を単純合算した額になる）。
         self.assertEqual(first_year.account_balances["acc_001"], Money.of(1_050_000))
-        self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(2_045_434))
-        self.assertEqual(first_year.networth, Money.of(3_095_434))
+        self.assertEqual(first_year.account_balances["unallocated_surplus"], Money.of(2_000_004))
+        self.assertEqual(first_year.networth, Money.of(3_050_004))
 
     def test_deterministic_engine_grows_each_account_by_its_own_expected_return(self) -> None:
         high_growth_account = Account(account_id="acc_high", account_type=AccountType.TAXABLE)
         low_growth_account = Account(account_id="acc_low", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(
             accounts=[high_growth_account, low_growth_account],
-            # プラン全体のinvestment_growth_rateはどちらの口座の期待リターンとも異なる値にして、
-            # 口座ごとのexpected_returnが実際に使われている(投資成長率が使われていない)ことを示す
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(2)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
         )
         portfolios = {
             "acc_high": _portfolio(1_000_000, expected_return=Rate.from_percent(10)),
@@ -221,7 +212,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         pension = Pension(
             national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
             employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+            claim_timing=ClaimTiming(age=65),
         )
         milestone = Milestone(
             milestone_id="milestone_retire_001",
@@ -248,7 +239,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         pension = Pension(
             national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
             employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+            claim_timing=ClaimTiming(age=65),
         )
         milestone = Milestone(
             milestone_id="milestone_retire_001",
@@ -258,7 +249,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         plan = _minimal_plan(
             pension=pension,
             milestones=[milestone],
-            assumptions=Assumptions(inflation_rate=inflation_rate, investment_growth_rate=Rate.zero()),
+            assumptions=Assumptions(inflation_rate=inflation_rate),
         )
 
         result = run_projection(plan, {}, zero_tax_rules(), empty_portfolio_rules(), pension_rules)
@@ -286,7 +277,7 @@ class PensionAndWithdrawalTest(unittest.TestCase):
         pension = Pension(
             national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
             employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-            claim_timing=ClaimTiming(timing_type=ClaimTimingType.EARLY, age=60),
+            claim_timing=ClaimTiming(age=60),
         )
         milestone = Milestone(
             milestone_id="milestone_retire_001",
@@ -418,14 +409,14 @@ class NisaIdecoComparisonTest(unittest.TestCase):
             accounts=accounts_with,
             incomes=[self._income()],
             expenses=[self._expense()],
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
             contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
         )
         without_ideco = _minimal_plan(
             accounts=accounts_without,
             incomes=[self._income()],
             expenses=[self._expense()],
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
             contribution_strategy=ContributionStrategy(order=[AccountType.TAXABLE]),
         )
 
@@ -479,7 +470,7 @@ class MonthlyProjectionsTest(unittest.TestCase):
         account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(
             accounts=[account],
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
         )
         portfolios = {"acc_taxable": _portfolio(1_000_000)}
 
@@ -496,7 +487,7 @@ class MonthlyProjectionsTest(unittest.TestCase):
         account = Account(account_id="acc_taxable", account_type=AccountType.TAXABLE)
         plan = _minimal_plan(
             accounts=[account],
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
         )
         portfolios = {"acc_taxable": _portfolio(1_000_000, expected_return=Rate.from_percent(5))}
 
@@ -533,7 +524,7 @@ class CapitalGainsTaxIntegrationTest(unittest.TestCase):
         plan = _minimal_plan(
             accounts=[account],
             expenses=[expense],
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
             withdrawal_strategy=WithdrawalStrategy(order=[AccountType.TAXABLE]),
         )
         portfolios = {"acc_taxable": _portfolio(5_000_000, "cash", expected_return=Rate.from_percent(5))}
@@ -828,7 +819,7 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
         pension = Pension(
             national_pension=PensionEntitlement(estimate_annual=Money.zero()),
             employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-            claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+            claim_timing=ClaimTiming(age=65),
         )
         trip = OneTimeExpense(
             expense_id="expense_trip", category="旅行", amount=Money.of(500_000), trigger=EventCondition.at_age(37)
@@ -838,7 +829,7 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
             name="テストプラン",
             user=user,
             start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-            assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
+            assumptions=Assumptions(inflation_rate=Rate.zero()),
             accounts=[],
             tax_config=TaxConfig(),
             pension=pension,

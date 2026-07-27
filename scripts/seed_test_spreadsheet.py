@@ -6,7 +6,6 @@ from adapters.sheets.sample_data import (
     INCOMES_ROWS,
     PLAN_ROWS,
     PROGRESS_ROWS,
-    SCENARIOS_ROWS,
 )
 from adapters.sheets.sheet_mapping import (
     ACCOUNTS_SHEET,
@@ -16,7 +15,6 @@ from adapters.sheets.sheet_mapping import (
     INCOMES_SHEET,
     PLAN_SHEET,
     PROGRESS_SHEET,
-    SCENARIOS_SHEET,
     SPREADSHEET_NAME,
 )
 from adapters.sheets.sheets_input_adapter import build_client, open_spreadsheet
@@ -39,7 +37,6 @@ def main() -> None:
     _seed_sheet(spreadsheet, ACCOUNTS_SHEET, ACCOUNTS_ROWS)
     _seed_sheet(spreadsheet, INCOMES_SHEET, INCOMES_ROWS)
     _seed_sheet(spreadsheet, EXPENSES_SHEET, EXPENSES_ROWS)
-    _seed_sheet(spreadsheet, SCENARIOS_SHEET, SCENARIOS_ROWS)
     _seed_sheet(spreadsheet, PROGRESS_SHEET, PROGRESS_ROWS)
     _seed_sheet(spreadsheet, ALLOCATION_POLICY_SHEET, ALLOCATION_POLICY_ROWS)
     _seed_sheet(spreadsheet, EDUCATION_EXPENSES_SHEET, EDUCATION_EXPENSES_ROWS)

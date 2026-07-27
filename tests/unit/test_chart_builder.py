@@ -5,7 +5,7 @@ from core.domain.account import Account, AccountType
 from core.domain.asset import Asset
 from core.domain.holding import Holding
 from core.domain.income import Income
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -41,7 +41,7 @@ def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
 
     plan = Plan(
@@ -49,7 +49,7 @@ def _plan_with_two_account_types() -> tuple[Plan, dict[str, Portfolio]]:
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.from_percent(5)),
+        assumptions=Assumptions(inflation_rate=Rate.zero()),
         accounts=[
             Account(account_id="acc_taxable_001", account_type=AccountType.TAXABLE),
             Account(account_id="acc_nisa_001", account_type=AccountType.NISA_GROWTH),
@@ -82,8 +82,9 @@ class ChartBuilderTest(unittest.TestCase):
         self.assertEqual(first_year_totals["taxable"], 1_050_000)
         # 月次複利を12回繰り返す過程での円未満丸めにより、単純な年率複利(525,000円)と1円だけずれうる
         self.assertEqual(first_year_totals["nisa_growth"], 524_999)
-        # 毎月の余剰(1,000,000/12)がその都度残り月数分だけ月次複利で増えるため、単純合計より大きくなる
-        self.assertEqual(first_year_totals["unallocated_surplus"], 1_022_711)
+        # unallocated_surplusはどの資産クラスとして運用されるか不明なためゼロ成長で扱う
+        # （複利せず、毎月の余剰(1,000,000/12)を単純合算した額に丸め差1円だけ届かない）
+        self.assertEqual(first_year_totals["unallocated_surplus"], 999_996)
 
     def test_series_values_sum_to_networth(self) -> None:
         plan, portfolios = _plan_with_two_account_types()

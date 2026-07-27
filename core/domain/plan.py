@@ -43,8 +43,12 @@ class StartCondition:
 
 @dataclass
 class Assumptions:
+    """inflation_rateのみを保持する。投資成長率は口座ごとの期待リターン(Asset.expected_return、
+    入力_口座で必須入力)で決まるため、プラン全体の投資成長率という概念は持たない
+    （旧・investment_growth_rateは常に口座ごとの期待リターンに上書きされ、実質未使用だった）。
+    """
+
     inflation_rate: Rate
-    investment_growth_rate: Rate
     config_ref: dict[str, str] = field(default_factory=dict)
 
 

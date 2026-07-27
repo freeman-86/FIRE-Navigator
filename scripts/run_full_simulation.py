@@ -44,7 +44,7 @@ def main() -> None:
         print(f"{args.credentials} として保存してください。")
         sys.exit(1)
 
-    print(f"\n[1/9] スプレッドシート「{args.spreadsheet_name}」に接続しています...")
+    print(f"\n[1/8] スプレッドシート「{args.spreadsheet_name}」に接続しています...")
     try:
         client = build_client(str(args.credentials))
         spreadsheet = open_spreadsheet(client, args.spreadsheet_name)
@@ -97,7 +97,6 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         build_plan_from_spreadsheet,
         build_portfolios_from_spreadsheet,
         build_progress_records_from_spreadsheet,
-        build_scenarios_from_spreadsheet,
         collect_input_warnings,
         read_target_ending_networth,
     )
@@ -107,11 +106,9 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         write_montecarlo_and_historical_result,
         write_networth_table,
         write_progress_comparison,
-        write_scenario_comparison,
         write_sensitivity_table,
     )
     from core.domain.market_data import filter_from_year
-    from core.domain.scenario import apply_scenario
     from core.domain.value_objects import AgeAt
     from core.services.validation_service import validate_plan
     from core.simulation.montecarlo.correlation_matrix import compute_correlation_matrix
@@ -124,12 +121,11 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     from reports.dashboard_builder import build_dashboard
     from reports.montecarlo_report_builder import build_percentile_band_chart
     from reports.progress_comparison_builder import build_progress_comparison_chart
-    from reports.scenario_comparison_builder import build_scenario_comparison_chart
     from reports.sensitivity_analysis_builder import build_sensitivity_table
     from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
     from repositories.market_data_repository import load_historical_dataset
 
-    print("\n[2/9] 入力シートを読み込んでいます...")
+    print("\n[2/8] 入力シートを読み込んでいます...")
     plan = build_plan_from_spreadsheet(spreadsheet)
     portfolios = build_portfolios_from_spreadsheet(spreadsheet)
     print(f"      プラン: {plan.name} (口座数: {len(plan.accounts)})")
@@ -138,7 +134,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     portfolio_rules = load_portfolio_rules()
     pension_rules = load_pension_rules()
 
-    print("\n[3/9] 入力内容を検証しています...")
+    print("\n[3/8] 入力内容を検証しています...")
     semantic_errors = validate_plan(plan, pension_rules)
     if semantic_errors:
         print(f"      [エラー] {len(semantic_errors)}件の入力矛盾が見つかりました。処理を中断します。")
@@ -152,7 +148,7 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         write_warnings(spreadsheet, input_warnings)
         print(f"      [警告] {len(input_warnings)}件の入力値が実行時に無視されています（出力_エラーシート参照）")
 
-    print("\n[4/9] 基本シミュレーション（決定論的）を実行しています...")
+    print("\n[4/8] 基本シミュレーション（決定論的）を実行しています...")
     result = run_projection(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
     write_networth_table(spreadsheet, result, build_networth_chart(plan, result))
     write_monthly_detail_table(spreadsheet, result)
@@ -160,27 +156,13 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     print(f"      完了（計算期間: {len(result.yearly_projections)}年、最終ネットワース: {final_networth}）")
     print(f"      月次詳細（{len(result.monthly_projections)}ヶ月分）を出力_月次詳細シートへ書き込みました")
 
-    print("\n[5/9] ダッシュボード（今月使える金額の逆算等）を計算しています...")
+    print("\n[5/8] ダッシュボード（今月使える金額の逆算等）を計算しています...")
     target_ending_networth = read_target_ending_networth(spreadsheet)
     dashboard = build_dashboard(plan, portfolios, tax_rules, portfolio_rules, pension_rules, target_ending_networth)
     print(f"      完了（資産枯渇年齢: {dashboard['depletion_age'] or '枯渇なし'}）")
     print("      ※ モンテカルロ/ヒストリカルの成功確率が出そろってから出力_ダッシュボードへ書き込みます")
 
-    print("\n[6/9] シナリオ比較を実行しています...")
-    scenarios = build_scenarios_from_spreadsheet(spreadsheet, plan.plan_id)
-    if scenarios:
-        results_by_scenario_name = {}
-        for scenario in scenarios:
-            scenario_plan = apply_scenario(plan, scenario)
-            results_by_scenario_name[scenario.name] = run_projection(
-                scenario_plan, portfolios, tax_rules, portfolio_rules, pension_rules
-            )
-        write_scenario_comparison(spreadsheet, build_scenario_comparison_chart(results_by_scenario_name))
-        print(f"      完了（{len(scenarios)}シナリオを比較）")
-    else:
-        print("      入力_シナリオが未設定のためスキップしました")
-
-    print("\n[7/9] 感応度分析を実行しています...")
+    print("\n[6/8] 感応度分析を実行しています...")
     sensitivity_result = run_sensitivity_analysis(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
     write_sensitivity_table(spreadsheet, build_sensitivity_table(sensitivity_result))
     print("      完了")
@@ -190,9 +172,9 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
     historical_entry = None
 
     if args.quick or args.skip_montecarlo:
-        print("\n[8/9] モンテカルロシミュレーションをスキップしました（--quick/--skip-montecarlo）")
+        print("\n[7/8] モンテカルロシミュレーションをスキップしました（--quick/--skip-montecarlo）")
     else:
-        print(f"\n[8/9] モンテカルロシミュレーションを実行しています（試行回数: {args.trials}）...")
+        print(f"\n[7/8] モンテカルロシミュレーションを実行しています（試行回数: {args.trials}）...")
         print("      ※ 試行回数が多いほど時間がかかります（数十秒〜数分程度）")
         dataset = load_historical_dataset()
         distributions = distributions_from_historical_dataset(dataset)
@@ -225,9 +207,9 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         )
 
     if args.quick or args.skip_historical:
-        print("\n[9/9] ヒストリカルバックテストをスキップしました（--quick/--skip-historical）")
+        print("\n[8/8] ヒストリカルバックテストをスキップしました（--quick/--skip-historical）")
     else:
-        print("\n[9/9] ヒストリカルバックテスト（過去の実績データ再生）を実行しています...")
+        print("\n[8/8] ヒストリカルバックテスト（過去の実績データ再生）を実行しています...")
         dataset = load_historical_dataset()
         # 窓の長さ(何年分バックテストするか)を、想定寿命と現在の年齢から算出する
         # （固定30年ではなく、モンテカルロ等と同様に想定寿命と連動させる）。

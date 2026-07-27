@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from adapters.sheets.sheets_input_adapter import DEFAULT_CREDENTIALS_PATH, load_plan, load_portfolios, load_scenarios
+from adapters.sheets.sheets_input_adapter import DEFAULT_CREDENTIALS_PATH, load_plan, load_portfolios
 from core.domain.account import AccountType
 from core.domain.plan import Plan
 
@@ -36,14 +36,6 @@ class SheetsInputAdapterIntegrationTest(unittest.TestCase):
 
         self.assertEqual(set(portfolios.keys()), SAMPLE_ACCOUNT_IDS)
         self.assertEqual(portfolios["acc_nisa_growth_001"].holdings[0].cost_basis.amount, 3_000_000)
-
-    def test_load_scenarios_from_test_spreadsheet(self) -> None:
-        plan = load_plan()
-        scenarios = load_scenarios(plan.plan_id)
-
-        self.assertEqual({s.scenario_id for s in scenarios}, {"scenario_60", "scenario_65"})
-        scenario_60 = next(s for s in scenarios if s.scenario_id == "scenario_60")
-        self.assertEqual(scenario_60.overrides["retirement_age"], 60)
 
 
 if __name__ == "__main__":

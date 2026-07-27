@@ -6,7 +6,7 @@ from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.milestone import Milestone, MilestoneType
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -42,7 +42,7 @@ def build_plan() -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.of(700_000)),
         employee_pension=PensionEntitlement(estimate_annual=Money.of(300_000)),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
 
     return Plan(
@@ -50,7 +50,7 @@ def build_plan() -> Plan:
         name="回帰テスト用プラン（口座枯渇ケース）",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(3)),
+        assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
         accounts=[account],
         tax_config=TaxConfig(),
         pension=pension,

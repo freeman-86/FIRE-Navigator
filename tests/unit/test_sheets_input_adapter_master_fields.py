@@ -5,23 +5,18 @@ from adapters.sheets.sheet_mapping import (
     LIFE_EXPECTANCY_HEADER,
     NATIONAL_PENSION_ESTIMATE_HEADER,
     PENSION_CLAIM_AGE_HEADER,
-    PENSION_CLAIM_TIMING_HEADER,
     PLAN_SHEET,
-    RETIREMENT_AGE_HEADER,
     TARGET_ENDING_NETWORTH_HEADER,
 )
 from adapters.sheets.sheets_input_adapter import (
     _build_life_expectancy_age,
-    _build_milestones,
     _build_pension,
     _parse_rate,
     read_target_ending_networth,
 )
 from core.domain.errors import StructuralInputError
-from core.domain.milestone import MilestoneType
-from core.domain.pension import ClaimTimingType
 from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE
-from core.domain.value_objects import EventConditionType, Money, Rate
+from core.domain.value_objects import Money, Rate
 
 
 class _FakeWorksheet:
@@ -47,14 +42,12 @@ class BuildPensionTest(unittest.TestCase):
 
         self.assertEqual(pension.national_pension.estimate_annual, Money.zero())
         self.assertEqual(pension.employee_pension.estimate_annual, Money.zero())
-        self.assertEqual(pension.claim_timing.timing_type, ClaimTimingType.STANDARD)
         self.assertEqual(pension.claim_timing.age, 65)
 
     def test_fully_specified_values_are_used(self) -> None:
         settings = {
             NATIONAL_PENSION_ESTIMATE_HEADER: "780000",
             EMPLOYEE_PENSION_ESTIMATE_HEADER: "1200000",
-            PENSION_CLAIM_TIMING_HEADER: "deferred",
             PENSION_CLAIM_AGE_HEADER: "70",
         }
 
@@ -62,33 +55,7 @@ class BuildPensionTest(unittest.TestCase):
 
         self.assertEqual(pension.national_pension.estimate_annual, Money.of(780_000))
         self.assertEqual(pension.employee_pension.estimate_annual, Money.of(1_200_000))
-        self.assertEqual(pension.claim_timing.timing_type, ClaimTimingType.DEFERRED)
         self.assertEqual(pension.claim_timing.age, 70)
-
-    def test_invalid_claim_timing_raises_structural_input_error(self) -> None:
-        settings = {PENSION_CLAIM_TIMING_HEADER: "not_a_real_timing"}
-
-        with self.assertRaises(StructuralInputError) as ctx:
-            _build_pension(settings)
-        self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{PENSION_CLAIM_TIMING_HEADER}")
-
-
-class BuildMilestonesTest(unittest.TestCase):
-    def test_blank_retirement_age_yields_no_milestones(self) -> None:
-        self.assertEqual(_build_milestones({}), [])
-
-    def test_retirement_age_builds_retirement_milestone(self) -> None:
-        milestones = _build_milestones({RETIREMENT_AGE_HEADER: "60"})
-
-        self.assertEqual(len(milestones), 1)
-        self.assertEqual(milestones[0].milestone_type, MilestoneType.RETIREMENT)
-        self.assertEqual(milestones[0].trigger.condition_type, EventConditionType.AGE)
-        self.assertEqual(milestones[0].trigger.age, 60)
-
-    def test_non_numeric_retirement_age_raises_structural_input_error(self) -> None:
-        with self.assertRaises(StructuralInputError) as ctx:
-            _build_milestones({RETIREMENT_AGE_HEADER: "sixty"})
-        self.assertEqual(ctx.exception.field_path, f"{PLAN_SHEET}!{RETIREMENT_AGE_HEADER}")
 
 
 class BuildLifeExpectancyAgeTest(unittest.TestCase):

@@ -27,7 +27,7 @@ from adapters.sheets.sheet_mapping import (
     OUTPUT_MONTECARLO_SHEET,
     OUTPUT_MONTHLY_DETAIL_SHEET,
     OUTPUT_NETWORTH_SHEET,
-    OUTPUT_SCENARIO_COMPARISON_SHEET,
+    OUTPUT_PROGRESS_COMPARISON_SHEET,
     OUTPUT_SENSITIVITY_ANALYSIS_SHEET,
     P10_HEADER,
     P50_HEADER,
@@ -138,11 +138,15 @@ def _number_format_requests(spreadsheet, sheet_id):
 
 
 def _frozen_pane_properties(spreadsheet, sheet_id):
+    # updateSheetPropertiesはグラフ用の列数拡張(resize)にも使われるため、freeze専用のfields
+    # ("gridProperties.frozenRowCount,gridProperties.frozenColumnCount")で絞り込む。
     matches = [
         r["updateSheetProperties"]
         for body in spreadsheet.batch_updates
         for r in body["requests"]
-        if "updateSheetProperties" in r and r["updateSheetProperties"]["properties"]["sheetId"] == sheet_id
+        if "updateSheetProperties" in r
+        and r["updateSheetProperties"]["properties"]["sheetId"] == sheet_id
+        and r["updateSheetProperties"]["fields"] == "gridProperties.frozenRowCount,gridProperties.frozenColumnCount"
     ]
     assert len(matches) == 1
     return matches[0]["properties"]["gridProperties"]
@@ -506,14 +510,7 @@ class WriteMonthlyDetailTableTest(unittest.TestCase):
         output_adapter.write_monthly_detail_table(spreadsheet, result)
 
         worksheet = spreadsheet.worksheet(OUTPUT_MONTHLY_DETAIL_SHEET)
-        freeze_requests = [
-            r["updateSheetProperties"]
-            for body in spreadsheet.batch_updates
-            for r in body["requests"]
-            if "updateSheetProperties" in r and r["updateSheetProperties"]["properties"]["sheetId"] == worksheet.id
-        ]
-        self.assertEqual(len(freeze_requests), 1)
-        grid_properties = freeze_requests[0]["properties"]["gridProperties"]
+        grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
         self.assertEqual(grid_properties["frozenRowCount"], 1)
         self.assertEqual(grid_properties["frozenColumnCount"], 3)
 
@@ -575,12 +572,12 @@ class WriteChartsTest(unittest.TestCase):
             ],
         }
 
-    def test_scenario_comparison_chart_is_not_stacked(self) -> None:
+    def test_progress_comparison_chart_is_not_stacked(self) -> None:
         spreadsheet = _FakeSpreadsheet()
 
-        output_adapter.write_scenario_comparison(spreadsheet, self._chart())
+        output_adapter.write_progress_comparison(spreadsheet, self._chart())
 
-        worksheet = spreadsheet.worksheet(OUTPUT_SCENARIO_COMPARISON_SHEET)
+        worksheet = spreadsheet.worksheet(OUTPUT_PROGRESS_COMPARISON_SHEET)
         charts = spreadsheet.charts_by_sheet_id[worksheet.id]
         self.assertNotIn("stackedType", charts[0]["spec"]["basicChart"])
         self.assertEqual(charts[0]["spec"]["basicChart"]["chartType"], "LINE")
@@ -588,9 +585,9 @@ class WriteChartsTest(unittest.TestCase):
     def test_freezes_header_row_and_year_and_first_series_columns(self) -> None:
         spreadsheet = _FakeSpreadsheet()
 
-        output_adapter.write_scenario_comparison(spreadsheet, self._chart())
+        output_adapter.write_progress_comparison(spreadsheet, self._chart())
 
-        worksheet = spreadsheet.worksheet(OUTPUT_SCENARIO_COMPARISON_SHEET)
+        worksheet = spreadsheet.worksheet(OUTPUT_PROGRESS_COMPARISON_SHEET)
         grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
         self.assertEqual(grid_properties["frozenRowCount"], 1)
         self.assertEqual(grid_properties["frozenColumnCount"], 2)  # 西暦年・1つ目の系列
@@ -598,9 +595,9 @@ class WriteChartsTest(unittest.TestCase):
     def test_freezes_only_available_columns_when_chart_has_no_series(self) -> None:
         spreadsheet = _FakeSpreadsheet()
 
-        output_adapter.write_scenario_comparison(spreadsheet, {"x": [2026], "series": []})
+        output_adapter.write_progress_comparison(spreadsheet, {"x": [2026], "series": []})
 
-        worksheet = spreadsheet.worksheet(OUTPUT_SCENARIO_COMPARISON_SHEET)
+        worksheet = spreadsheet.worksheet(OUTPUT_PROGRESS_COMPARISON_SHEET)
         grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
         self.assertEqual(grid_properties["frozenColumnCount"], 1)  # 西暦年列しかないため1列に収まる
 

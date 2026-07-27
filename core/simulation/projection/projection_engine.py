@@ -10,7 +10,6 @@ from core.domain.child import Child
 from core.domain.education_expense import EducationExpenseBand
 from core.domain.expense import Expense
 from core.domain.income import Income
-from core.domain.milestone import MilestoneType
 from core.domain.one_time_expense import OneTimeExpense
 from core.domain.pension import Pension, PensionRules
 from core.domain.plan import DEFAULT_LIFE_EXPECTANCY_AGE, Plan, StartConditionType
@@ -21,7 +20,7 @@ from core.domain.tax_config import TaxRules
 from core.domain.value_objects import AgeAt, EventCondition, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
-from core.simulation.projection.event_conditions import resolve_condition_month, resolve_condition_year
+from core.simulation.projection.event_conditions import resolve_condition_month
 from core.simulation.projection.milestone_evaluation import evaluate_milestones
 from core.simulation.tax.tax_engine import calculate_tax
 from core.simulation.withdrawal.withdrawal_engine import withdraw_shortfall
@@ -114,11 +113,10 @@ def run_projection(
     用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
 
     growth_rate_provider: 月次オフセット(0始まり)を受け取りその月の資産成長率を返す関数。
-    省略時はplan.assumptions.investment_growth_rate（年率固定値）をmonthly_equivalent()で
-    月率に変換し、毎月同じ値を使う従来通りの決定論的計算になる。Monte Carlo Engineは毎月
-    新規にサンプリングした相関考慮済みの月次リターンを、Historical Engineは実績の年次リターンを
-    月率換算した値を返す関数をここに渡すことで、同じProjection Engineを反復実行する
-    （設計書v1.1 ⑥⑦）。
+    省略時（決定論的計算）は口座ごとの期待リターン(_monthly_rate_by_account_id、入力_口座で必須)を
+    そのまま使う。Monte Carlo Engineは毎月新規にサンプリングした相関考慮済みの月次リターンを、
+    Historical Engineは実績の年次リターンを月率換算した値を返す関数をここに渡すことで、同じ
+    Projection Engineを反復実行する（設計書v1.1 ⑥⑦）。
     """
 
     start_year = resolve_start_year(plan)
@@ -132,7 +130,6 @@ def run_projection(
     first_block_length = _first_block_length(start_month, age_transition_month)
     num_blocks = _resolve_num_blocks(birth_date, start_year, start_month, end_year)
     has_spouse = plan.user.spouse is not None
-    default_monthly_rate = plan.assumptions.investment_growth_rate.monthly_equivalent()
     per_account_monthly_rate = _monthly_rate_by_account_id(portfolios)
     one_time_expenses_by_month_offset = _one_time_expenses_by_month_offset(
         plan.one_time_expenses, start_year, start_month, birth_date
@@ -204,9 +201,10 @@ def run_projection(
             month_offset = block_start_offset + month_index
             calendar_year, calendar_month = month_pairs_this_year[month_index]
             age_this_month = age_at(birth_date, calendar_year, calendar_month)
-            growth_rate = (
-                growth_rate_provider(month_offset) if growth_rate_provider is not None else default_monthly_rate
-            )
+            # unallocated_surplus（配分ルール未確定の余剰）専用の成長率。決定論的計算では
+            # 口座に紐づかない資金のため、投資成長率の仮定を持たずゼロ成長として扱う
+            # （どの資産クラスとして運用されるか不明であり、通常は健全なプランでは0に近い値になる）。
+            growth_rate = growth_rate_provider(month_offset) if growth_rate_provider is not None else Rate.zero()
 
             one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
             education_expense_this_month = _education_expense_monthly_total(
@@ -279,7 +277,10 @@ def run_projection(
                         balance,
                         growth_rate
                         if growth_rate_provider is not None
-                        else per_account_monthly_rate.get(account_id, default_monthly_rate),
+                        # 口座に対応するPortfolio/Holdingがない（期待リターンが解決できない）場合は
+                        # ゼロ成長とする。入力_口座は期待リターンが必須のため実運用では起きないが、
+                        # ドメインモデル上はAccountとPortfolioが別Aggregateで対応関係を強制されない。
+                        else per_account_monthly_rate.get(account_id, Rate.zero()),
                     )
                     + contributions_this_month.get(account_id, Money.zero())
                 )
@@ -489,11 +490,14 @@ def calendar_year_month(start_year: int, start_month: int, month_offset: int) ->
 
 
 def _resolve_end_year(plan: Plan, start_year: int) -> int:
-    retirement_year = _retirement_year(plan, start_year)
-    if retirement_year is not None:
-        life_expectancy_year = plan.user.birth_date.year + plan.life_expectancy_age
-        return max(retirement_year, life_expectancy_year, start_year)
-    return start_year + DEFAULT_PROJECTION_YEARS - 1
+    """常にplan.life_expectancy_age（入力_プラン設定の想定寿命。未入力ならDEFAULT_LIFE_EXPECTANCY_AGE）
+    まで計算する。旧仕様では「シミュレーション終了年齢」マイルストーンの有無で想定寿命まで計算するか
+    30年固定にするかが切り替わっていたが、その項目自体の具体的な数値には意味がなく有無だけが
+    効いていたため廃止し、常に想定寿命まで計算する仕様に統一した。
+    """
+
+    life_expectancy_year = plan.user.birth_date.year + plan.life_expectancy_age
+    return max(life_expectancy_year, start_year)
 
 
 def _resolve_num_blocks(birth_date: date, start_year: int, start_month: int, end_year: int) -> int:
@@ -511,11 +515,6 @@ def _resolve_num_blocks(birth_date: date, start_year: int, start_month: int, end
     return max(target_age - age_at_start + 1, 1)
 
 
-def _retirement_year(plan: Plan, start_year: int) -> Optional[int]:
-    for milestone in plan.milestones:
-        if milestone.milestone_type == MilestoneType.RETIREMENT:
-            return resolve_condition_year(milestone.trigger, start_year, plan.user.birth_date)
-    return None
 
 
 def _is_active_in_month(

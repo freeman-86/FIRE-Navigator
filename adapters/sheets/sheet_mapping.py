@@ -8,12 +8,10 @@ PLAN_SHEET = "入力_プラン設定"
 ACCOUNTS_SHEET = "入力_口座"
 INCOMES_SHEET = "入力_収入"
 EXPENSES_SHEET = "入力_支出"
-SCENARIOS_SHEET = "入力_シナリオ"
 PROGRESS_SHEET = "入力_実績"
 ALLOCATION_POLICY_SHEET = "入力_配分方針"
 EDUCATION_EXPENSES_SHEET = "入力_教育費"
 OUTPUT_NETWORTH_SHEET = "出力_純資産推移"
-OUTPUT_SCENARIO_COMPARISON_SHEET = "出力_シナリオ比較"
 OUTPUT_SENSITIVITY_ANALYSIS_SHEET = "出力_感応度分析"
 OUTPUT_MONTECARLO_SHEET = "出力_モンテカルロ"
 OUTPUT_PROGRESS_COMPARISON_SHEET = "出力_計画実績比較"
@@ -32,10 +30,8 @@ PLAN_ID_HEADER = "プランID"
 PLAN_NAME_HEADER = "プラン名"
 BIRTH_DATE_HEADER = "生年月日"
 INFLATION_RATE_HEADER = "インフレ率"
-INVESTMENT_GROWTH_RATE_HEADER = "投資成長率"
 NATIONAL_PENSION_ESTIMATE_HEADER = "国民年金見込額（年額）"
 EMPLOYEE_PENSION_ESTIMATE_HEADER = "厚生年金見込額（年額）"
-PENSION_CLAIM_TIMING_HEADER = "年金受給タイミング"
 PENSION_CLAIM_AGE_HEADER = "年金受給開始年齢"
 TARGET_ENDING_NETWORTH_HEADER = "目標資産（想定寿命時点）"
 # 想定寿命: 任意入力。未入力の場合はcore.domain.plan.DEFAULT_LIFE_EXPECTANCY_AGE(100歳)を既定値とする。
@@ -85,16 +81,6 @@ CATEGORY_HEADER = "カテゴリ"
 ONE_TIME_FLAG_HEADER = "単発フラグ"
 ONE_TIME_AMOUNT_HEADER = "単発金額"
 
-# Input_シナリオ
-SCENARIO_ID_HEADER = "シナリオID"
-SCENARIO_NAME_HEADER = "シナリオ名"
-# 旧名称「退職年齢」は、実際には収入を止める機能ではなく、シミュレーション期間を想定寿命まで
-# 延長するかどうかだけを制御する（未入力時は30年間で計算する）ため、誤解を招く名称だった。
-# Input_プラン設定・Input_シナリオの両方でこの定数を共有するため、名称変更が両方に反映される。
-RETIREMENT_AGE_HEADER = (
-    "シミュレーション終了年齢（設定すると、その年齢以降は想定寿命まで自動で計算を続けます／空欄なら30年間で計算）"
-)
-
 # Input_配分方針: 年齢×資産クラスごとに1行。同じ年齢の行をまとめて1つのAllocationTargetとする
 # （ギャップ分析3.7。プラン全体で1つ、口座横断の目標配分比率テーブル）。
 AGE_HEADER = "年齢"
@@ -133,7 +119,7 @@ P10_HEADER = "下位10%値"
 P50_HEADER = "中央値"
 P90_HEADER = "上位10%値"
 
-SENSITIVITY_TABLE_HEADER = "投資成長率＼インフレ率"
+SENSITIVITY_TABLE_HEADER = "期待リターン増減＼インフレ率"
 
 # Output_エラー: 種別列で「エラー」（実行を止める入力ミス）と「警告」（実行は続けるが
 # 無視される入力値がある旨の注意喚起）を区別する。
@@ -172,7 +158,6 @@ PLAN_FIELD_MAPPING: tuple[tuple[str, str, str], ...] = (
     (PLAN_NAME_HEADER, "plan.name", "str"),
     (BIRTH_DATE_HEADER, "plan.user.birth_date", "date"),
     (INFLATION_RATE_HEADER, "plan.assumptions.inflation_rate", "rate"),
-    (INVESTMENT_GROWTH_RATE_HEADER, "plan.assumptions.investment_growth_rate", "rate"),
 )
 
 # Input_口座: ヘッダー行付きテーブル。1行=1口座（保有資産は1件のみのシンプル構成）。
@@ -186,14 +171,6 @@ ACCOUNTS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (ASSET_CLASS_HEADER, "portfolios[account_id].holdings[].asset.asset_class", "asset_class"),
     (EXPECTED_RETURN_HEADER, "portfolios[account_id].holdings[].asset.expected_return", "rate"),
     (MONTHLY_CONTRIBUTION_HEADER, "plan.accounts[].monthly_contribution", "money_optional"),
-)
-
-# Input_シナリオ: ヘッダー行付きテーブル。1行=1シナリオ（Scenario Aggregate）。
-# 現時点でサポートするoverrideキーはretirement_ageのみ。
-SCENARIOS_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
-    (SCENARIO_ID_HEADER, "scenario.scenario_id", "str"),
-    (SCENARIO_NAME_HEADER, "scenario.name", "str"),
-    (RETIREMENT_AGE_HEADER, "scenario.overrides.retirement_age", "int"),
 )
 
 # Input_実績: ヘッダー行付きテーブル。1行=1年分の実績ネットワース。
@@ -280,11 +257,6 @@ OUTPUT_MONTHLY_DETAIL_COLUMN_MAPPING: tuple[tuple[str, str, str], ...] = (
     (NETWORTH_HEADER, "simulation_result.monthly_projections[].networth", "money"),
 )
 
-# Output_シナリオ比較: ヘッダー行付きテーブル。1列目=year、以降はシナリオ名ごとのネットワース推移。
-# 列数・列名はInput_シナリオの行数に応じて可変なため固定のマッピング定義は持たず、
-# reports/scenario_comparison_builder.py の出力からその都度組み立てる。
-OUTPUT_SCENARIO_COMPARISON_FIELD_PATH = "output_json.charts.scenario_comparison_chart"
-
-# Output_感応度分析: 成長率(行)×インフレ率(列)の最終年ネットワースをグリッド形式で書き出す。
+# Output_感応度分析: 口座期待リターン増減(行)×インフレ率(列)の最終年ネットワースをグリッド形式で書き出す。
 # reports/sensitivity_analysis_builder.py の出力からその都度組み立てる。
 OUTPUT_SENSITIVITY_ANALYSIS_FIELD_PATH = "output_json.tables.sensitivity_table"

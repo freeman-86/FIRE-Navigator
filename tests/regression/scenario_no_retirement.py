@@ -6,7 +6,7 @@ from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -18,7 +18,8 @@ CONFIG_VERSION_LABEL = "sprint10-no-retirement"
 
 
 def build_plan() -> Plan:
-    """回帰テスト用の固定シナリオ（退職マイルストーンなし＝通常30年ホライズン、NISA/iDeCo拠出あり）。
+    """回帰テスト用の固定シナリオ（退職マイルストーンなし、NISA/iDeCo拠出あり）。
+    life_expectancy_age未指定のため、常にDEFAULT_LIFE_EXPECTANCY_AGE(100歳)まで計算される。
     この関数の内容を変更するとgolden fileとの比較が意図的に崩れるため、
     変更する場合はtests/regression/golden/を再生成しレビューを経ること。
     """
@@ -55,7 +56,7 @@ def build_plan() -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
 
     return Plan(
@@ -63,7 +64,7 @@ def build_plan() -> Plan:
         name="回帰テスト用プラン（退職マイルストーンなし）",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(6)),
+        assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
         accounts=accounts,
         tax_config=TaxConfig(),
         pension=pension,

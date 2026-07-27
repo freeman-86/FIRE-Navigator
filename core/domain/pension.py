@@ -1,20 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 
 from core.domain.value_objects import Money, Rate
 
 
-class ClaimTimingType(str, Enum):
-    EARLY = "early"
-    STANDARD = "standard"
-    DEFERRED = "deferred"
-
-
 @dataclass
 class ClaimTiming:
-    timing_type: ClaimTimingType
+    """年金の受給開始年齢。繰上げ/繰下げによる増減率は年齢だけから自動的に決まる
+    （pension_engine.calculate_pension_income()がage vs PensionRules.standard_claim_ageで判定する）
+    ため、種別（早期/標準/繰下げ）を別途保持する必要はない。"""
+
     age: int
 
 

@@ -8,7 +8,7 @@ from core.domain.expense import Expense
 from core.domain.holding import Holding
 from core.domain.income import Income
 from core.domain.milestone import Milestone, MilestoneType
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
 from core.domain.tax_config import TaxConfig
@@ -73,7 +73,7 @@ def build_scenario_plan() -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
         employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
 
     return Plan(
@@ -81,7 +81,7 @@ def build_scenario_plan() -> Plan:
         name="回帰テスト用ベースプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.FIXED_DATE, fixed_date=date(2026, 1, 1)),
-        assumptions=Assumptions(inflation_rate=Rate.from_percent(2), investment_growth_rate=Rate.from_percent(5)),
+        assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
         accounts=accounts,
         tax_config=TaxConfig(),
         pension=pension,

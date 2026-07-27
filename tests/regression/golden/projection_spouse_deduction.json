@@ -543,21 +543,615 @@
     },
     {
       "year": 2056,
-      "age_self": 67,
-      "gross_income": 1572490,
+      "age_self": 68,
+      "gross_income": 9513570,
       "pension_income": 0,
-      "income_tax": 149582,
-      "resident_tax": 111250,
-      "social_insurance": 207010,
-      "net_income": 1104650,
-      "total_expense": 1207574,
-      "net_cashflow": -102924,
-      "capital_gains_tax": 16943,
+      "income_tax": 913212,
+      "resident_tax": 675360,
+      "social_insurance": 1246460,
+      "net_income": 6678540,
+      "total_expense": 7366204,
+      "net_cashflow": -687664,
+      "capital_gains_tax": 114384,
       "account_balances": {
-        "acc_taxable_001": 44109547,
+        "acc_taxable_001": 45245113,
         "unallocated_surplus": 0
       },
-      "networth": 44109547
+      "networth": 45245113
+    },
+    {
+      "year": 2057,
+      "age_self": 69,
+      "gross_income": 9608706,
+      "pension_income": 0,
+      "income_tax": 932236,
+      "resident_tax": 684872,
+      "social_insurance": 1251790,
+      "net_income": 6739808,
+      "total_expense": 7513526,
+      "net_cashflow": -773718,
+      "capital_gains_tax": 131744,
+      "account_balances": {
+        "acc_taxable_001": 46581704,
+        "unallocated_surplus": 0
+      },
+      "networth": 46581704
+    },
+    {
+      "year": 2058,
+      "age_self": 70,
+      "gross_income": 9704788,
+      "pension_income": 0,
+      "income_tax": 951462,
+      "resident_tax": 694480,
+      "social_insurance": 1257170,
+      "net_income": 6801686,
+      "total_expense": 7663800,
+      "net_cashflow": -862114,
+      "capital_gains_tax": 150050,
+      "account_balances": {
+        "acc_taxable_001": 47876011,
+        "unallocated_surplus": 0
+      },
+      "networth": 47876011
+    },
+    {
+      "year": 2059,
+      "age_self": 71,
+      "gross_income": 9801838,
+      "pension_income": 0,
+      "income_tax": 972322,
+      "resident_tax": 704184,
+      "social_insurance": 1262608,
+      "net_income": 6862736,
+      "total_expense": 7817078,
+      "net_cashflow": -954342,
+      "capital_gains_tax": 169559,
+      "account_balances": {
+        "acc_taxable_001": 49120777,
+        "unallocated_surplus": 0
+      },
+      "networth": 49120777
+    },
+    {
+      "year": 2060,
+      "age_self": 72,
+      "gross_income": 9899860,
+      "pension_income": 0,
+      "income_tax": 994672,
+      "resident_tax": 713984,
+      "social_insurance": 1268096,
+      "net_income": 6923110,
+      "total_expense": 7973418,
+      "net_cashflow": -1050308,
+      "capital_gains_tax": 190249,
+      "account_balances": {
+        "acc_taxable_001": 50308491,
+        "unallocated_surplus": 0
+      },
+      "networth": 50308491
+    },
+    {
+      "year": 2061,
+      "age_self": 73,
+      "gross_income": 9998854,
+      "pension_income": 0,
+      "income_tax": 1017436,
+      "resident_tax": 723890,
+      "social_insurance": 1273632,
+      "net_income": 6983896,
+      "total_expense": 8132880,
+      "net_cashflow": -1148984,
+      "capital_gains_tax": 211943,
+      "account_balances": {
+        "acc_taxable_001": 51432499,
+        "unallocated_surplus": 0
+      },
+      "networth": 51432499
+    },
+    {
+      "year": 2062,
+      "age_self": 74,
+      "gross_income": 10098840,
+      "pension_income": 0,
+      "income_tax": 1040436,
+      "resident_tax": 733884,
+      "social_insurance": 1279236,
+      "net_income": 7045294,
+      "total_expense": 8295544,
+      "net_cashflow": -1250250,
+      "capital_gains_tax": 234601,
+      "account_balances": {
+        "acc_taxable_001": 52485980,
+        "unallocated_surplus": 0
+      },
+      "networth": 52485980
+    },
+    {
+      "year": 2063,
+      "age_self": 75,
+      "gross_income": 10199832,
+      "pension_income": 0,
+      "income_tax": 1063666,
+      "resident_tax": 743982,
+      "social_insurance": 1284892,
+      "net_income": 7107294,
+      "total_expense": 8461454,
+      "net_cashflow": -1354160,
+      "capital_gains_tax": 258227,
+      "account_balances": {
+        "acc_taxable_001": 53461716,
+        "unallocated_surplus": 0
+      },
+      "networth": 53461716
+    },
+    {
+      "year": 2064,
+      "age_self": 76,
+      "gross_income": 10301832,
+      "pension_income": 0,
+      "income_tax": 1087124,
+      "resident_tax": 754188,
+      "social_insurance": 1290606,
+      "net_income": 7169924,
+      "total_expense": 8630686,
+      "net_cashflow": -1460762,
+      "capital_gains_tax": 282811,
+      "account_balances": {
+        "acc_taxable_001": 54352086,
+        "unallocated_surplus": 0
+      },
+      "networth": 54352086
+    },
+    {
+      "year": 2065,
+      "age_self": 77,
+      "gross_income": 10404850,
+      "pension_income": 0,
+      "income_tax": 1110820,
+      "resident_tax": 764482,
+      "social_insurance": 1296370,
+      "net_income": 7233180,
+      "total_expense": 8803294,
+      "net_cashflow": -1570114,
+      "capital_gains_tax": 308368,
+      "account_balances": {
+        "acc_taxable_001": 55149014,
+        "unallocated_surplus": 0
+      },
+      "networth": 55149014
+    },
+    {
+      "year": 2066,
+      "age_self": 78,
+      "gross_income": 10508898,
+      "pension_income": 0,
+      "income_tax": 1134746,
+      "resident_tax": 774890,
+      "social_insurance": 1302202,
+      "net_income": 7297060,
+      "total_expense": 8979366,
+      "net_cashflow": -1682306,
+      "capital_gains_tax": 334895,
+      "account_balances": {
+        "acc_taxable_001": 55843932,
+        "unallocated_surplus": 0
+      },
+      "networth": 55843932
+    },
+    {
+      "year": 2067,
+      "age_self": 79,
+      "gross_income": 10613988,
+      "pension_income": 0,
+      "income_tax": 1158920,
+      "resident_tax": 785398,
+      "social_insurance": 1308086,
+      "net_income": 7361584,
+      "total_expense": 9158948,
+      "net_cashflow": -1797364,
+      "capital_gains_tax": 362391,
+      "account_balances": {
+        "acc_taxable_001": 56427818,
+        "unallocated_surplus": 0
+      },
+      "networth": 56427818
+    },
+    {
+      "year": 2068,
+      "age_self": 80,
+      "gross_income": 10720122,
+      "pension_income": 0,
+      "income_tax": 1183326,
+      "resident_tax": 796012,
+      "social_insurance": 1314028,
+      "net_income": 7426756,
+      "total_expense": 9342126,
+      "net_cashflow": -1915370,
+      "capital_gains_tax": 390865,
+      "account_balances": {
+        "acc_taxable_001": 56891105,
+        "unallocated_surplus": 0
+      },
+      "networth": 56891105
+    },
+    {
+      "year": 2069,
+      "age_self": 81,
+      "gross_income": 10827330,
+      "pension_income": 0,
+      "income_tax": 1207980,
+      "resident_tax": 806734,
+      "social_insurance": 1320030,
+      "net_income": 7492576,
+      "total_expense": 9528966,
+      "net_cashflow": -2036390,
+      "capital_gains_tax": 420318,
+      "account_balances": {
+        "acc_taxable_001": 57223678,
+        "unallocated_surplus": 0
+      },
+      "networth": 57223678
+    },
+    {
+      "year": 2070,
+      "age_self": 82,
+      "gross_income": 10935598,
+      "pension_income": 0,
+      "income_tax": 1232886,
+      "resident_tax": 817564,
+      "social_insurance": 1326092,
+      "net_income": 7559054,
+      "total_expense": 9719548,
+      "net_cashflow": -2160494,
+      "capital_gains_tax": 450760,
+      "account_balances": {
+        "acc_taxable_001": 57414837,
+        "unallocated_surplus": 0
+      },
+      "networth": 57414837
+    },
+    {
+      "year": 2071,
+      "age_self": 83,
+      "gross_income": 11044952,
+      "pension_income": 0,
+      "income_tax": 1258044,
+      "resident_tax": 828492,
+      "social_insurance": 1332214,
+      "net_income": 7626202,
+      "total_expense": 9913936,
+      "net_cashflow": -2287734,
+      "capital_gains_tax": 482191,
+      "account_balances": {
+        "acc_taxable_001": 57453293,
+        "unallocated_surplus": 0
+      },
+      "networth": 57453293
+    },
+    {
+      "year": 2072,
+      "age_self": 84,
+      "gross_income": 11155408,
+      "pension_income": 0,
+      "income_tax": 1283444,
+      "resident_tax": 839536,
+      "social_insurance": 1338406,
+      "net_income": 7694022,
+      "total_expense": 10112220,
+      "net_cashflow": -2418198,
+      "capital_gains_tax": 514625,
+      "account_balances": {
+        "acc_taxable_001": 57327089,
+        "unallocated_surplus": 0
+      },
+      "networth": 57327089
+    },
+    {
+      "year": 2073,
+      "age_self": 85,
+      "gross_income": 11266958,
+      "pension_income": 0,
+      "income_tax": 1309104,
+      "resident_tax": 850700,
+      "social_insurance": 1344650,
+      "net_income": 7762514,
+      "total_expense": 10314466,
+      "net_cashflow": -2551952,
+      "capital_gains_tax": 548065,
+      "account_balances": {
+        "acc_taxable_001": 57023600,
+        "unallocated_surplus": 0
+      },
+      "networth": 57023600
+    },
+    {
+      "year": 2074,
+      "age_self": 86,
+      "gross_income": 11379630,
+      "pension_income": 0,
+      "income_tax": 1335018,
+      "resident_tax": 861964,
+      "social_insurance": 1350962,
+      "net_income": 7831688,
+      "total_expense": 10520754,
+      "net_cashflow": -2689066,
+      "capital_gains_tax": 582521,
+      "account_balances": {
+        "acc_taxable_001": 56529482,
+        "unallocated_surplus": 0
+      },
+      "networth": 56529482
+    },
+    {
+      "year": 2075,
+      "age_self": 87,
+      "gross_income": 11493430,
+      "pension_income": 0,
+      "income_tax": 1361184,
+      "resident_tax": 873344,
+      "social_insurance": 1357336,
+      "net_income": 7901566,
+      "total_expense": 10731168,
+      "net_cashflow": -2829602,
+      "capital_gains_tax": 618001,
+      "account_balances": {
+        "acc_taxable_001": 55830660,
+        "unallocated_surplus": 0
+      },
+      "networth": 55830660
+    },
+    {
+      "year": 2076,
+      "age_self": 88,
+      "gross_income": 11608358,
+      "pension_income": 0,
+      "income_tax": 1387622,
+      "resident_tax": 884834,
+      "social_insurance": 1363770,
+      "net_income": 7972132,
+      "total_expense": 10945792,
+      "net_cashflow": -2973660,
+      "capital_gains_tax": 654520,
+      "account_balances": {
+        "acc_taxable_001": 54912234,
+        "unallocated_surplus": 0
+      },
+      "networth": 54912234
+    },
+    {
+      "year": 2077,
+      "age_self": 89,
+      "gross_income": 11724444,
+      "pension_income": 0,
+      "income_tax": 1414326,
+      "resident_tax": 896442,
+      "social_insurance": 1370274,
+      "net_income": 8043412,
+      "total_expense": 11164710,
+      "net_cashflow": -3121298,
+      "capital_gains_tax": 692082,
+      "account_balances": {
+        "acc_taxable_001": 53758495,
+        "unallocated_surplus": 0
+      },
+      "networth": 53758495
+    },
+    {
+      "year": 2078,
+      "age_self": 90,
+      "gross_income": 11841684,
+      "pension_income": 0,
+      "income_tax": 1445564,
+      "resident_tax": 908170,
+      "social_insurance": 1376840,
+      "net_income": 8111122,
+      "total_expense": 11388006,
+      "net_cashflow": -3276884,
+      "capital_gains_tax": 731663,
+      "account_balances": {
+        "acc_taxable_001": 52347510,
+        "unallocated_surplus": 0
+      },
+      "networth": 52347510
+    },
+    {
+      "year": 2079,
+      "age_self": 91,
+      "gross_income": 11960106,
+      "pension_income": 0,
+      "income_tax": 1483540,
+      "resident_tax": 920008,
+      "social_insurance": 1383466,
+      "net_income": 8173094,
+      "total_expense": 11615764,
+      "net_cashflow": -3442670,
+      "capital_gains_tax": 773777,
+      "account_balances": {
+        "acc_taxable_001": 50653398,
+        "unallocated_surplus": 0
+      },
+      "networth": 50653398
+    },
+    {
+      "year": 2080,
+      "age_self": 92,
+      "gross_income": 12079706,
+      "pension_income": 0,
+      "income_tax": 1523004,
+      "resident_tax": 931974,
+      "social_insurance": 1390162,
+      "net_income": 8234566,
+      "total_expense": 11848078,
+      "net_cashflow": -3613512,
+      "capital_gains_tax": 817288,
+      "account_balances": {
+        "acc_taxable_001": 48655376,
+        "unallocated_surplus": 0
+      },
+      "networth": 48655376
+    },
+    {
+      "year": 2081,
+      "age_self": 93,
+      "gross_income": 12200502,
+      "pension_income": 0,
+      "income_tax": 1562862,
+      "resident_tax": 944052,
+      "social_insurance": 1396930,
+      "net_income": 8296658,
+      "total_expense": 12085034,
+      "net_cashflow": -3788376,
+      "capital_gains_tax": 861951,
+      "account_balances": {
+        "acc_taxable_001": 46332959,
+        "unallocated_surplus": 0
+      },
+      "networth": 46332959
+    },
+    {
+      "year": 2082,
+      "age_self": 94,
+      "gross_income": 12322508,
+      "pension_income": 0,
+      "income_tax": 1603126,
+      "resident_tax": 956248,
+      "social_insurance": 1403760,
+      "net_income": 8359364,
+      "total_expense": 12326736,
+      "net_cashflow": -3967372,
+      "capital_gains_tax": 907790,
+      "account_balances": {
+        "acc_taxable_001": 43664494,
+        "unallocated_surplus": 0
+      },
+      "networth": 43664494
+    },
+    {
+      "year": 2083,
+      "age_self": 95,
+      "gross_income": 12445736,
+      "pension_income": 0,
+      "income_tax": 1643788,
+      "resident_tax": 968574,
+      "social_insurance": 1410660,
+      "net_income": 8422702,
+      "total_expense": 12573272,
+      "net_cashflow": -4150570,
+      "capital_gains_tax": 954817,
+      "account_balances": {
+        "acc_taxable_001": 40627172,
+        "unallocated_surplus": 0
+      },
+      "networth": 40627172
+    },
+    {
+      "year": 2084,
+      "age_self": 96,
+      "gross_income": 12570188,
+      "pension_income": 0,
+      "income_tax": 1684866,
+      "resident_tax": 981022,
+      "social_insurance": 1417632,
+      "net_income": 8486676,
+      "total_expense": 12824736,
+      "net_cashflow": -4338060,
+      "capital_gains_tax": 1003047,
+      "account_balances": {
+        "acc_taxable_001": 37196928,
+        "unallocated_surplus": 0
+      },
+      "networth": 37196928
+    },
+    {
+      "year": 2085,
+      "age_self": 97,
+      "gross_income": 12695894,
+      "pension_income": 0,
+      "income_tax": 1726344,
+      "resident_tax": 993590,
+      "social_insurance": 1424666,
+      "net_income": 8551286,
+      "total_expense": 13081234,
+      "net_cashflow": -4529948,
+      "capital_gains_tax": 1052499,
+      "account_balances": {
+        "acc_taxable_001": 33348371,
+        "unallocated_surplus": 0
+      },
+      "networth": 33348371
+    },
+    {
+      "year": 2086,
+      "age_self": 98,
+      "gross_income": 12822850,
+      "pension_income": 0,
+      "income_tax": 1768238,
+      "resident_tax": 1006288,
+      "social_insurance": 1431780,
+      "net_income": 8616542,
+      "total_expense": 13342864,
+      "net_cashflow": -4726322,
+      "capital_gains_tax": 1103193,
+      "account_balances": {
+        "acc_taxable_001": 29054726,
+        "unallocated_surplus": 0
+      },
+      "networth": 29054726
+    },
+    {
+      "year": 2087,
+      "age_self": 99,
+      "gross_income": 12951084,
+      "pension_income": 0,
+      "income_tax": 1810552,
+      "resident_tax": 1019108,
+      "social_insurance": 1438958,
+      "net_income": 8682456,
+      "total_expense": 13609722,
+      "net_cashflow": -4927266,
+      "capital_gains_tax": 1155149,
+      "account_balances": {
+        "acc_taxable_001": 24287774,
+        "unallocated_surplus": 0
+      },
+      "networth": 24287774
+    },
+    {
+      "year": 2088,
+      "age_self": 100,
+      "gross_income": 13080592,
+      "pension_income": 0,
+      "income_tax": 1853296,
+      "resident_tax": 1032058,
+      "social_insurance": 1446216,
+      "net_income": 8749020,
+      "total_expense": 13881914,
+      "net_cashflow": -5132894,
+      "capital_gains_tax": 1208393,
+      "account_balances": {
+        "acc_taxable_001": 19017744,
+        "unallocated_surplus": 0
+      },
+      "networth": 19017744
+    },
+    {
+      "year": 2089,
+      "age_self": 100,
+      "gross_income": 2183702,
+      "pension_income": 0,
+      "income_tax": 310072,
+      "resident_tax": 172370,
+      "social_insurance": 241238,
+      "net_income": 1460022,
+      "total_expense": 2321238,
+      "net_cashflow": -861216,
+      "capital_gains_tax": 203224,
+      "account_balances": {
+        "acc_taxable_001": 18106413,
+        "unallocated_surplus": 0
+      },
+      "networth": 18106413
     }
   ],
   "milestone_outcomes": [],
@@ -594,7 +1188,40 @@
       2053,
       2054,
       2055,
-      2056
+      2056,
+      2057,
+      2058,
+      2059,
+      2060,
+      2061,
+      2062,
+      2063,
+      2064,
+      2065,
+      2066,
+      2067,
+      2068,
+      2069,
+      2070,
+      2071,
+      2072,
+      2073,
+      2074,
+      2075,
+      2076,
+      2077,
+      2078,
+      2079,
+      2080,
+      2081,
+      2082,
+      2083,
+      2084,
+      2085,
+      2086,
+      2087,
+      2088,
+      2089
     ],
     "series": [
       {
@@ -630,12 +1257,78 @@
           41032282,
           42465635,
           43871454,
-          44109547
+          45245113,
+          46581704,
+          47876011,
+          49120777,
+          50308491,
+          51432499,
+          52485980,
+          53461716,
+          54352086,
+          55149014,
+          55843932,
+          56427818,
+          56891105,
+          57223678,
+          57414837,
+          57453293,
+          57327089,
+          57023600,
+          56529482,
+          55830660,
+          54912234,
+          53758495,
+          52347510,
+          50653398,
+          48655376,
+          46332959,
+          43664494,
+          40627172,
+          37196928,
+          33348371,
+          29054726,
+          24287774,
+          19017744,
+          18106413
         ]
       },
       {
         "name": "unallocated_surplus",
         "values": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
           0,
           0,
           0,

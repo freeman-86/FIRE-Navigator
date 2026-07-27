@@ -4,7 +4,7 @@ from datetime import date
 from core.domain.account import AccountType
 from core.domain.errors import ConfigInconsistencyError, SemanticValidationError
 from core.domain.milestone import Milestone, MilestoneType
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement, PensionRules
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement, PensionRules
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.tax_config import TaxConfig
 from core.domain.user import User
@@ -19,14 +19,14 @@ def _plan(milestones=None, spouse=None, claim_age: int = 65) -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=claim_age),
+        claim_timing=ClaimTiming(age=claim_age),
     )
     return Plan(
         plan_id="plan_001",
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.TODAY),
-        assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
+        assumptions=Assumptions(inflation_rate=Rate.zero()),
         accounts=[],
         tax_config=TaxConfig(),
         pension=pension,

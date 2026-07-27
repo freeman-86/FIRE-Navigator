@@ -1,15 +1,15 @@
 import unittest
 
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement, PensionRules
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement, PensionRules
 from core.domain.value_objects import Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 
 
-def _pension(claim_age: int, timing_type: ClaimTimingType = ClaimTimingType.STANDARD) -> Pension:
+def _pension(claim_age: int) -> Pension:
     return Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.of(780_000)),
         employee_pension=PensionEntitlement(estimate_annual=Money.of(1_200_000)),
-        claim_timing=ClaimTiming(timing_type=timing_type, age=claim_age),
+        claim_timing=ClaimTiming(age=claim_age),
     )
 
 
@@ -35,14 +35,14 @@ class CalculatePensionIncomeTest(unittest.TestCase):
     def test_early_claim_reduces_income(self) -> None:
         # 60歳受給: 標準65歳より60ヶ月早い -> 60x0.4%=24%減額 -> 1,980,000x0.76=1,504,800
         income = calculate_pension_income(
-            60, _pension(60, ClaimTimingType.EARLY), _rules(), Rate.zero(), estimate_reference_age=35
+            60, _pension(60), _rules(), Rate.zero(), estimate_reference_age=35
         )
         self.assertEqual(income, Money.of(1_504_800))
 
     def test_deferred_claim_increases_income(self) -> None:
         # 75歳受給: 標準65歳より120ヶ月遅い -> 120x0.7%=84%増額 -> 1,980,000x1.84=3,643,200
         income = calculate_pension_income(
-            75, _pension(75, ClaimTimingType.DEFERRED), _rules(), Rate.zero(), estimate_reference_age=35
+            75, _pension(75), _rules(), Rate.zero(), estimate_reference_age=35
         )
         self.assertEqual(income, Money.of(3_643_200))
 
@@ -79,7 +79,7 @@ class CalculatePensionIncomeTest(unittest.TestCase):
         # 繰上げ/繰下げの調整率は「インフレ調整済みの受給開始時点の基準額」に対して1回だけ掛かり、
         # 以降は据え置き（その上に受給開始後のインフレだけが毎年重なる）。
         rules = _rules()
-        pension = _pension(60, ClaimTimingType.EARLY)
+        pension = _pension(60)
         inflation_rate = Rate.of("0.02")
 
         # 現在35歳、受給開始60歳 -> 25年複利 -> 24%減額

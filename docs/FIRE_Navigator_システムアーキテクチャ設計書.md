@@ -587,7 +587,6 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
     },
     "assumptions": {
       "inflation_rate": 0.02,
-      "investment_growth_rate": 0.05,
       "config_ref": {
         "tax": "tax_2026.yaml",
         "pension": "pension_2026.yaml",
@@ -658,7 +657,7 @@ Excel依存をなくすため、Engineが受け取る／返す形式はすべて
     "pension": {
       "national_pension_estimate_annual": 780000,
       "employee_pension_estimate_annual": 1200000,
-      "claim_timing": {"type": "standard", "age": 65}
+      "claim_timing": {"age": 65}
     },
     "withdrawal_strategy": {
       "order": ["cash", "taxable", "nisa", "ideco"]

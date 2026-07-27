@@ -3,7 +3,7 @@ from datetime import date
 
 from core.domain.account import AccountType
 from core.domain.milestone import Milestone, MilestoneType
-from core.domain.pension import ClaimTiming, ClaimTimingType, Pension, PensionEntitlement
+from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.simulation_result import YearlyProjection
 from core.domain.tax_config import TaxConfig
@@ -19,14 +19,14 @@ def _plan(milestones) -> Plan:
     pension = Pension(
         national_pension=PensionEntitlement(estimate_annual=Money.zero()),
         employee_pension=PensionEntitlement(estimate_annual=Money.zero()),
-        claim_timing=ClaimTiming(timing_type=ClaimTimingType.STANDARD, age=65),
+        claim_timing=ClaimTiming(age=65),
     )
     return Plan(
         plan_id="plan_001",
         name="テストプラン",
         user=user,
         start_condition=StartCondition(StartConditionType.TODAY),
-        assumptions=Assumptions(inflation_rate=Rate.zero(), investment_growth_rate=Rate.zero()),
+        assumptions=Assumptions(inflation_rate=Rate.zero()),
         accounts=[],
         tax_config=TaxConfig(),
         pension=pension,

@@ -6,7 +6,8 @@ SENSITIVITY_TABLE_TYPE = "grid"
 
 
 def build_sensitivity_table(result: SensitivityResult) -> dict:
-    """成長率×インフレ率の最終ネットワースをグリッド形式（行=成長率、列=インフレ率）で生成する。"""
+    """口座期待リターン増減×インフレ率の最終ネットワースをグリッド形式（行=期待リターン増減、
+    列=インフレ率）で生成する。"""
 
     rows = [
         [
@@ -18,7 +19,7 @@ def build_sensitivity_table(result: SensitivityResult) -> dict:
 
     return {
         "type": SENSITIVITY_TABLE_TYPE,
-        "row_axis": "investment_growth_rate",
+        "row_axis": "account_expected_return_delta",
         "column_axis": "inflation_rate",
         "row_labels": result.growth_rate_labels,
         "column_labels": result.inflation_rate_labels,
