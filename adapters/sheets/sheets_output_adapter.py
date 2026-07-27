@@ -76,19 +76,19 @@ def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: Si
     """
 
     breakdown_names = [series["name"] for series in networth_chart["series"]]
-    header = [YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER] + breakdown_names
+    header = [YEAR_HEADER, AGE_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER] + breakdown_names
     rows: list[list[object]] = [header]
     for index, projection in enumerate(simulation_result.yearly_projections):
         breakdown_values = [_cell_value(series["values"][index]) for series in networth_chart["series"]]
         rows.append(
-            [projection.year, int(projection.networth.amount), int(projection.capital_gains_tax.amount)]
+            [projection.year, projection.age_self, int(projection.networth.amount), int(projection.capital_gains_tax.amount)]
             + breakdown_values
         )
 
     worksheet, requests = _get_or_create_worksheet(spreadsheet, OUTPUT_NETWORTH_SHEET, rows)
     worksheet.update(values=rows, range_name="A1")
     requests += _money_column_format_requests(worksheet.id, rows)
-    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=2))  # 西暦年・純資産
+    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=3))  # 西暦年・年齢・純資産
 
     if breakdown_names:
         sheet_state = _sheet_state(spreadsheet, worksheet.id)
@@ -100,7 +100,7 @@ def write_networth_table(spreadsheet: gspread.Spreadsheet, simulation_result: Si
             stacked_type="STACKED",
             num_rows=len(rows),
             num_series=len(breakdown_names),
-            series_cols=list(range(3, 3 + len(breakdown_names))),
+            series_cols=list(range(4, 4 + len(breakdown_names))),
             anchor_col=len(header) + 2,
         )
 
@@ -301,6 +301,7 @@ def write_montecarlo_and_historical_result(
     montecarlo: Optional[tuple[MonteCarloResult, dict]] = None,
     historical: Optional[tuple[MonteCarloResult, dict]] = None,
     montecarlo_reference_1971: Optional[MonteCarloResult] = None,
+    year_to_age: Optional[dict[int, int]] = None,
 ) -> None:
     """モンテカルロ・ヒストリカルバックテストの結果（成功確率＋年次パーセンタイル分布）を、
     「手法」列で区別しつつ1枚の出力_モンテカルロシートへまとめて書き込む
@@ -314,9 +315,14 @@ def write_montecarlo_and_historical_result(
     montecarlo_reference_1971は、金本位制終了(1971年)以降のデータだけで分布・相関を推定し直した
     補足的な参考値（出力_ダッシュボードと同様、専用の年次パーセンタイル表・チャートは作らず、
     メインのモンテカルロ成功確率の要約行のすぐ下に参考行を1行追加するだけ）。
+
+    year_to_ageは決定論的シミュレーション（run_projection）のyearly_projectionsから作る
+    {西暦年: 年齢}の対応表。モンテカルロ/ヒストリカルは同じplanを使って回すため年の範囲が一致する
+    （手法側でage_selfを個別に持たないため、ここで決定論的な結果から引く）。省略時は年齢列を空欄にする。
     """
 
-    header = [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER]
+    year_to_age = year_to_age or {}
+    header = [METHOD_HEADER, YEAR_HEADER, AGE_HEADER, P10_HEADER, P50_HEADER, P90_HEADER]
     rows: list[list[object]] = []
     blocks: list[tuple[str, MonteCarloResult, int, int]] = []  # (手法, result, ブロック開始行, 終了行) 0始まり
 
@@ -331,7 +337,14 @@ def write_montecarlo_and_historical_result(
         rows.append(header)
         for index, year in enumerate(percentile_chart["x"]):
             rows.append(
-                [method_label, year, percentile_chart["p10"][index], percentile_chart["p50"][index], percentile_chart["p90"][index]]
+                [
+                    method_label,
+                    year,
+                    year_to_age.get(year, ""),
+                    percentile_chart["p10"][index],
+                    percentile_chart["p50"][index],
+                    percentile_chart["p90"][index],
+                ]
             )
         blocks.append((method_label, result, block_start, len(rows)))
 
@@ -342,8 +355,8 @@ def write_montecarlo_and_historical_result(
     worksheet.update(values=rows, range_name="A1")
     requests += _money_column_format_requests(worksheet.id, rows)
     # 手法ブロックが縦に積み上がるため先頭ブロックのヘッダー行のみが対象になるが、
-    # 手法・西暦年の列は他シートと一貫した操作性のため固定する。
-    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=2))  # 手法・西暦年
+    # 手法・西暦年・年齢の列は他シートと一貫した操作性のため固定する。
+    requests.append(_freeze_panes_request(worksheet.id, frozen_rows=1, frozen_columns=3))  # 手法・西暦年・年齢
 
     summary_lines: list[list[object]] = []
     for method_label, result, _, _ in blocks:
@@ -380,7 +393,7 @@ def write_montecarlo_and_historical_result(
             num_series=3,
             row_start=block_start,
             domain_col=1,
-            series_cols=[2, 3, 4],
+            series_cols=[3, 4, 5],
             anchor_row=chart_index * 20,
             anchor_col=anchor_col,
         )

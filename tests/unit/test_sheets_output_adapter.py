@@ -395,15 +395,15 @@ class WriteNetworthTableTest(unittest.TestCase):
         self.assertEqual(
             worksheet.last_values,
             [
-                [YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER, "taxable", "nisa_growth"],
-                [2026, 1_000_000, 0, 1_000_000, 500_000],
-                [2027, 2_000_000, 0, 1_100_000, ""],
+                [YEAR_HEADER, AGE_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER, "taxable", "nisa_growth"],
+                [2026, 36, 1_000_000, 0, 1_000_000, 500_000],
+                [2027, 36, 2_000_000, 0, 1_100_000, ""],
             ],
         )
 
         number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
         formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
-        self.assertEqual(formatted_columns, {1, 2, 3, 4})  # YEAR(0)は対象外、内訳列(3,4)も金額として対象
+        self.assertEqual(formatted_columns, {2, 3, 4, 5})  # YEAR(0)/AGE(1)は対象外、内訳列(4,5)も金額として対象
 
         charts = spreadsheet.charts_by_sheet_id[worksheet.id]
         self.assertEqual(len(charts), 1)
@@ -412,7 +412,7 @@ class WriteNetworthTableTest(unittest.TestCase):
 
         grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
         self.assertEqual(grid_properties["frozenRowCount"], 1)
-        self.assertEqual(grid_properties["frozenColumnCount"], 2)  # 西暦年・純資産
+        self.assertEqual(grid_properties["frozenColumnCount"], 3)  # 西暦年・年齢・純資産
 
     def test_rerunning_does_not_duplicate_chart(self) -> None:
         spreadsheet = _FakeSpreadsheet()
@@ -433,7 +433,7 @@ class WriteNetworthTableTest(unittest.TestCase):
         worksheet = spreadsheet.worksheet(OUTPUT_NETWORTH_SHEET)
         self.assertEqual(
             worksheet.last_values,
-            [[YEAR_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER], [2026, 1_000_000, 0]],
+            [[YEAR_HEADER, AGE_HEADER, NETWORTH_HEADER, CAPITAL_GAINS_TAX_HEADER], [2026, 36, 1_000_000, 0]],
         )
         self.assertNotIn(worksheet.id, spreadsheet.charts_by_sheet_id)
 
@@ -620,7 +620,10 @@ class WriteMontecarloAndHistoricalResultTest(unittest.TestCase):
         historical_result = _percentile_result(50, 40, 0.8)
 
         output_adapter.write_montecarlo_and_historical_result(
-            spreadsheet, (montecarlo_result, _percentile_chart()), (historical_result, _percentile_chart())
+            spreadsheet,
+            (montecarlo_result, _percentile_chart()),
+            (historical_result, _percentile_chart()),
+            year_to_age={2026: 40},
         )
 
         worksheet = spreadsheet.worksheet(OUTPUT_MONTECARLO_SHEET)
@@ -628,10 +631,10 @@ class WriteMontecarloAndHistoricalResultTest(unittest.TestCase):
         self.assertEqual(
             table_values,
             [
-                [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
-                [MONTECARLO_METHOD_LABEL, 2026, 1_000_000, 2_000_000, 3_000_000],
-                [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
-                [HISTORICAL_METHOD_LABEL, 2026, 1_000_000, 2_000_000, 3_000_000],
+                [METHOD_HEADER, YEAR_HEADER, AGE_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
+                [MONTECARLO_METHOD_LABEL, 2026, 40, 1_000_000, 2_000_000, 3_000_000],
+                [METHOD_HEADER, YEAR_HEADER, AGE_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
+                [HISTORICAL_METHOD_LABEL, 2026, 40, 1_000_000, 2_000_000, 3_000_000],
             ],
         )
 
@@ -650,11 +653,11 @@ class WriteMontecarloAndHistoricalResultTest(unittest.TestCase):
 
         number_format_requests = _number_format_requests(spreadsheet, worksheet.id)
         formatted_columns = {r["range"]["startColumnIndex"] for r in number_format_requests}
-        self.assertEqual(formatted_columns, {2, 3, 4})  # P10/P50/P90、METHOD(0)/YEAR(1)は対象外
+        self.assertEqual(formatted_columns, {3, 4, 5})  # P10/P50/P90、METHOD(0)/YEAR(1)/AGE(2)は対象外
 
         grid_properties = _frozen_pane_properties(spreadsheet, worksheet.id)
         self.assertEqual(grid_properties["frozenRowCount"], 1)
-        self.assertEqual(grid_properties["frozenColumnCount"], 2)  # 手法・西暦年
+        self.assertEqual(grid_properties["frozenColumnCount"], 3)  # 手法・西暦年・年齢
 
     def test_writes_montecarlo_only_when_historical_is_skipped(self) -> None:
         spreadsheet = _FakeSpreadsheet()
@@ -667,8 +670,8 @@ class WriteMontecarloAndHistoricalResultTest(unittest.TestCase):
         self.assertEqual(
             table_values,
             [
-                [METHOD_HEADER, YEAR_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
-                [MONTECARLO_METHOD_LABEL, 2026, 1_000_000, 2_000_000, 3_000_000],
+                [METHOD_HEADER, YEAR_HEADER, AGE_HEADER, P10_HEADER, P50_HEADER, P90_HEADER],
+                [MONTECARLO_METHOD_LABEL, 2026, "", 1_000_000, 2_000_000, 3_000_000],
             ],
         )
         charts = spreadsheet.charts_by_sheet_id[worksheet.id]
