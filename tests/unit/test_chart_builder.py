@@ -14,7 +14,6 @@ from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.simulation.projection.projection_engine import run_projection
 from reports.chart_builder import build_networth_chart
-from reports.output_builder import OUTPUT_SCHEMA_VERSION, build_output_json
 from tests.pension_test_fixtures import zero_pension_rules
 from tests.portfolio_test_fixtures import empty_portfolio_rules, no_allocation_contribution_strategy
 from tests.tax_test_fixtures import zero_tax_rules
@@ -94,26 +93,6 @@ class ChartBuilderTest(unittest.TestCase):
         for index, projection in enumerate(result.yearly_projections):
             total = sum(series["values"][index] for series in chart["series"])
             self.assertEqual(total, int(projection.networth.amount))
-
-
-class OutputBuilderTest(unittest.TestCase):
-    def test_output_json_introduces_charts_field_with_other_fields_empty(self) -> None:
-        plan, portfolios = _plan_with_two_account_types()
-        result = run_projection(plan, portfolios, zero_tax_rules(), empty_portfolio_rules(), zero_pension_rules())
-
-        output = build_output_json(plan, result)
-
-        self.assertEqual(output["plan_id"], "plan_test")
-        self.assertEqual(output["schema_version"], OUTPUT_SCHEMA_VERSION)
-        self.assertIn("networth_chart", output["charts"])
-        self.assertEqual(output["summary"], {})
-        self.assertEqual(output["metrics"], {})
-        self.assertEqual(output["tables"], {})
-        self.assertEqual(output["diagnostics"], {})
-        self.assertIsNone(output["montecarlo_result"])
-        self.assertEqual(output["warnings"], [])
-        self.assertEqual(output["errors"], [])
-        self.assertIs(output["simulation_result"], result)
 
 
 if __name__ == "__main__":

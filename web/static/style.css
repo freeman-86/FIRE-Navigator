@@ -1,0 +1,275 @@
+:root {
+  color-scheme: light dark;
+  --border: #d0d0d5;
+  --bg-panel: #fafafa;
+  --accent: #2f6fed;
+  --danger: #c0392b;
+  --ok: #1a7f37;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #1c1c1e;
+  background: #fff;
+}
+
+header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  min-height: calc(100vh - 70px);
+}
+
+#form-panel {
+  width: 46%;
+  max-width: 640px;
+  padding: 16px 24px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: calc(100vh - 70px);
+}
+
+#results-panel {
+  flex: 1;
+  padding: 16px 24px;
+}
+
+section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 10px;
+}
+
+section h3 {
+  font-size: 0.9rem;
+  margin: 12px 0 6px;
+  color: #555;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+  color: #444;
+  gap: 3px;
+}
+
+input,
+select {
+  font-size: 0.9rem;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 12px;
+  padding: 10px 10px 10px 10px;
+  margin-bottom: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.row .condition-widget {
+  display: flex;
+  gap: 6px;
+}
+
+.weights-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 6px;
+}
+
+.remove-row-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: #eee;
+  color: #666;
+  cursor: pointer;
+}
+
+.remove-row-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.add-row-btn {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.add-row-btn:hover {
+  background: #f0f4ff;
+}
+
+#run-area {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding-top: 8px;
+}
+
+#run-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+#run-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.run-note {
+  font-size: 0.72rem;
+  color: #888;
+  margin: 6px 0 0;
+}
+
+.status-running {
+  color: #666;
+}
+
+.status-ok {
+  color: var(--ok);
+}
+
+.status-error {
+  color: var(--danger);
+}
+
+#run-status ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  color: var(--danger);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.kpi-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.kpi-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: right;
+}
+
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+
+#results-empty {
+  color: #888;
+  padding: 40px 0;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1c1c1e;
+    color: #eee;
+  }
+  input,
+  select {
+    background: #2c2c2e;
+    color: #eee;
+    border-color: #444;
+  }
+  .row,
+  .kpi-card {
+    background: #2c2c2e;
+    border-color: #444;
+  }
+  #run-area {
+    background: #1c1c1e;
+  }
+}

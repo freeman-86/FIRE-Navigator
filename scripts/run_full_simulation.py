@@ -1,18 +1,23 @@
-"""スプレッドシートを読み込み→シミュレーション実行→結果を書き戻す、を一括で行う実行スクリプト。
+"""スプレッドシート（またはローカルのdata/plan.json）を読み込み→シミュレーション実行→結果を
+書き戻す、を一括で行う実行スクリプト。
 
 使い方:
-    PYTHONPATH=. python3 scripts/run_full_simulation.py
-    PYTHONPATH=. python3 scripts/run_full_simulation.py --quick          # モンテカルロ/ヒストリカルを省略して高速実行
-    PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000    # モンテカルロの試行回数を指定
+    PYTHONPATH=. python3 scripts/run_full_simulation.py                    # Google Sheetsモード（既定）
+    PYTHONPATH=. python3 scripts/run_full_simulation.py --mode local       # data/plan.jsonを使うローカルモード
+    PYTHONPATH=. python3 scripts/run_full_simulation.py --quick            # モンテカルロ/ヒストリカルを省略して高速実行
+    PYTHONPATH=. python3 scripts/run_full_simulation.py --trials 1000      # モンテカルロの試行回数を指定
+
+普段の利用（フォームからの実行）はweb/app.pyのPOST /api/runが同じcore.services.pipeline_service
+を使って行う。このCLIはSheetsモードでの従来通りの一括実行、およびlocalモードでの
+ターミナルからのデバッグ実行用に残している。
 
 PYTHONPATHを付けなくても動くよう、リポジトリルートをsys.pathへ自動追加している。
 """
-
 from __future__ import annotations
 
 import argparse
+import json
 import sys
-import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -20,11 +25,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "secrets" / "gsheets_credentials.json"
-DEFAULT_MONTECARLO_TRIALS = 1000
-# 出力_ダッシュボードの参考値用: 金本位制終了（ニクソン・ショック）以降のデータだけで
-# 分布・相関を推定し直したモンテカルロの基準年。メインのモンテカルロ・ヒストリカルは
-# 引き続きconfig/market_data/historical_returns_1928_2024.yamlの全期間データを使う。
-GOLD_STANDARD_END_YEAR = 1971
+DEFAULT_LOCAL_PLAN_PATH = REPO_ROOT / "data" / "plan.json"
+DEFAULT_LOCAL_RESULT_PATH = REPO_ROOT / "data" / "result.json"
 
 
 def main() -> None:
@@ -34,6 +36,17 @@ def main() -> None:
     print("FIRE Navigator: フルシミュレーション実行")
     print("=" * 60)
 
+    completed = _run_sheets_mode(args) if args.mode == "sheets" else _run_local_mode(args)
+
+    if not completed:
+        sys.exit(1)
+
+
+def _step(message: str) -> None:
+    print(f"\n→ {message}")
+
+
+def _run_sheets_mode(args: argparse.Namespace) -> bool:
     from adapters.sheets.sheets_error_writer import write_errors
     from adapters.sheets.sheets_input_adapter import build_client, open_spreadsheet
     from core.domain.errors import FireNavigatorError
@@ -42,19 +55,19 @@ def main() -> None:
         print(f"\n[エラー] 認証キーファイルが見つかりません: {args.credentials}")
         print("README.md の「セットアップ」手順に従って、GCPサービスアカウントの認証キー(JSON)を")
         print(f"{args.credentials} として保存してください。")
-        sys.exit(1)
+        return False
 
-    print(f"\n[1/8] スプレッドシート「{args.spreadsheet_name}」に接続しています...")
+    _step(f"スプレッドシート「{args.spreadsheet_name}」に接続しています...")
     try:
         client = build_client(str(args.credentials))
         spreadsheet = open_spreadsheet(client, args.spreadsheet_name)
     except Exception as e:  # noqa: BLE001 - 接続失敗はユーザーにそのまま伝える
         print(f"\n[エラー] スプレッドシートへの接続に失敗しました: {e}")
-        sys.exit(1)
+        return False
     print(f"      接続完了: {spreadsheet.url}")
 
     try:
-        completed = _run_pipeline(spreadsheet, args)
+        completed = _run_sheets_pipeline(spreadsheet, args)
     except FireNavigatorError as e:
         print(f"\n[入力エラー] {e.field_path}: {e.message}")
         print("      詳細を出力_エラーシートに書き込みました。入力内容を確認してください。")
@@ -74,23 +87,22 @@ def main() -> None:
         print("⚠️  エラーのため計算は実行されませんでした。出力シートは前回の結果のままです。")
         print("      出力_エラーシートを確認し、入力内容を修正してから再実行してください。")
         print("=" * 60)
-        sys.exit(1)
+        return False
 
     print("\n" + "=" * 60)
     print("すべての処理が完了しました。")
     print(f"結果はこちらで確認できます: {spreadsheet.url}")
     print("=" * 60)
+    return True
 
 
-def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
-    """入力読み込み〜シミュレーション実行〜結果書き戻しの一連の処理を行う。
+def _run_sheets_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
+    """スプレッドシートからの読み込み〜core.services.pipeline_serviceでの計算〜書き戻しを行う。
 
     戻り値は計算が最後まで実行されたかどうか（Falseの場合、出力シートは前回実行時のままで
-    更新されていない）。入力の意味的エラー(semantic_errors)は例外を送出せず、呼び出し元の
-    main()でterminal上の警告を一箇所に集約できるようFalseを返して抜ける。
+    更新されていない）。入力の意味的エラーは例外を送出せず、呼び出し元のmain()でterminal上の
+    警告を一箇所に集約できるようFalseを返して抜ける。
     """
-
-    from datetime import date
 
     from adapters.sheets.sheets_error_writer import write_errors, write_warnings
     from adapters.sheets.sheets_input_adapter import (
@@ -106,144 +118,159 @@ def _run_pipeline(spreadsheet, args: argparse.Namespace) -> bool:
         write_networth_table,
         write_sensitivity_table,
     )
-    from core.domain.market_data import filter_from_year
-    from core.domain.value_objects import AgeAt
-    from core.services.validation_service import validate_plan
-    from core.simulation.montecarlo.correlation_matrix import compute_correlation_matrix
-    from core.simulation.montecarlo.distribution import distributions_from_historical_dataset
-    from core.simulation.montecarlo.montecarlo_engine import run_montecarlo
-    from core.simulation.historical.historical_engine import run_historical_backtest
-    from core.simulation.projection.projection_engine import run_projection
-    from core.simulation.projection.sensitivity_analysis import run_sensitivity_analysis
+    from core.services.pipeline_service import run_pipeline_for_plan
     from reports.chart_builder import build_networth_chart
-    from reports.dashboard_builder import build_dashboard
     from reports.montecarlo_report_builder import build_percentile_band_chart
     from reports.sensitivity_analysis_builder import build_sensitivity_table
-    from repositories.config_repository import load_pension_rules, load_portfolio_rules, load_tax_rules
-    from repositories.market_data_repository import load_historical_dataset
 
-    print("\n[2/8] 入力シートを読み込んでいます...")
+    _step("入力シートを読み込んでいます...")
     plan = build_plan_from_spreadsheet(spreadsheet)
     portfolios = build_portfolios_from_spreadsheet(spreadsheet)
     print(f"      プラン: {plan.name} (口座数: {len(plan.accounts)})")
+    target_ending_networth = read_target_ending_networth(spreadsheet)
+    input_warnings = collect_input_warnings(spreadsheet)
 
-    tax_rules = load_tax_rules()
-    portfolio_rules = load_portfolio_rules()
-    pension_rules = load_pension_rules()
+    outcome = run_pipeline_for_plan(
+        plan,
+        portfolios,
+        target_ending_networth,
+        input_warnings=input_warnings,
+        trials=args.trials,
+        skip_montecarlo=args.quick or args.skip_montecarlo,
+        skip_historical=args.quick or args.skip_historical,
+        progress=_step,
+    )
 
-    print("\n[3/8] 入力内容を検証しています...")
-    semantic_errors = validate_plan(plan, pension_rules)
-    if semantic_errors:
-        print(f"      [エラー] {len(semantic_errors)}件の入力矛盾が見つかりました。処理を中断します。")
-        write_errors(spreadsheet, semantic_errors)
+    if not outcome.succeeded:
+        print(f"      [エラー] {len(outcome.semantic_errors)}件の入力矛盾が見つかりました。処理を中断します。")
+        write_errors(spreadsheet, outcome.semantic_errors)
         return False
     write_errors(spreadsheet, [])  # 前回実行時のエラー表示をクリア
-    print("      検証OK")
 
-    input_warnings = collect_input_warnings(spreadsheet)
-    if input_warnings:
-        write_warnings(spreadsheet, input_warnings)
-        print(f"      [警告] {len(input_warnings)}件の入力値が実行時に無視されています（出力_エラーシート参照）")
+    if outcome.input_warnings:
+        write_warnings(spreadsheet, outcome.input_warnings)
+        print(f"      [警告] {len(outcome.input_warnings)}件の入力値が実行時に無視されています（出力_エラーシート参照）")
 
-    print("\n[4/8] 基本シミュレーション（決定論的）を実行しています...")
-    result = run_projection(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
+    result = outcome.result
     write_networth_table(spreadsheet, result, build_networth_chart(plan, result))
     write_monthly_detail_table(spreadsheet, result)
     final_networth = result.yearly_projections[-1].networth if result.yearly_projections else None
     print(f"      完了（計算期間: {len(result.yearly_projections)}年、最終ネットワース: {final_networth}）")
     print(f"      月次詳細（{len(result.monthly_projections)}ヶ月分）を出力_月次詳細シートへ書き込みました")
 
-    print("\n[5/8] ダッシュボード（今月使える金額の逆算等）を計算しています...")
-    target_ending_networth = read_target_ending_networth(spreadsheet)
-    dashboard = build_dashboard(plan, portfolios, tax_rules, portfolio_rules, pension_rules, target_ending_networth)
-    print(f"      完了（資産枯渇年齢: {dashboard['depletion_age'] or '枯渇なし'}）")
-    print("      ※ モンテカルロ/ヒストリカルの成功確率が出そろってから出力_ダッシュボードへ書き込みます")
+    write_sensitivity_table(spreadsheet, build_sensitivity_table(outcome.sensitivity_result))
+    print(f"      感応度分析完了（資産枯渇年齢: {outcome.dashboard['depletion_age'] or '枯渇なし'}）")
 
-    print("\n[6/8] 感応度分析を実行しています...")
-    sensitivity_result = run_sensitivity_analysis(plan, portfolios, tax_rules, portfolio_rules, pension_rules)
-    write_sensitivity_table(spreadsheet, build_sensitivity_table(sensitivity_result))
-    print("      完了")
+    if outcome.montecarlo_result is not None:
+        elapsed = outcome.timings.get("montecarlo", 0.0)
+        print(f"      モンテカルロ成功確率: {outcome.montecarlo_result.success_rate:.1%}（所要時間: {elapsed:.1f}秒）")
+    if outcome.historical_result is not None:
+        elapsed = outcome.timings.get("historical", 0.0)
+        print(f"      ヒストリカルバックテスト成功確率: {outcome.historical_result.success_rate:.1%}（所要時間: {elapsed:.1f}秒）")
 
-    montecarlo_entry = None
-    montecarlo_reference_1971_result = None
-    historical_entry = None
-
-    if args.quick or args.skip_montecarlo:
-        print("\n[7/8] モンテカルロシミュレーションをスキップしました（--quick/--skip-montecarlo）")
-    else:
-        print(f"\n[7/8] モンテカルロシミュレーションを実行しています（試行回数: {args.trials}）...")
-        print("      ※ 試行回数が多いほど時間がかかります（数十秒〜数分程度）")
-        dataset = load_historical_dataset()
-        distributions = distributions_from_historical_dataset(dataset)
-        correlation_matrix = compute_correlation_matrix(dataset)
-        started = time.time()
-        montecarlo_result = run_montecarlo(
-            plan, portfolios, tax_rules, portfolio_rules, pension_rules,
-            distributions, correlation_matrix, trials=args.trials,
-        )
-        montecarlo_entry = (montecarlo_result, build_percentile_band_chart(montecarlo_result))
-        elapsed = time.time() - started
-        print(f"      完了（成功確率: {montecarlo_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")
-
-        print(
-            f"      モンテカルロ（参考: {GOLD_STANDARD_END_YEAR}年以降のデータで分布推定）を"
-            "実行しています..."
-        )
-        dataset_1971 = filter_from_year(dataset, GOLD_STANDARD_END_YEAR)
-        distributions_1971 = distributions_from_historical_dataset(dataset_1971)
-        correlation_matrix_1971 = compute_correlation_matrix(dataset_1971)
-        started = time.time()
-        montecarlo_reference_1971_result = run_montecarlo(
-            plan, portfolios, tax_rules, portfolio_rules, pension_rules,
-            distributions_1971, correlation_matrix_1971, trials=args.trials,
-        )
-        elapsed = time.time() - started
-        print(
-            f"      完了（成功確率: {montecarlo_reference_1971_result.success_rate:.1%}、"
-            f"所要時間: {elapsed:.1f}秒）"
-        )
-
-    if args.quick or args.skip_historical:
-        print("\n[8/8] ヒストリカルバックテストをスキップしました（--quick/--skip-historical）")
-    else:
-        print("\n[8/8] ヒストリカルバックテスト（過去の実績データ再生）を実行しています...")
-        dataset = load_historical_dataset()
-        # 窓の長さ(何年分バックテストするか)を、想定寿命と現在の年齢から算出する
-        # （固定30年ではなく、モンテカルロ等と同様に想定寿命と連動させる）。
-        current_age = AgeAt(plan.user.birth_date, date.today()).years
-        window_length = max(plan.life_expectancy_age - current_age, 1)
-        started = time.time()
-        historical_result, _ = run_historical_backtest(
-            plan, portfolios, tax_rules, portfolio_rules, pension_rules, dataset, window_length
-        )
-        historical_entry = (historical_result, build_percentile_band_chart(historical_result))
-        elapsed = time.time() - started
-        print(f"      完了（成功確率: {historical_result.success_rate:.1%}、所要時間: {elapsed:.1f}秒）")
-
+    montecarlo_entry = (
+        (outcome.montecarlo_result, build_percentile_band_chart(outcome.montecarlo_result))
+        if outcome.montecarlo_result is not None
+        else None
+    )
+    historical_entry = (
+        (outcome.historical_result, build_percentile_band_chart(outcome.historical_result))
+        if outcome.historical_result is not None
+        else None
+    )
     if montecarlo_entry is not None or historical_entry is not None:
         year_to_age = {projection.year: projection.age_self for projection in result.yearly_projections}
         write_montecarlo_and_historical_result(
-            spreadsheet, montecarlo_entry, historical_entry, montecarlo_reference_1971_result, year_to_age
+            spreadsheet, montecarlo_entry, historical_entry, outcome.montecarlo_reference_1971_result, year_to_age
         )
 
     write_dashboard(
         spreadsheet,
-        dashboard,
+        outcome.dashboard,
         simulation_result=result,
-        montecarlo=montecarlo_entry[0] if montecarlo_entry is not None else None,
-        historical=historical_entry[0] if historical_entry is not None else None,
-        montecarlo_reference_1971=montecarlo_reference_1971_result,
+        montecarlo=outcome.montecarlo_result,
+        historical=outcome.historical_result,
+        montecarlo_reference_1971=outcome.montecarlo_reference_1971_result,
     )
     print("      出力_ダッシュボードへ書き込みました（純資産推移グラフ・資産配分・成功確率を含む）")
 
     return True
 
 
+def _run_local_mode(args: argparse.Namespace) -> bool:
+    from adapters.local.local_data_adapter import (
+        build_plan_from_local_file,
+        build_portfolios_from_local_file,
+        load_raw,
+        read_target_ending_networth,
+    )
+    from core.domain.errors import FireNavigatorError
+    from core.services.pipeline_service import run_pipeline_for_plan
+    from reports.output_builder import build_output_json
+
+    if not args.local_plan.exists():
+        print(f"\n[エラー] {args.local_plan} が見つかりません。")
+        print("        まず scripts/migrate_from_sheets.py 等でdata/plan.jsonを用意してください。")
+        return False
+
+    _step(f"{args.local_plan} を読み込んでいます...")
+    try:
+        data = load_raw(args.local_plan)
+        plan = build_plan_from_local_file(data)
+        portfolios = build_portfolios_from_local_file(data)
+        target_ending_networth = read_target_ending_networth(data)
+    except FireNavigatorError as e:
+        print(f"\n[入力エラー] {e.field_path}: {e.message}")
+        return False
+    print(f"      プラン: {plan.name} (口座数: {len(plan.accounts)})")
+
+    outcome = run_pipeline_for_plan(
+        plan,
+        portfolios,
+        target_ending_networth,
+        trials=args.trials,
+        skip_montecarlo=args.quick or args.skip_montecarlo,
+        skip_historical=args.quick or args.skip_historical,
+        progress=_step,
+    )
+
+    if not outcome.succeeded:
+        print(f"\n[エラー] {len(outcome.semantic_errors)}件の入力矛盾が見つかりました。")
+        for error in outcome.semantic_errors:
+            print(f"      - {error.field_path}: {error.message}")
+        return False
+
+    output = build_output_json(outcome)
+    args.local_result.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.local_result, "w", encoding="utf-8") as f:
+        json.dump(output, f, ensure_ascii=False, indent=2, default=str)
+
+    print("\n" + "=" * 60)
+    print("すべての処理が完了しました。")
+    print(f"結果を書き出しました: {args.local_result}")
+    print("=" * 60)
+    return True
+
+
 def _parse_args() -> argparse.Namespace:
+    from core.services.pipeline_service import DEFAULT_MONTECARLO_TRIALS
+
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--spreadsheet-name", default=None, help="スプレッドシート名（省略時はsheet_mapping.pyの設定値）")
+    parser.add_argument("--mode", choices=["sheets", "local"], default="sheets", help="入出力先（既定: sheets）")
     parser.add_argument(
-        "--credentials", type=Path, default=DEFAULT_CREDENTIALS_PATH, help="サービスアカウント認証キー(JSON)のパス"
+        "--spreadsheet-name", default=None, help="スプレッドシート名（--mode sheets。省略時はsheet_mapping.pyの設定値）"
+    )
+    parser.add_argument(
+        "--credentials",
+        type=Path,
+        default=DEFAULT_CREDENTIALS_PATH,
+        help="サービスアカウント認証キー(JSON)のパス（--mode sheets）",
+    )
+    parser.add_argument(
+        "--local-plan", type=Path, default=DEFAULT_LOCAL_PLAN_PATH, help="読み込むプランJSONのパス（--mode local）"
+    )
+    parser.add_argument(
+        "--local-result", type=Path, default=DEFAULT_LOCAL_RESULT_PATH, help="結果JSONの書き出し先（--mode local）"
     )
     parser.add_argument("--trials", type=int, default=DEFAULT_MONTECARLO_TRIALS, help="モンテカルロの試行回数")
     parser.add_argument("--skip-montecarlo", action="store_true", help="モンテカルロシミュレーションを省略する")
@@ -251,7 +278,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--quick", action="store_true", help="モンテカルロ・ヒストリカルの両方を省略して高速実行する")
     args = parser.parse_args()
 
-    if args.spreadsheet_name is None:
+    if args.mode == "sheets" and args.spreadsheet_name is None:
         from adapters.sheets.sheet_mapping import SPREADSHEET_NAME
 
         args.spreadsheet_name = SPREADSHEET_NAME
