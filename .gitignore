@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .coverage
 .DS_Store
+data/plan.json
+data/*.tmp
