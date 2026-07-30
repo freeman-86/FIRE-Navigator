@@ -46,7 +46,7 @@ EMPTY_PLAN: dict = {
     "schema_version": 1,
     "plan_id": "plan_001",
     "name": "",
-    "user": {"birth_date": None},
+    "user": {"birth_date": None, "spouse": {"birth_date": None}},
     "assumptions": {"inflation_rate": None},
     "pension": {
         "national_pension_estimate_annual": None,

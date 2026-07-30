@@ -27,6 +27,26 @@ class BuildUserTest(unittest.TestCase):
         with self.assertRaises(SchemaValidationError):
             _build_user({})
 
+    def test_no_spouse_section_means_no_spouse(self) -> None:
+        user = _build_user({"user": {"birth_date": "1990-04-01"}})
+        self.assertIsNone(user.spouse)
+
+    def test_spouse_with_blank_birth_date_means_no_spouse(self) -> None:
+        user = _build_user({"user": {"birth_date": "1990-04-01", "spouse": {"birth_date": None}}})
+        self.assertIsNone(user.spouse)
+
+    def test_spouse_with_birth_date_is_read(self) -> None:
+        user = _build_user(
+            {"user": {"birth_date": "1990-04-01", "spouse": {"birth_date": "1992-06-01"}}}
+        )
+        self.assertIsNotNone(user.spouse)
+        self.assertEqual(user.spouse.birth_date.isoformat(), "1992-06-01")
+
+    def test_spouse_with_invalid_birth_date_raises_schema_validation_error(self) -> None:
+        with self.assertRaises(SchemaValidationError) as ctx:
+            _build_user({"user": {"birth_date": "1990-04-01", "spouse": {"birth_date": "not-a-date"}}})
+        self.assertEqual(ctx.exception.field_path, "user.spouse.birth_date")
+
 
 class BuildAssumptionsTest(unittest.TestCase):
     def test_reads_inflation_rate(self) -> None:

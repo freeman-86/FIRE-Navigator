@@ -170,6 +170,7 @@ function renderSettings() {
     <label>プランID<input data-path="plan_id" value="${escapeHtml(state.plan_id)}"></label>
     <label>プラン名<input data-path="name" value="${escapeHtml(state.name)}"></label>
     <label>生年月日<input type="date" data-path="user.birth_date" value="${escapeHtml(state.user.birth_date)}"></label>
+    <label>配偶者の生年月日（任意・配偶者控除の対象となる場合のみ入力）<input type="date" data-path="user.spouse.birth_date" value="${escapeHtml(state.user.spouse.birth_date)}"></label>
     ${percentFieldHtmlPath("インフレ率", "assumptions.inflation_rate", state.assumptions.inflation_rate)}
     ${moneyFieldHtmlPath("国民年金見込額（年額）", "pension.national_pension_estimate_annual", state.pension.national_pension_estimate_annual)}
     ${moneyFieldHtmlPath("厚生年金見込額（年額）", "pension.employee_pension_estimate_annual", state.pension.employee_pension_estimate_annual)}
@@ -974,6 +975,11 @@ async function init() {
   accountTypes = await accountTypesResponse.json();
 
   // 既存データに合わせて、配列であるべきフィールドの欠落を補う（初回起動時の空プラン等）。
+  // user.spouseは配偶者控除の対象有無を表すオブジェクトで、setPath()がnullを辿れないため
+  // （data-path="user.spouse.birth_date"の中間オブジェクトとして必要）、常にオブジェクトとして
+  // 存在させておく。birth_dateが空欄なら「配偶者なし」として扱う（adapters/local/
+  // local_data_adapter.py._build_user）。
+  state.user.spouse = state.user.spouse || { birth_date: null };
   state.accounts = state.accounts || [];
   state.incomes = state.incomes || [];
   state.expenses = state.expenses || [];

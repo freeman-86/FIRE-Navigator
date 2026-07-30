@@ -23,11 +23,21 @@ class BuildPlanFromLocalFileTest(unittest.TestCase):
         self.assertEqual(plan.name, "テストプラン")
         # 現状のSheetsアダプタと同じく、start_conditionは常にTODAY固定
         self.assertEqual(plan.start_condition.condition_type, StartConditionType.TODAY)
-        # Sheetsアダプタから一度も設定されたことのないフィールドは既定値のまま
+        # 未実装のフィールドは既定値のまま
         self.assertEqual(plan.milestones, [])
         self.assertEqual(plan.debts, [])
         self.assertEqual(plan.loans, [])
+        # spouseは任意入力（未指定なら配偶者なし）
         self.assertIsNone(plan.user.spouse)
+
+    def test_spouse_deduction_is_applied_when_spouse_is_set(self) -> None:
+        data = {**_MINIMAL_VALID_DATA, "user": {"birth_date": "1990-04-01", "spouse": {"birth_date": "1992-06-01"}}}
+
+        plan = build_plan_from_local_file(data)
+
+        self.assertIsNotNone(plan.user.spouse)
+        self.assertEqual(plan.user.spouse.birth_date.isoformat(), "1992-06-01")
+        self.assertEqual(plan.tax_config.deduction_settings.get("spouse_deduction"), True)
 
     def test_missing_plan_id_raises_schema_validation_error(self) -> None:
         data = {**_MINIMAL_VALID_DATA}

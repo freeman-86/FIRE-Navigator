@@ -153,8 +153,24 @@ def _reject_unexpected_keys(row: dict, prefix: str, allowed: set[str]) -> None:
 
 
 def _build_user(data: dict) -> User:
+    """配偶者(user.spouse)は任意入力。フォームは常に{birth_date: ...}の形で送ってくるが、
+    他の任意項目（成長率・拠出額等）と同じく空欄（null/空文字）は「配偶者なし」として扱う
+    （オブジェクトごとnullにする方式にすると、フォーム側でチェックボックスの出し分けが
+    必要になり複雑になるため）。
+    """
+
     user_data = data.get("user") or {}
-    return User(birth_date=_parse_date_field(_require(user_data, "birth_date", "user.birth_date"), "user.birth_date"))
+    spouse_data = user_data.get("spouse") or {}
+    spouse_birth_date = spouse_data.get("birth_date")
+    spouse = (
+        None
+        if _is_blank(spouse_birth_date)
+        else User(birth_date=_parse_date_field(spouse_birth_date, "user.spouse.birth_date"))
+    )
+    return User(
+        birth_date=_parse_date_field(_require(user_data, "birth_date", "user.birth_date"), "user.birth_date"),
+        spouse=spouse,
+    )
 
 
 def _build_assumptions(data: dict) -> Assumptions:
@@ -380,7 +396,10 @@ def _build_expenses(data: dict, default_growth_rate: Rate) -> tuple[list[Expense
 
 
 def _default_tax_config() -> TaxConfig:
-    return TaxConfig()
+    # spouse_deduction はここでは常に有効にしておき、実際に適用されるかどうかは
+    # tax_engine.calculate_tax()内のhas_spouse（plan.user.spouseの有無）の方だけで
+    # 決まるようにする（deduction_settingsという別スイッチをユーザー入力に露出させない）。
+    return TaxConfig(deduction_settings={"spouse_deduction": True})
 
 
 def _build_pension(data: dict) -> Pension:
