@@ -109,8 +109,12 @@ def build_output_json(outcome: PipelineOutcome) -> dict:
     sensitivity_table = build_sensitivity_table(outcome.sensitivity_result) if outcome.sensitivity_result else None
     monthly_detail = _monthly_detail_to_json(outcome.result.monthly_projections) if outcome.result is not None else None
     networth_chart = build_networth_chart(outcome.plan, outcome.result) if outcome.result is not None else None
-    montecarlo_chart = build_percentile_band_chart(outcome.montecarlo_result) if outcome.montecarlo_result else None
-    historical_chart = build_percentile_band_chart(outcome.historical_result) if outcome.historical_result else None
+    montecarlo_chart = (
+        build_percentile_band_chart(outcome.plan, outcome.montecarlo_result) if outcome.montecarlo_result else None
+    )
+    historical_chart = (
+        build_percentile_band_chart(outcome.plan, outcome.historical_result) if outcome.historical_result else None
+    )
 
     return {
         "plan_id": outcome.plan.plan_id,

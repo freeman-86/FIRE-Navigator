@@ -756,11 +756,12 @@ function renderNetworthChart(chart) {
   const rows = chart.x
     .map((year, i) => {
       const total = chart.series.reduce((sum, series) => sum + (series.values[i] || 0), 0);
-      return `<tr><td>${year}</td><td>${yen(total)}</td></tr>`;
+      const age = chart.ages ? chart.ages[i] : null;
+      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yen(total)}</td></tr>`;
     })
     .join("");
   document.getElementById("networth-table").innerHTML = `
-    <table><thead><tr><th>西暦年</th><th>純資産</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>西暦年</th><th>年齢</th><th>純資産</th></tr></thead><tbody>${rows}</tbody></table>
   `;
 }
 
@@ -820,14 +821,14 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
 
 function percentileChartTableHtml(chartData) {
   const rows = chartData.x
-    .map(
-      (year, i) =>
-        `<tr><td>${year}</td><td>${yen(chartData.p10[i])}</td><td>${yen(chartData.p50[i])}</td><td>${yen(chartData.p90[i])}</td></tr>`
-    )
+    .map((year, i) => {
+      const age = chartData.ages ? chartData.ages[i] : null;
+      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yen(chartData.p10[i])}</td><td>${yen(chartData.p50[i])}</td><td>${yen(chartData.p90[i])}</td></tr>`;
+    })
     .join("");
   return `
     <table>
-      <thead><tr><th>西暦年</th><th>下位10%</th><th>中央値</th><th>上位10%</th></tr></thead>
+      <thead><tr><th>西暦年</th><th>年齢</th><th>下位10%</th><th>中央値</th><th>上位10%</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;

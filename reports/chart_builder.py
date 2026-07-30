@@ -18,6 +18,7 @@ def build_networth_chart(plan: Plan, simulation_result: SimulationResult) -> dic
     account_type_by_id = {account.account_id: account.account_type.value for account in plan.accounts}
 
     x = [projection.year for projection in simulation_result.yearly_projections]
+    ages = [projection.age_self for projection in simulation_result.yearly_projections]
 
     series_names: list[str] = []
     yearly_group_totals: list[dict[str, int]] = []
@@ -38,4 +39,4 @@ def build_networth_chart(plan: Plan, simulation_result: SimulationResult) -> dic
         for series_name in series_names
     ]
 
-    return {"type": NETWORTH_CHART_TYPE, "x": x, "series": series}
+    return {"type": NETWORTH_CHART_TYPE, "x": x, "ages": ages, "series": series}
