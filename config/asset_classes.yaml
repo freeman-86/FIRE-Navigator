@@ -25,12 +25,12 @@ asset_classes:
   cash:
     display_name: "現金"
     risk_rank: 1
-  bond_us_treasury:
-    display_name: "債券（米国長期国債）"
-    risk_rank: 2
   equity_sp500:
     display_name: "株式（S&P500連動）"
     risk_rank: 3
+  bond_us_treasury:
+    display_name: "債券（米国長期国債）"
+    risk_rank: 2
   btc:
     display_name: "BTC"
     risk_rank: 4
