@@ -42,7 +42,7 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
-from repositories.asset_class_repository import load_asset_class_registry
+from repositories.asset_class_repository import load_asset_class_registry, load_asset_class_risk_order
 
 DEFAULT_PLAN_FILE_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "plan.json"
 
@@ -222,7 +222,9 @@ def build_portfolios_from_local_file(
 
 
 def _build_allocation_policy(
-    data: dict, asset_class_registry: Optional[dict[AssetClass, str]] = None
+    data: dict,
+    asset_class_registry: Optional[dict[AssetClass, str]] = None,
+    asset_class_risk_order: Optional[list[AssetClass]] = None,
 ) -> Optional[AllocationPolicy]:
     """年齢別の目標配分比率（プラン全体で1つ、口座横断）をallocation_policyセクションから組み立てる。
 
@@ -236,18 +238,29 @@ def _build_allocation_policy(
 
     if asset_class_registry is None:
         asset_class_registry = load_asset_class_registry()
+    if asset_class_risk_order is None:
+        asset_class_risk_order = load_asset_class_risk_order()
 
     targets = []
     for index, row in enumerate(allocation_data.get("targets") or []):
         prefix = f"allocation_policy.targets[{index}]"
         age = _parse_int(_require(row, "age", f"{prefix}.age"), f"{prefix}.age")
         weights_raw = _require(row, "weights", f"{prefix}.weights")
+        for asset_class_code in weights_raw:
+            _parse_asset_class(asset_class_code, f"{prefix}.weights", asset_class_registry)
+
+        # weightsのキー順は、config/asset_classes.yamlのrisk_rank順（リスクが高い資産クラスが
+        # 先）に正規化する（入力JSONのキー順そのままだと、手編集やフォーム再保存のたびに
+        # 順序が変わりうる）。core/simulation/withdrawal/withdrawal_engine.pyのオーバーウェイト
+        # 優先売却はtarget_weightsの辞書順で資産クラスを走査するため、複数の資産クラスが同時に
+        # オーバーウェイトな場合、この順序がどちらを先に取り崩すかを決める
+        # （リスクが高い資産クラスの含み益を先に確定させる、という方針）。
         weights: dict[AssetClass, Rate] = {}
-        for asset_class_code, weight_raw in weights_raw.items():
-            validated_asset_class = _parse_asset_class(
-                asset_class_code, f"{prefix}.weights", asset_class_registry
-            )
-            weights[validated_asset_class] = _parse_rate(weight_raw, f"{prefix}.weights.{asset_class_code}")
+        for asset_class_code in asset_class_risk_order:
+            if asset_class_code in weights_raw:
+                weights[asset_class_code] = _parse_rate(
+                    weights_raw[asset_class_code], f"{prefix}.weights.{asset_class_code}"
+                )
         targets.append(AllocationTarget(age=age, weights=weights))
     targets.sort(key=lambda target: target.age)
     return AllocationPolicy(targets=targets)

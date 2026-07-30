@@ -11,15 +11,26 @@
 # （未追加の資産クラスは、Monte Carlo/Historicalの加重平均リターン計算から除外され、
 # 実質0%リターン扱いになる点に注意。決定論的なProjection Engineは
 # plan.assumptions.investment_growth_rateを使うため、この制約の影響を受けない）。
+#
+# risk_rank: 数字が大きいほどリスク（ボラティリティ）が高いという想定の順位。
+# 配分方針で複数の資産クラスが同時にオーバーウェイトな場合、
+# adapters/local/local_data_adapter.py の _build_allocation_policy が
+# この順位の高い（リスクが高い）資産クラスから先に取り崩し対象にする
+# （core/simulation/withdrawal/withdrawal_engine.py 自体はtarget_weightsの辞書順に
+# 従うだけで、順序の意味づけは持たない。順序を決めているのはadapter層）。
 
 schema_version: 1
 
 asset_classes:
   cash:
     display_name: "現金"
-  equity_sp500:
-    display_name: "株式（S&P500連動）"
+    risk_rank: 1
   bond_us_treasury:
     display_name: "債券（米国長期国債）"
+    risk_rank: 2
+  equity_sp500:
+    display_name: "株式（S&P500連動）"
+    risk_rank: 3
   btc:
     display_name: "BTC"
+    risk_rank: 4

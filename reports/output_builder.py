@@ -8,6 +8,7 @@ from core.services.pipeline_service import PipelineOutcome
 from reports.chart_builder import build_networth_chart
 from reports.montecarlo_report_builder import build_percentile_band_chart
 from reports.sensitivity_analysis_builder import build_sensitivity_table
+from repositories.asset_class_repository import load_asset_class_registry
 
 OUTPUT_SCHEMA_VERSION = 3
 
@@ -36,7 +37,14 @@ def _monthly_detail_to_json(monthly_projections: list[MonthlyProjection]) -> Opt
     if not monthly_projections:
         return None
 
-    asset_classes = sorted(monthly_projections[0].withdrawals_by_asset_class)
+    present_asset_classes = set(monthly_projections[0].withdrawals_by_asset_class)
+    # 資産クラスの列順はconfig/asset_classes.yamlの定義順（中央管理された、意味のある並び）に
+    # 揃える。アルファベット順だとbond_us_treasury/btc/equity_sp500のような並びになってしまい、
+    # 資産クラスの性質（株式・債券・暗号資産等）と無関係な順序になるため。レジストリに存在しない
+    # 資産クラス（想定外だが将来の取りこぼし防止）はアルファベット順で末尾に足す。
+    registry_order = list(load_asset_class_registry().keys())
+    asset_classes = [ac for ac in registry_order if ac in present_asset_classes]
+    asset_classes += sorted(present_asset_classes - set(asset_classes))
     columns = [key for key, _ in _MONTHLY_DETAIL_FIXED_COLUMNS] + asset_classes
     column_labels = [label for _, label in _MONTHLY_DETAIL_FIXED_COLUMNS] + asset_classes
 

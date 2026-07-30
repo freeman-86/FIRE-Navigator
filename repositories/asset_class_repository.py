@@ -24,3 +24,20 @@ def load_asset_class_registry(
         raw = yaml.safe_load(f)
 
     return {code: entry["display_name"] for code, entry in raw["asset_classes"].items()}
+
+
+def load_asset_class_risk_order(
+    config_path: Union[str, Path] = DEFAULT_ASSET_CLASSES_PATH,
+) -> list[AssetClass]:
+    """asset_classes.yamlのrisk_rankを読み込み、リスクが高い（risk_rankが大きい）順に
+    資産クラス識別子を並べたリストを返す。
+
+    配分方針で複数の資産クラスが同時にオーバーウェイトな場合、どの順で取り崩し対象にするかを
+    決めるために使う（adapters/local/local_data_adapter.py._build_allocation_policy）。
+    """
+
+    with open(config_path, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+
+    entries = raw["asset_classes"].items()
+    return [code for code, _ in sorted(entries, key=lambda item: item[1]["risk_rank"], reverse=True)]
