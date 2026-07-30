@@ -451,6 +451,28 @@ td:first-child {
   text-align: left;
 }
 
+.scrollable-table {
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.scrollable-table table {
+  margin-bottom: 0;
+}
+
+.scrollable-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+}
+
+/* 取り崩し不足額が発生している月（資産が尽きて賄いきれていない月）を目立たせる */
+tr.shortfall-row td {
+  background: color-mix(in srgb, var(--danger) 12%, var(--bg-input));
+}
+
 #results-empty {
   color: var(--text-tertiary);
   padding: 40px 0;

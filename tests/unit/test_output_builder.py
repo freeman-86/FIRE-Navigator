@@ -91,8 +91,18 @@ class BuildOutputJsonSuccessTest(unittest.TestCase):
         self.assertEqual(table["type"], "grid")
         self.assertTrue(len(table["row_labels"]) > 0)
 
+    def test_monthly_detail_is_populated_and_json_safe(self) -> None:
+        monthly = self.output["tables"]["monthly_detail"]
+        self.assertEqual(monthly["columns"][:3], ["year", "month", "age"])
+        self.assertEqual(monthly["column_labels"][:3], ["西暦年", "月", "年齢"])
+        self.assertTrue(len(monthly["rows"]) > 0)
+        first_row = monthly["rows"][0]
+        self.assertEqual(len(first_row), len(monthly["columns"]))
+        for value in first_row:
+            self.assertIsInstance(value, int)
+
     def test_does_not_include_raw_dataclasses(self) -> None:
-        # simulation_result/montecarlo_result（生の年次・月次データ）はJSON化できないため含めない
+        # simulation_result/montecarlo_result（生の年次・試行ごとのデータ）はJSON化できないため含めない
         self.assertNotIn("simulation_result", self.output)
         self.assertNotIn("montecarlo_result", self.output)
 
@@ -108,6 +118,7 @@ class BuildOutputJsonFailureTest(unittest.TestCase):
         self.assertEqual(output["errors"], [{"field_path": "some.field", "message": "テストエラー"}])
         self.assertIsNone(output["dashboard"])
         self.assertIsNone(output["tables"]["sensitivity_table"])
+        self.assertIsNone(output["tables"]["monthly_detail"])
         self.assertIsNone(output["charts"]["networth_chart"])
 
 

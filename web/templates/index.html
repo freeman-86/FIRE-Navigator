@@ -69,6 +69,14 @@
       <div id="results-content" hidden>
         <div id="kpi-cards"></div>
 
+        <div id="monthly-detail-section" hidden>
+          <h3>月次詳細</h3>
+          <details class="table-view">
+            <summary id="monthly-detail-summary">表で見る</summary>
+            <div id="monthly-detail-table" class="scrollable-table"></div>
+          </details>
+        </div>
+
         <h3>純資産推移</h3>
         <figure class="chart-card">
           <div class="chart-canvas-wrap chart-canvas-wrap-large">
@@ -88,12 +96,20 @@
               <div class="chart-canvas-wrap">
                 <canvas id="montecarlo-chart"></canvas>
               </div>
+              <details class="table-view">
+                <summary>表で見る</summary>
+                <div id="montecarlo-table"></div>
+              </details>
             </figure>
             <figure class="chart-card" id="historical-chart-card" hidden>
               <figcaption>ヒストリカル</figcaption>
               <div class="chart-canvas-wrap">
                 <canvas id="historical-chart"></canvas>
               </div>
+              <details class="table-view">
+                <summary>表で見る</summary>
+                <div id="historical-table"></div>
+              </details>
             </figure>
           </div>
         </div>

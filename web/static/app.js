@@ -818,6 +818,21 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
   });
 }
 
+function percentileChartTableHtml(chartData) {
+  const rows = chartData.x
+    .map(
+      (year, i) =>
+        `<tr><td>${year}</td><td>${yen(chartData.p10[i])}</td><td>${yen(chartData.p50[i])}</td><td>${yen(chartData.p90[i])}</td></tr>`
+    )
+    .join("");
+  return `
+    <table>
+      <thead><tr><th>西暦年</th><th>下位10%</th><th>中央値</th><th>上位10%</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 function renderMontecarloSection(output) {
   const section = document.getElementById("montecarlo-section");
   const montecarloCard = document.getElementById("montecarlo-chart-card");
@@ -842,6 +857,7 @@ function renderMontecarloSection(output) {
     const rate = output.summary.montecarlo_success_rate;
     montecarloCard.querySelector("figcaption").textContent =
       rate != null ? `モンテカルロ（成功確率 ${(rate * 100).toFixed(1)}%）` : "モンテカルロ";
+    document.getElementById("montecarlo-table").innerHTML = percentileChartTableHtml(montecarloChart);
   }
 
   historicalCard.hidden = !historicalChart;
@@ -855,6 +871,7 @@ function renderMontecarloSection(output) {
     const rate = output.summary.historical_success_rate;
     historicalCard.querySelector("figcaption").textContent =
       rate != null ? `ヒストリカル（成功確率 ${(rate * 100).toFixed(1)}%）` : "ヒストリカル";
+    document.getElementById("historical-table").innerHTML = percentileChartTableHtml(historicalChart);
   }
 }
 
@@ -893,6 +910,32 @@ function renderSensitivityTable(table) {
   document.getElementById("sensitivity-table").innerHTML = `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
 }
 
+// --- 月次詳細（旧Sheets版の出力_月次詳細に相当。取り崩し不足額が出ている月を強調する） -------------
+
+function renderMonthlyDetailTable(monthly) {
+  const section = document.getElementById("monthly-detail-section");
+  if (!monthly) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+
+  const shortfallIndex = monthly.shortfall_column_index;
+  const header = `<tr>${monthly.column_labels.map((label) => `<th>${escapeHtml(label)}</th>`).join("")}</tr>`;
+  const rows = monthly.rows
+    .map((row) => {
+      const hasShortfall = row[shortfallIndex] > 0;
+      // 先頭3列（西暦年・月・年齢）はそのままの数値、それ以外は円表示にする
+      const cells = row.map((value, i) => `<td>${i <= 2 ? value : yen(value)}</td>`).join("");
+      return `<tr${hasShortfall ? ' class="shortfall-row"' : ""}>${cells}</tr>`;
+    })
+    .join("");
+
+  document.getElementById("monthly-detail-table").innerHTML =
+    `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+  document.getElementById("monthly-detail-summary").textContent = `表で見る（${monthly.rows.length}行）`;
+}
+
 function renderResults(output) {
   document.getElementById("results-empty").hidden = true;
   document.getElementById("results-content").hidden = false;
@@ -906,6 +949,7 @@ function renderResults(output) {
 
   renderMontecarloSection(output);
   renderSensitivityTable(output.tables.sensitivity_table);
+  renderMonthlyDetailTable(output.tables.monthly_detail);
 }
 
 // --- 初期化 ---------------------------------------------------------------------------------
