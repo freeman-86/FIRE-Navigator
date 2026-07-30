@@ -983,6 +983,23 @@ async function init() {
   renderAll();
   setupAddButtons();
   document.getElementById("run-btn").addEventListener("click", runSimulation);
+  document.getElementById("download-json-btn").addEventListener("click", downloadPlanJson);
+}
+
+// data/plan.jsonはgit管理外のローカルファイル1つだけがSource of Truthのため、誤操作や
+// ファイル破損に備えて現在のフォーム内容（保存前の変更も含む）をその場でダウンロードできるようにする。
+function downloadPlanJson() {
+  const json = JSON.stringify(buildPayload(), null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const today = new Date().toISOString().slice(0, 10);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fire-navigator-plan_${today}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 init();

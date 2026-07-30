@@ -289,6 +289,22 @@ select {
   cursor: default;
 }
 
+.secondary-btn {
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.secondary-btn:hover {
+  background: var(--accent-bg);
+}
+
 .run-note {
   font-size: 0.72rem;
   color: var(--text-tertiary);
