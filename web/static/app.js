@@ -857,6 +857,14 @@ function renderMontecarloSection(output) {
     const rate = output.summary.montecarlo_success_rate;
     montecarloCard.querySelector("figcaption").textContent =
       rate != null ? `モンテカルロ（成功確率 ${(rate * 100).toFixed(1)}%）` : "モンテカルロ";
+    const reference1971Rate = output.diagnostics.montecarlo_reference_1971_success_rate;
+    const noteEl = montecarloCard.querySelector(".chart-note");
+    if (reference1971Rate != null) {
+      noteEl.textContent = `参考: 1971年（金本位制終了）以降のデータのみで分布推定した場合の成功確率 ${(reference1971Rate * 100).toFixed(1)}%`;
+      noteEl.hidden = false;
+    } else {
+      noteEl.hidden = true;
+    }
     document.getElementById("montecarlo-table").innerHTML = percentileChartTableHtml(montecarloChart);
   }
 
