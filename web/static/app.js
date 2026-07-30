@@ -580,11 +580,15 @@ function buildPayload() {
 async function runSimulation() {
   const runBtn = document.getElementById("run-btn");
   const statusEl = document.getElementById("run-status");
+  const includeMontecarlo = document.getElementById("include-montecarlo-checkbox").checked;
   runBtn.disabled = true;
-  statusEl.innerHTML = '<p class="status-running">実行中...（数秒で完了します）</p>';
+  statusEl.innerHTML = includeMontecarlo
+    ? '<p class="status-running">実行中...（モンテカルロ/ヒストリカルを含むため数十秒〜数分かかります）</p>'
+    : '<p class="status-running">実行中...（数秒で完了します）</p>';
 
   try {
-    const response = await fetch("/api/run", {
+    const url = includeMontecarlo ? "/api/run?include_montecarlo=1" : "/api/run";
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildPayload()),
@@ -613,50 +617,295 @@ function yen(amount) {
   return `${Number(amount).toLocaleString("ja-JP")}円`;
 }
 
-function pct(rateValue) {
+function pctText(rateValue) {
   if (rateValue == null) return "-";
   return `${(Number(rateValue) * 100).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}%`;
 }
 
-function renderResults(output) {
-  document.getElementById("results-empty").hidden = true;
-  const content = document.getElementById("results-content");
-  content.hidden = false;
+// --- 色ユーティリティ（dataviz skillの参照パレット。CSS変数から実際の値を読む） -----------------
 
-  const d = output.dashboard;
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function seriesColors() {
+  return [1, 2, 3, 4, 5, 6, 7, 8].map((i) => cssVar(`--series-${i}`));
+}
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  const num = parseInt(clean, 16);
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+}
+
+function hexToRgba(hex, alpha) {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixColor(hexA, hexB, t) {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const mixed = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
+}
+
+// --- KPIカード（stat tile。色だけに頼らずアイコン＋文言でも状態を示す） --------------------------
+
+function kpiDeltaHtml(status, text) {
+  const icon = { good: "✓", critical: "✗", neutral: "–" }[status];
+  return `<div class="kpi-delta status-${status}"><span aria-hidden="true">${icon}</span><span>${escapeHtml(text)}</span></div>`;
+}
+
+function renderKpiCards(dashboard) {
+  const depletionDelta =
+    dashboard.depletion_age == null
+      ? kpiDeltaHtml("good", "想定寿命まで枯渇しない見込み")
+      : kpiDeltaHtml("critical", "想定寿命より前に枯渇する見込み");
+  const surplusDelta =
+    dashboard.surplus_vs_target >= 0
+      ? kpiDeltaHtml("good", "目標資産を達成する見込み")
+      : kpiDeltaHtml("critical", "目標資産に届かない見込み");
+
   document.getElementById("kpi-cards").innerHTML = `
     <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-label">現在の純資産</div><div class="kpi-value">${yen(d.current_networth)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">追加で使える金額/月</div><div class="kpi-value">${yen(d.extra_monthly_budget)}</div></div>
-      <div class="kpi-card"><div class="kpi-label">資産枯渇年齢</div><div class="kpi-value">${d.depletion_age != null ? d.depletion_age + "歳" : "枯渇なし"}</div></div>
-      <div class="kpi-card"><div class="kpi-label">目標資産との差</div><div class="kpi-value">${yen(d.surplus_vs_target)}</div></div>
+      <div class="kpi-card">
+        <div class="kpi-label">現在の純資産</div>
+        <div class="kpi-value">${yen(dashboard.current_networth)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">追加で使える金額/月</div>
+        <div class="kpi-value">${yen(dashboard.extra_monthly_budget)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">資産枯渇年齢</div>
+        <div class="kpi-value">${dashboard.depletion_age != null ? dashboard.depletion_age + "歳" : "枯渇なし"}</div>
+        ${depletionDelta}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">目標資産との差</div>
+        <div class="kpi-value">${yen(dashboard.surplus_vs_target)}</div>
+        ${surplusDelta}
+      </div>
     </div>
   `;
+}
 
-  const chart = output.charts.networth_chart;
-  if (chart) {
-    const rows = chart.x
-      .map((year, i) => {
-        const total = chart.series.reduce((sum, series) => sum + (series.values[i] || 0), 0);
-        return `<tr><td>${year}</td><td>${yen(total)}</td></tr>`;
-      })
-      .join("");
-    document.getElementById("networth-table").innerHTML = `
-      <table><thead><tr><th>西暦年</th><th>純資産</th></tr></thead><tbody>${rows}</tbody></table>
-    `;
+// --- 純資産推移（積み上げ面グラフ） -------------------------------------------------------------
+
+let networthChartInstance = null;
+
+function commonChartOptions() {
+  const textColor = cssVar("--text-secondary");
+  const gridColor = cssVar("--chart-grid");
+  const axisColor = cssVar("--chart-axis");
+  return {
+    responsive: true,
+    // 親要素（.chart-canvas-wrap、CSSで高さ固定）いっぱいに描画する。falseにしないと、
+    // 幅の広い結果パネルに対してアスペクト比を保とうとして縦に間延びしてしまう。
+    maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { position: "bottom", labels: { color: textColor, boxWidth: 12, boxHeight: 12 } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.dataset.label}: ${yen(ctx.parsed.y)}`,
+        },
+      },
+    },
+    scales: {
+      x: { ticks: { color: textColor }, grid: { color: gridColor }, border: { color: axisColor } },
+      y: {
+        ticks: { color: textColor, callback: (v) => yen(v) },
+        grid: { color: gridColor },
+        border: { color: axisColor },
+      },
+    },
+  };
+}
+
+function renderNetworthChart(chart) {
+  if (networthChartInstance) {
+    networthChartInstance.destroy();
+  }
+  const colors = seriesColors();
+  const datasets = chart.series.map((series, index) => {
+    const color = colors[index % colors.length];
+    return {
+      label: series.name,
+      data: series.values,
+      borderColor: color,
+      backgroundColor: hexToRgba(color, 0.55),
+      borderWidth: 2,
+      pointRadius: 0,
+      fill: true,
+      tension: 0,
+    };
+  });
+
+  const options = commonChartOptions();
+  options.scales.y.stacked = true;
+  options.scales.x.stacked = true;
+
+  networthChartInstance = new Chart(document.getElementById("networth-chart"), {
+    type: "line",
+    data: { labels: chart.x, datasets },
+    options,
+  });
+
+  const rows = chart.x
+    .map((year, i) => {
+      const total = chart.series.reduce((sum, series) => sum + (series.values[i] || 0), 0);
+      return `<tr><td>${year}</td><td>${yen(total)}</td></tr>`;
+    })
+    .join("");
+  document.getElementById("networth-table").innerHTML = `
+    <table><thead><tr><th>西暦年</th><th>純資産</th></tr></thead><tbody>${rows}</tbody></table>
+  `;
+}
+
+// --- モンテカルロ／ヒストリカル（p10-p90帯＋中央値） ----------------------------------------------
+
+let montecarloChartInstance = null;
+let historicalChartInstance = null;
+
+function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) {
+  if (existingInstance) {
+    existingInstance.destroy();
+  }
+  const options = commonChartOptions();
+
+  return new Chart(canvasEl, {
+    type: "line",
+    data: {
+      labels: chartData.x,
+      datasets: [
+        {
+          // 下位10%: 細めの破線・低い不透明度（弱気シナリオが視覚的にも控えめになるよう）
+          label: "下位10%",
+          data: chartData.p10,
+          borderColor: hexToRgba(colorHex, 0.5),
+          borderWidth: 1.25,
+          borderDash: [2, 3],
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+        },
+        {
+          // 上位10%: 太めの破線・高い不透明度で、下位10%とは間隔・濃さの両方で見分けがつくようにする
+          label: "上位10%",
+          data: chartData.p90,
+          borderColor: hexToRgba(colorHex, 0.9),
+          borderWidth: 1.75,
+          borderDash: [9, 3],
+          backgroundColor: hexToRgba(colorHex, 0.15),
+          pointRadius: 0,
+          fill: "-1",
+          tension: 0,
+        },
+        {
+          label: "中央値",
+          data: chartData.p50,
+          borderColor: colorHex,
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+        },
+      ],
+    },
+    options,
+  });
+}
+
+function renderMontecarloSection(output) {
+  const section = document.getElementById("montecarlo-section");
+  const montecarloCard = document.getElementById("montecarlo-chart-card");
+  const historicalCard = document.getElementById("historical-chart-card");
+  const montecarloChart = output.charts.montecarlo_distribution_chart;
+  const historicalChart = output.charts.historical_distribution_chart;
+
+  const hasAny = Boolean(montecarloChart || historicalChart);
+  section.hidden = !hasAny;
+  if (!hasAny) return;
+
+  const colors = seriesColors();
+
+  montecarloCard.hidden = !montecarloChart;
+  if (montecarloChart) {
+    montecarloChartInstance = renderPercentileChart(
+      document.getElementById("montecarlo-chart"),
+      montecarloChartInstance,
+      montecarloChart,
+      colors[0]
+    );
+    const rate = output.summary.montecarlo_success_rate;
+    montecarloCard.querySelector("figcaption").textContent =
+      rate != null ? `モンテカルロ（成功確率 ${(rate * 100).toFixed(1)}%）` : "モンテカルロ";
   }
 
-  const table = output.tables.sensitivity_table;
-  if (table) {
-    const header = `<tr><th></th>${table.column_labels.map((l) => `<th>${escapeHtml(l)}</th>`).join("")}</tr>`;
-    const rows = table.row_labels
-      .map(
-        (label, r) =>
-          `<tr><th>${escapeHtml(label)}</th>${table.cells[r].map((v) => `<td>${yen(v)}</td>`).join("")}</tr>`
-      )
-      .join("");
-    document.getElementById("sensitivity-table").innerHTML = `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+  historicalCard.hidden = !historicalChart;
+  if (historicalChart) {
+    historicalChartInstance = renderPercentileChart(
+      document.getElementById("historical-chart"),
+      historicalChartInstance,
+      historicalChart,
+      colors[1]
+    );
+    const rate = output.summary.historical_success_rate;
+    historicalCard.querySelector("figcaption").textContent =
+      rate != null ? `ヒストリカル（成功確率 ${(rate * 100).toFixed(1)}%）` : "ヒストリカル";
   }
+}
+
+// --- 感応度分析（中央値からの乖離を青(良化)/赤(悪化)のダイバージングカラーで示す） -------------------
+
+function renderSensitivityTable(table) {
+  if (!table) {
+    document.getElementById("sensitivity-table").innerHTML = "";
+    return;
+  }
+
+  const flatValues = table.cells.flat();
+  const sorted = [...flatValues].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const maxDeviation = Math.max(...flatValues.map((v) => Math.abs(v - median)), 1);
+
+  const posColor = cssVar("--div-pos");
+  const negColor = cssVar("--div-neg");
+  const midColor = cssVar("--div-mid");
+  const textColor = cssVar("--text-primary");
+
+  const header = `<tr><th></th>${table.column_labels.map((l) => `<th>${escapeHtml(l)}</th>`).join("")}</tr>`;
+  const rows = table.row_labels
+    .map((label, r) => {
+      const cells = table.cells[r]
+        .map((value) => {
+          const t = Math.max(-1, Math.min(1, (value - median) / maxDeviation)) * 0.6;
+          const bg = t >= 0 ? mixColor(midColor, posColor, t) : mixColor(midColor, negColor, -t);
+          return `<td style="background:${bg};color:${textColor}">${yen(value)}</td>`;
+        })
+        .join("");
+      return `<tr><th>${escapeHtml(label)}</th>${cells}</tr>`;
+    })
+    .join("");
+
+  document.getElementById("sensitivity-table").innerHTML = `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderResults(output) {
+  document.getElementById("results-empty").hidden = true;
+  document.getElementById("results-content").hidden = false;
+
+  renderKpiCards(output.dashboard);
+
+  const networthChart = output.charts.networth_chart;
+  if (networthChart) {
+    renderNetworthChart(networthChart);
+  }
+
+  renderMontecarloSection(output);
+  renderSensitivityTable(output.tables.sensitivity_table);
 }
 
 // --- 初期化 ---------------------------------------------------------------------------------

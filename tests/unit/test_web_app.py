@@ -82,6 +82,18 @@ class ApiRunRouteTest(WebAppTestCase):
         self.assertIsNotNone(body["dashboard"])
         self.assertIsNotNone(body["charts"]["networth_chart"])
         self.assertIsNone(body["charts"]["montecarlo_distribution_chart"])
+        self.assertIsNone(body["charts"]["historical_distribution_chart"])
+
+    def test_include_montecarlo_query_param_runs_montecarlo_and_historical(self) -> None:
+        # trialsを小さくして高速に済ませる（値の妥当性ではなく配線の確認が目的）。
+        response = self.client.post("/api/run?include_montecarlo=1&trials=5", json=_MINIMAL_VALID_DATA)
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertIsNotNone(body["charts"]["montecarlo_distribution_chart"])
+        self.assertIsNotNone(body["charts"]["historical_distribution_chart"])
+        self.assertIsNotNone(body["summary"]["montecarlo_success_rate"])
+        self.assertIsNotNone(body["summary"]["historical_success_rate"])
 
     def test_valid_plan_is_saved_to_disk(self) -> None:
         self.client.post("/api/run", json=_MINIMAL_VALID_DATA)

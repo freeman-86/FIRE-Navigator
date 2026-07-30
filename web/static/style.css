@@ -8,10 +8,31 @@
   --text-primary: #1c1c1e;
   --text-secondary: #55555a;
   --text-tertiary: #767678;
-  --accent: #2f6fed;
+  --accent: #2a78d6;
   --accent-bg: #f0f4ff;
-  --danger: #c0392b;
-  --ok: #1a7f37;
+  --danger: #d03b3b;
+  --ok: #0ca30c;
+
+  /* dataviz skill: 参照パレット（palette.md）。カテゴリカル配色は必ずこの順で使う。 */
+  --series-1: #2a78d6; /* blue */
+  --series-2: #eb6834; /* orange */
+  --series-3: #1baf7a; /* aqua */
+  --series-4: #eda100; /* yellow */
+  --series-5: #e87ba4; /* magenta */
+  --series-6: #008300; /* green */
+  --series-7: #4a3aa7; /* violet */
+  --series-8: #e34948; /* red */
+  --seq-100: #cde2fb;
+  --seq-400: #3987e5;
+  --seq-700: #0d366b;
+  --div-pos: #2a78d6; /* diverging: 良い方向（blue） */
+  --div-neg: #e34948; /* diverging: 悪い方向（red） */
+  --div-mid: #f0efec; /* diverging: 中間（neutral gray） */
+  /* グリッド線・軸線は、実際にグラフが乗る--bg-panelに対して見える濃さにする
+     （palette.mdの値はページ地色--bg-pageを想定した値でそのままでは--bg-panelと
+     ほぼ同化してしまうため、ここだけ--bg-panelとのコントラストを見て調整している）。 */
+  --chart-grid: #d3d2cb;
+  --chart-axis: #a9a89d;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,10 +45,27 @@
     --text-primary: #f5f5f7;
     --text-secondary: #d1d1d6;
     --text-tertiary: #aeaeb2;
-    --accent: #6ea1ff;
+    --accent: #3987e5;
     --accent-bg: #22314f;
-    --danger: #ff6b5b;
-    --ok: #4cd471;
+    --danger: #e66767;
+    --ok: #0ca30c;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+    --seq-100: #184f95;
+    --seq-400: #3987e5;
+    --seq-700: #cde2fb;
+    --div-pos: #3987e5;
+    --div-neg: #e66767;
+    --div-mid: #383835;
+    --chart-grid: #48484c;
+    --chart-axis: #5a5a5e;
   }
 }
 
@@ -222,6 +260,19 @@ select {
   padding-top: 8px;
 }
 
+.checkbox-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
 #run-btn {
   width: 100%;
   padding: 12px;
@@ -283,10 +334,101 @@ select {
 }
 
 .kpi-value {
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   font-weight: 600;
   margin-top: 4px;
   color: var(--text-primary);
+  font-variant-numeric: proportional-nums;
+}
+
+.kpi-delta {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kpi-delta.status-good {
+  color: var(--ok);
+}
+
+.kpi-delta.status-critical {
+  color: var(--danger);
+}
+
+.kpi-delta.status-neutral {
+  color: var(--text-tertiary);
+}
+
+.chart-card {
+  margin: 0 0 20px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.chart-card figcaption {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* Chart.jsはmaintainAspectRatio:falseの場合、親要素の高さいっぱいまで伸びる。
+   結果パネルの横幅に比例して縦に間延びしないよう、高さをここで固定する。 */
+.chart-canvas-wrap {
+  position: relative;
+  height: 220px;
+}
+
+.chart-canvas-wrap-large {
+  height: 300px;
+}
+
+.table-view {
+  margin-top: 8px;
+}
+
+.table-view summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.table-view table {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.percentile-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.chart-note {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: -4px 0 8px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.chart-legend .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
 }
 
 table {

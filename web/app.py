@@ -33,7 +33,7 @@ from adapters.local.local_data_adapter import (  # noqa: E402
 )
 from core.domain.account import AccountType  # noqa: E402
 from core.domain.errors import SchemaValidationError  # noqa: E402
-from core.services.pipeline_service import run_pipeline_for_plan  # noqa: E402
+from core.services.pipeline_service import DEFAULT_MONTECARLO_TRIALS, run_pipeline_for_plan  # noqa: E402
 from reports.output_builder import build_output_json  # noqa: E402
 from repositories.asset_class_repository import load_asset_class_registry  # noqa: E402
 
@@ -115,10 +115,18 @@ def api_run():
 
     save_plan(data, Path(app.config["PLAN_FILE_PATH"]))
 
-    # Stage 1: モンテカルロ/ヒストリカルは時間がかかる（数十秒〜数分）ため省略し、
-    # 決定論的シミュレーション・ダッシュボード・感応度分析だけを実行する。
+    # モンテカルロ/ヒストリカルは時間がかかる（数十秒〜数分）ため既定では省略し、
+    # フォーム側のチェックボックスで明示的に含めた場合だけ実行する
+    # （?include_montecarlo=1、POSTボディはプランのJSONのみに保つためクエリ文字列で渡す）。
+    include_montecarlo = request.args.get("include_montecarlo") == "1"
+    trials = request.args.get("trials", type=int) or DEFAULT_MONTECARLO_TRIALS
     outcome = run_pipeline_for_plan(
-        plan, portfolios, target_ending_networth, skip_montecarlo=True, skip_historical=True
+        plan,
+        portfolios,
+        target_ending_networth,
+        trials=trials,
+        skip_montecarlo=not include_montecarlo,
+        skip_historical=not include_montecarlo,
     )
 
     if not outcome.succeeded:

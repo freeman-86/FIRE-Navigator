@@ -53,8 +53,12 @@
       </section>
 
       <div id="run-area">
+        <label class="checkbox-row">
+          <input type="checkbox" id="include-montecarlo-checkbox">
+          モンテカルロ/ヒストリカルも実行する（重い処理、数十秒〜数分）
+        </label>
         <button type="button" id="run-btn">シミュレーション実行</button>
-        <p class="run-note">モンテカルロ/ヒストリカルは省略した簡易計算です（数秒で完了します）。</p>
+        <p class="run-note">チェックを外すと、決定論的シミュレーション・感応度分析のみの簡易計算になります（数秒で完了します）。</p>
         <div id="run-status"></div>
       </div>
     </aside>
@@ -64,14 +68,44 @@
       <div id="results-empty">左のフォームを入力し、「シミュレーション実行」を押してください。</div>
       <div id="results-content" hidden>
         <div id="kpi-cards"></div>
+
         <h3>純資産推移</h3>
-        <div id="networth-table"></div>
+        <figure class="chart-card">
+          <div class="chart-canvas-wrap chart-canvas-wrap-large">
+            <canvas id="networth-chart"></canvas>
+          </div>
+          <details class="table-view">
+            <summary>表で見る</summary>
+            <div id="networth-table"></div>
+          </details>
+        </figure>
+
+        <div id="montecarlo-section" hidden>
+          <h3>モンテカルロ・ヒストリカル分布</h3>
+          <div class="percentile-charts">
+            <figure class="chart-card" id="montecarlo-chart-card" hidden>
+              <figcaption>モンテカルロ</figcaption>
+              <div class="chart-canvas-wrap">
+                <canvas id="montecarlo-chart"></canvas>
+              </div>
+            </figure>
+            <figure class="chart-card" id="historical-chart-card" hidden>
+              <figcaption>ヒストリカル</figcaption>
+              <div class="chart-canvas-wrap">
+                <canvas id="historical-chart"></canvas>
+              </div>
+            </figure>
+          </div>
+        </div>
+
         <h3>感応度分析</h3>
+        <p class="chart-note">中央値（±0%行・現在のインフレ率列）を基準に、青は良化・赤は悪化を表す。</p>
         <div id="sensitivity-table"></div>
       </div>
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
