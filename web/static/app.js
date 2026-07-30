@@ -27,6 +27,11 @@ function getPath(obj, path) {
   return path.split(".").reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
 }
 
+// 誤クリックでの行削除を防ぐための確認ダイアログ。falseならsplice()せず処理を中断する。
+function confirmDeleteRow(label) {
+  return confirm(`この${label}を削除しますか？`);
+}
+
 function escapeHtml(value) {
   if (value == null) return "";
   return String(value)
@@ -231,6 +236,7 @@ function renderAccounts() {
   });
   container.querySelectorAll("[data-remove-account]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!confirmDeleteRow("口座")) return;
       state.accounts.splice(Number(btn.dataset.removeAccount), 1);
       renderAccounts();
     });
@@ -273,6 +279,7 @@ function bindIncomeRows(container) {
   });
   container.querySelectorAll("[data-remove-income]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!confirmDeleteRow("収入")) return;
       state.incomes.splice(Number(btn.dataset.removeIncome), 1);
       renderIncomes();
     });
@@ -371,6 +378,7 @@ function bindExpenseRows(container) {
   });
   container.querySelectorAll("[data-remove-expense]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!confirmDeleteRow("支出")) return;
       state.expenses.splice(Number(btn.dataset.removeExpense), 1);
       renderExpenses();
     });
@@ -427,6 +435,7 @@ function renderAllocationPolicy() {
   });
   container.querySelectorAll("[data-remove-target]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!confirmDeleteRow("年齢帯")) return;
       state.allocation_policy.targets.splice(Number(btn.dataset.removeTarget), 1);
       renderAllocationPolicy();
     });
@@ -455,6 +464,7 @@ function renderChildren() {
   });
   container.querySelectorAll("[data-remove-child]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!confirmDeleteRow("子供")) return;
       state.children.splice(Number(btn.dataset.removeChild), 1);
       renderChildren();
       renderEducationExpenses();
@@ -487,6 +497,7 @@ function renderEducationExpenses() {
   });
   container.querySelectorAll("[data-remove-band]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (!confirmDeleteRow("教育費")) return;
       state.education_expenses.splice(Number(btn.dataset.removeBand), 1);
       renderEducationExpenses();
     });
