@@ -2,6 +2,8 @@
 
 // アプリ全体の状態。GET /api/plan の返り値そのもの（local_data_adapter.pyが読み込める形）を
 // そのまま保持し、フォームの入力はここへ直接書き込む。POST時もこの形のままそっくり送る。
+// 金額(money)・割合(percent)フィールドは、state上は常に生の値（"1000000"・"0.05"）を保ち、
+// 表示用のコンマ区切り／％変換はレンダリング・入力バインド側だけで行う。
 let state = null;
 let assetClasses = {}; // {資産クラスコード: 表示名}
 let accountTypes = []; // [口座タイプコード, ...]
@@ -42,6 +44,79 @@ function optionsHtml(values, selected, labelFn) {
       return `<option value="${escapeHtml(value)}"${isSelected}>${escapeHtml(label)}</option>`;
     })
     .join("");
+}
+
+// --- 金額・割合フィールドの表示整形／入力パース -------------------------------------------------
+
+function formatMoneyForDisplay(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const num = Number(value);
+  if (Number.isNaN(num)) return String(value);
+  return num.toLocaleString("ja-JP");
+}
+
+function parseMoneyFromInput(raw) {
+  const cleaned = raw.replace(/,/g, "").trim();
+  return cleaned === "" ? null : cleaned;
+}
+
+// state上は生の小数（0.05）で持ち、表示だけ%に変換する（例: 0.05 -> "5"）。
+function formatPercentForDisplay(rateValue) {
+  if (rateValue === null || rateValue === undefined || rateValue === "") return "";
+  const num = Number(rateValue) * 100;
+  if (Number.isNaN(num)) return String(rateValue);
+  // 浮動小数点の誤差(4.999999999999999等)を避けるため丸めてから文字列化する
+  return String(Math.round(num * 1e10) / 1e10);
+}
+
+function parsePercentFromInput(raw) {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const num = Number(trimmed);
+  if (Number.isNaN(num)) return trimmed; // 数値でなければそのまま渡し、バックエンドの検証に委ねる
+  return String(num / 100);
+}
+
+// data-format="money"|"percent"|未指定 に応じて、フォーカス時は生の値で編集しやすくし、
+// blur時にコンマ/％表示へ整形し直す。getValue/setValueで対象（stateの該当フィールド）を読み書きする。
+function bindFormattedField(el, getValue, setValue, format) {
+  if (format === "money") {
+    el.addEventListener("focus", () => {
+      const v = getValue();
+      el.value = v === null || v === undefined ? "" : String(v).replace(/,/g, "");
+    });
+    el.addEventListener("input", () => setValue(parseMoneyFromInput(el.value)));
+    el.addEventListener("blur", () => {
+      el.value = formatMoneyForDisplay(getValue());
+    });
+  } else if (format === "percent") {
+    el.addEventListener("input", () => setValue(parsePercentFromInput(el.value)));
+  } else {
+    el.addEventListener("input", () => setValue(el.value));
+  }
+}
+
+// data-field方式（行データ: target[field]）の入力欄を一括でバインドする。
+function bindDataFields(scopeEl, target) {
+  scopeEl.querySelectorAll("[data-field]").forEach((el) => {
+    const field = el.dataset.field;
+    bindFormattedField(el, () => target[field], (value) => { target[field] = value; }, el.dataset.format);
+  });
+}
+
+function moneyFieldHtml(label, dataField, value) {
+  return `<label>${label}<input type="text" inputmode="numeric" data-field="${dataField}" data-format="money" value="${escapeHtml(formatMoneyForDisplay(value))}"></label>`;
+}
+
+function percentFieldHtml(label, dataField, value) {
+  return `
+    <label>${label}
+      <span class="suffix-group">
+        <input type="text" inputmode="decimal" data-field="${dataField}" data-format="percent" value="${escapeHtml(formatPercentForDisplay(value))}">
+        <span class="suffix">%</span>
+      </span>
+    </label>
+  `;
 }
 
 // --- 発生条件（start_condition/end_condition/trigger）の小さなウィジェット --------------------
@@ -95,16 +170,37 @@ function renderSettings() {
     <label>プランID<input data-path="plan_id" value="${escapeHtml(state.plan_id)}"></label>
     <label>プラン名<input data-path="name" value="${escapeHtml(state.name)}"></label>
     <label>生年月日<input type="date" data-path="user.birth_date" value="${escapeHtml(state.user.birth_date)}"></label>
-    <label>インフレ率（例: 0.02 = 2%）<input data-path="assumptions.inflation_rate" value="${escapeHtml(state.assumptions.inflation_rate)}"></label>
-    <label>国民年金見込額（年額）<input type="number" data-path="pension.national_pension_estimate_annual" value="${escapeHtml(state.pension.national_pension_estimate_annual)}"></label>
-    <label>厚生年金見込額（年額）<input type="number" data-path="pension.employee_pension_estimate_annual" value="${escapeHtml(state.pension.employee_pension_estimate_annual)}"></label>
+    ${percentFieldHtmlPath("インフレ率", "assumptions.inflation_rate", state.assumptions.inflation_rate)}
+    ${moneyFieldHtmlPath("国民年金見込額（年額）", "pension.national_pension_estimate_annual", state.pension.national_pension_estimate_annual)}
+    ${moneyFieldHtmlPath("厚生年金見込額（年額）", "pension.employee_pension_estimate_annual", state.pension.employee_pension_estimate_annual)}
     <label>年金受給開始年齢<input type="number" data-path="pension.claim_age" value="${escapeHtml(state.pension.claim_age)}"></label>
     <label>想定寿命<input type="number" data-path="life_expectancy_age" value="${escapeHtml(state.life_expectancy_age)}"></label>
-    <label>目標資産（想定寿命時点）<input type="number" data-path="target_ending_networth" value="${escapeHtml(state.target_ending_networth)}"></label>
+    ${moneyFieldHtmlPath("目標資産（想定寿命時点）", "target_ending_networth", state.target_ending_networth)}
   `;
   container.querySelectorAll("[data-path]").forEach((inputEl) => {
-    inputEl.addEventListener("input", () => setPath(state, inputEl.dataset.path, inputEl.value));
+    const path = inputEl.dataset.path;
+    bindFormattedField(
+      inputEl,
+      () => getPath(state, path),
+      (value) => setPath(state, path, value),
+      inputEl.dataset.format
+    );
   });
+}
+
+function moneyFieldHtmlPath(label, path, value) {
+  return `<label>${label}<input type="text" inputmode="numeric" data-path="${path}" data-format="money" value="${escapeHtml(formatMoneyForDisplay(value))}"></label>`;
+}
+
+function percentFieldHtmlPath(label, path, value) {
+  return `
+    <label>${label}
+      <span class="suffix-group">
+        <input type="text" inputmode="decimal" data-path="${path}" data-format="percent" value="${escapeHtml(formatPercentForDisplay(value))}">
+        <span class="suffix">%</span>
+      </span>
+    </label>
+  `;
 }
 
 // --- 口座 -----------------------------------------------------------------------------------
@@ -118,11 +214,11 @@ function renderAccounts() {
         <button type="button" class="remove-row-btn" data-remove-account="${index}">×</button>
         <label>口座ID<input data-field="account_id" value="${escapeHtml(account.account_id)}"></label>
         <label>口座タイプ<select data-field="account_type">${optionsHtml(accountTypes, account.account_type)}</select></label>
-        <label>月次拠出額<input type="number" data-field="monthly_contribution" value="${escapeHtml(account.monthly_contribution)}"></label>
+        ${moneyFieldHtml("月次拠出額", "monthly_contribution", account.monthly_contribution)}
         <label>資産クラス<select data-field="asset_class">${optionsHtml(Object.keys(assetClasses), account.asset_class, (code) => assetClasses[code] || code)}</select></label>
-        <label>期待リターン（例: 0.05 = 5%）<input data-field="expected_return" value="${escapeHtml(account.expected_return)}"></label>
-        <label>残高<input type="number" data-field="current_value" value="${escapeHtml(account.current_value)}"></label>
-        <label>取得原価（空欄=残高と同額）<input type="number" data-field="cost_basis" value="${escapeHtml(account.cost_basis)}"></label>
+        ${percentFieldHtml("期待リターン", "expected_return", account.expected_return)}
+        ${moneyFieldHtml("残高", "current_value", account.current_value)}
+        ${moneyFieldHtml("取得原価（空欄=残高と同額）", "cost_basis", account.cost_basis)}
       </div>
     `
     )
@@ -130,11 +226,7 @@ function renderAccounts() {
 
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
-    rowEl.querySelectorAll("[data-field]").forEach((fieldEl) => {
-      fieldEl.addEventListener("input", () => {
-        state.accounts[index][fieldEl.dataset.field] = fieldEl.value;
-      });
-    });
+    bindDataFields(rowEl, state.accounts[index]);
   });
   container.querySelectorAll("[data-remove-account]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -155,10 +247,10 @@ function renderIncomes() {
         <button type="button" class="remove-row-btn" data-remove-income="${index}">×</button>
         <label>収入ID<input data-field="income_id" value="${escapeHtml(income.income_id)}"></label>
         <label>収入源<input data-field="source" value="${escapeHtml(income.source)}"></label>
-        <label>年間金額<input type="number" data-field="amount" value="${escapeHtml(income.amount)}"></label>
-        <label>成長率（空欄=インフレ率）<input data-field="growth_rate" value="${escapeHtml(income.growth_rate)}"></label>
-        <label>開始条件（必須）${conditionWidgetHtml(`incomes[${index}].start_condition`, income.start_condition, false)}</label>
-        <label>終了条件（任意）${conditionWidgetHtml(`incomes[${index}].end_condition`, income.end_condition, true)}</label>
+        ${moneyFieldHtml("年間金額", "amount", income.amount)}
+        ${percentFieldHtml("成長率（空欄=インフレ率）", "growth_rate", income.growth_rate)}
+        <label class="wide">開始条件（必須）${conditionWidgetHtml(`incomes[${index}].start_condition`, income.start_condition, false)}</label>
+        <label class="wide">終了条件（任意）${conditionWidgetHtml(`incomes[${index}].end_condition`, income.end_condition, true)}</label>
       </div>
     `
     )
@@ -170,11 +262,7 @@ function renderIncomes() {
 function bindIncomeRows(container) {
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
-    rowEl.querySelectorAll("[data-field]").forEach((fieldEl) => {
-      fieldEl.addEventListener("input", () => {
-        state.incomes[index][fieldEl.dataset.field] = fieldEl.value;
-      });
-    });
+    bindDataFields(rowEl, state.incomes[index]);
     bindConditionWidget(rowEl, `incomes[${index}].start_condition`, (value) => {
       state.incomes[index].start_condition = value;
     });
@@ -213,11 +301,11 @@ function renderExpenses() {
     .map((expense, index) => {
       const isOneTime = expense.kind === "one_time";
       const kindSpecificHtml = isOneTime
-        ? `<label>発生条件（必須）${conditionWidgetHtml(`expenses[${index}].trigger`, expense.trigger, false)}</label>`
+        ? `<label class="wide">発生条件（必須）${conditionWidgetHtml(`expenses[${index}].trigger`, expense.trigger, false)}</label>`
         : `
-          <label>成長率（空欄=インフレ率）<input data-field="growth_rate" value="${escapeHtml(expense.growth_rate)}"></label>
-          <label>開始条件（任意）${conditionWidgetHtml(`expenses[${index}].start_condition`, expense.start_condition, true)}</label>
-          <label>終了条件（任意）${conditionWidgetHtml(`expenses[${index}].end_condition`, expense.end_condition, true)}</label>
+          ${percentFieldHtml("成長率（空欄=インフレ率）", "growth_rate", expense.growth_rate)}
+          <label class="wide">開始条件（任意）${conditionWidgetHtml(`expenses[${index}].start_condition`, expense.start_condition, true)}</label>
+          <label class="wide">終了条件（任意）${conditionWidgetHtml(`expenses[${index}].end_condition`, expense.end_condition, true)}</label>
         `;
       return `
       <div class="row" data-index="${index}">
@@ -230,7 +318,7 @@ function renderExpenses() {
             <option value="one_time"${isOneTime ? " selected" : ""}>単発支出</option>
           </select>
         </label>
-        <label>金額（${isOneTime ? "単発" : "年額"}）<input type="number" data-field="amount" value="${escapeHtml(expense.amount)}"></label>
+        ${moneyFieldHtml(`金額（${isOneTime ? "単発" : "年額"}）`, "amount", expense.amount)}
         ${kindSpecificHtml}
       </div>
     `;
@@ -243,11 +331,7 @@ function renderExpenses() {
 function bindExpenseRows(container) {
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
-    rowEl.querySelectorAll("[data-field]").forEach((fieldEl) => {
-      fieldEl.addEventListener("input", () => {
-        state.expenses[index][fieldEl.dataset.field] = fieldEl.value;
-      });
-    });
+    bindDataFields(rowEl, state.expenses[index]);
     const kindSelect = rowEl.querySelector('[data-field="kind"]');
     kindSelect.addEventListener("change", () => {
       // 種別を切り替えたら、その種別で使わないフィールドは送らないよう作り直す
@@ -302,7 +386,14 @@ function renderAllocationPolicy() {
       const weightInputs = Object.keys(assetClasses)
         .map((code) => {
           const value = target.weights[code] != null ? target.weights[code] : "";
-          return `<label>${escapeHtml(assetClasses[code] || code)}<input type="text" data-weight="${code}" value="${escapeHtml(value)}" placeholder="0.0"></label>`;
+          return `
+            <label>${escapeHtml(assetClasses[code] || code)}
+              <span class="suffix-group">
+                <input type="text" inputmode="decimal" data-weight="${code}" value="${escapeHtml(formatPercentForDisplay(value))}" placeholder="0">
+                <span class="suffix">%</span>
+              </span>
+            </label>
+          `;
         })
         .join("");
       return `
@@ -324,10 +415,11 @@ function renderAllocationPolicy() {
     rowEl.querySelectorAll("[data-weight]").forEach((weightInput) => {
       weightInput.addEventListener("input", () => {
         const code = weightInput.dataset.weight;
-        if (weightInput.value === "") {
+        const parsed = parsePercentFromInput(weightInput.value);
+        if (parsed === null) {
           delete state.allocation_policy.targets[index].weights[code];
         } else {
-          state.allocation_policy.targets[index].weights[code] = weightInput.value;
+          state.allocation_policy.targets[index].weights[code] = parsed;
         }
       });
     });
@@ -358,11 +450,7 @@ function renderChildren() {
 
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
-    rowEl.querySelectorAll("[data-field]").forEach((fieldEl) => {
-      fieldEl.addEventListener("input", () => {
-        state.children[index][fieldEl.dataset.field] = fieldEl.value;
-      });
-    });
+    bindDataFields(rowEl, state.children[index]);
   });
   container.querySelectorAll("[data-remove-child]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -386,7 +474,7 @@ function renderEducationExpenses() {
         <label>カテゴリ<input data-field="category" value="${escapeHtml(band.category)}"></label>
         <label>開始年齢<input type="number" data-field="start_age" value="${escapeHtml(band.start_age)}"></label>
         <label>終了年齢<input type="number" data-field="end_age" value="${escapeHtml(band.end_age)}"></label>
-        <label>月額<input type="number" data-field="monthly_amount" value="${escapeHtml(band.monthly_amount)}"></label>
+        ${moneyFieldHtml("月額", "monthly_amount", band.monthly_amount)}
       </div>
     `
     )
@@ -394,11 +482,7 @@ function renderEducationExpenses() {
 
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
-    rowEl.querySelectorAll("[data-field]").forEach((fieldEl) => {
-      fieldEl.addEventListener("input", () => {
-        state.education_expenses[index][fieldEl.dataset.field] = fieldEl.value;
-      });
-    });
+    bindDataFields(rowEl, state.education_expenses[index]);
   });
   container.querySelectorAll("[data-remove-band]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -527,6 +611,11 @@ async function runSimulation() {
 function yen(amount) {
   if (amount == null) return "-";
   return `${Number(amount).toLocaleString("ja-JP")}円`;
+}
+
+function pct(rateValue) {
+  if (rateValue == null) return "-";
+  return `${(Number(rateValue) * 100).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}%`;
 }
 
 function renderResults(output) {

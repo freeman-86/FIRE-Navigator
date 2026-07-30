@@ -75,7 +75,7 @@ section h3 {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 12px;
 }
 
@@ -85,10 +85,14 @@ label {
   font-size: 0.78rem;
   color: #444;
   gap: 3px;
+  min-width: 0;
 }
 
 input,
 select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   font-size: 0.9rem;
   padding: 5px 7px;
   border: 1px solid var(--border);
@@ -97,10 +101,27 @@ select {
   color: inherit;
 }
 
+.suffix-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.suffix-group input {
+  min-width: 0;
+}
+
+.suffix-group .suffix {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: #777;
+}
+
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 12px;
   padding: 10px 10px 10px 10px;
   margin-bottom: 8px;
@@ -109,9 +130,23 @@ select {
   border-radius: 6px;
 }
 
+/* 発生条件（type選択＋値入力）を持つ項目は2カラムに収まらないことが多いため全幅にする */
+.row label.wide {
+  grid-column: 1 / -1;
+}
+
 .row .condition-widget {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
+}
+
+.row .condition-widget select,
+.row .condition-widget input {
+  width: auto;
+  flex: 1 1 110px;
+  min-width: 0;
 }
 
 .weights-grid {
