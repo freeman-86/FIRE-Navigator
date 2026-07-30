@@ -8,6 +8,7 @@ from core.domain.tax_config import TaxConfig
 from core.domain.user import User
 from core.domain.value_objects import Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
+from core.simulation.projection.projection_engine import age_at
 from reports.montecarlo_report_builder import build_percentile_band_chart
 from tests.portfolio_test_fixtures import no_allocation_contribution_strategy
 
@@ -53,6 +54,27 @@ class BuildPercentileBandChartTest(unittest.TestCase):
         self.assertEqual(chart["p10"], [1_000_000, 1_100_000])
         self.assertEqual(chart["p50"], [2_000_000, 2_200_000])
         self.assertEqual(chart["p90"], [3_000_000, 3_300_000])
+
+    def test_ages_match_deterministic_engine_age_at_for_december_birthday(self) -> None:
+        # 12月生まれ（かつ1日生まれではない）は、決定論的Projection Engineのage_at()が
+        # 「その年12月1日時点」の年齢を使う（誕生日をまだ迎えていない扱い）ため、素朴な
+        # 12/31基準より1歳低く出る。ここがずれると、純資産推移/月次詳細の表とモンテカルロ/
+        # ヒストリカルの表とで同じ西暦年なのに年齢表示が食い違う（実際に発生した不具合）。
+        birth_date = date(1986, 12, 26)
+        plan = _plan_with_birth_date(birth_date)
+        result = MonteCarloResult(
+            trials=10,
+            success_count=10,
+            success_rate=1.0,
+            percentile_networth_by_year={
+                2026: PercentileBand(p10=Money.zero(), p50=Money.zero(), p90=Money.zero()),
+            },
+        )
+
+        chart = build_percentile_band_chart(plan, result)
+
+        self.assertEqual(chart["ages"], [age_at(birth_date, 2026, 12)])
+        self.assertEqual(chart["ages"], [39])
 
 
 if __name__ == "__main__":
