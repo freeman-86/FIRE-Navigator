@@ -46,7 +46,7 @@ def run_sensitivity_analysis(
     全口座の期待リターンに一律で加える増減幅として適用する。
 
     既知の制約: inflation_rateはInput_収入・入力_支出で成長率が未入力の行の既定値として、
-    スプレッドシート読込時（sheets_input_adapter._parse_growth_rate）にIncome/Expenseの
+    入力読込時（adapters/local/local_data_adapter._parse_growth_rate）にIncome/Expenseの
     growth_rateへ反映済みの値である。そのため、このplan（読込済みのPlan）のinflation_rateを
     ここで振っても、既にgrowth_rateが確定済みのIncome/Expenseには反映されず、inflation_rate側の
     軸を振っても結果は変わらない。growth_rate側は口座の期待リターンとして実際にrun_projection()へ

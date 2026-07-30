@@ -1,3 +1,7 @@
+> **【2026年注記】このドキュメントは過去の設計決定（Excel Adapter → Google Sheets Adapterへの移行）の記録であり、現在は無効です。**
+> **その後ローカルHTML/Flask版への全面移行が完了し、`adapters/sheets/`は削除されています。**
+> **現在のセットアップ手順は`README.md`を参照してください。**
+
 # FIRE Navigator Googleスプレッドシート版 移行メモ
 
 位置づけ: 「システムアーキテクチャ設計書」で定めたExcel Adapterを、Google Sheets Adapterへ置き換える決定を反映する。**Domain Layer・Simulation Engine・JSONスキーマ・レイヤー構成・依存方向は無改修**。変更が及ぶのはAdapter Layerとその周辺（ディレクトリ名・使用ライブラリ・起動方式の細部）のみである。これはまさに「Engine First」「Excel（UI）はViewの一つに過ぎない」という設計思想が実際に効いた例と言える。

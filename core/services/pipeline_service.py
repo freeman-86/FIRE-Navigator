@@ -48,9 +48,10 @@ class PipelineOutcome:
 
     plan: Plan
     semantic_errors: list[FireNavigatorError] = field(default_factory=list)
-    # field_path/messageを持つ警告オブジェクトのリスト。具体的な型は呼び出し元のアダプタに委ねる
-    # （例: adapters.sheets.sheets_input_adapter.InputWarning）。ここではそのまま素通しするだけで、
-    # core層がadapters層に依存しないよう厳密な型は持たない（設計書3.2 依存方向の原則）。
+    # field_path/messageを持つ警告オブジェクトのリスト。具体的な型は呼び出し元のアダプタに委ねる。
+    # ここではそのまま素通しするだけで、core層がadapters層に依存しないよう厳密な型は持たない
+    # （設計書3.2 依存方向の原則）。現状adapters/local側は警告ではなく即エラーで拒否する設計の
+    # ため常に空リストだが、将来アダプタ側に警告機構が追加された場合のために残している。
     input_warnings: list[Any] = field(default_factory=list)
     result: Optional[SimulationResult] = None
     dashboard: Optional[dict] = None

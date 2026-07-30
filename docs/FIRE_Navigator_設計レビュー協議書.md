@@ -1,3 +1,6 @@
+> **【2026年注記】本文中の「Google Sheets Adapter」「Google SheetsはView」等の記述は、当時（Sheets版）の設計を前提とした過去のレビュー協議の記録です。**
+> **その後ローカルHTML/Flask版へ全面移行しており、現在のAdapterは`adapters/local/`です。「Sheets」を「ローカルUI（HTML/Flask）」に読み替えてください。**
+
 # FIRE Navigator 設計レビュー協議書
 
 版: v1.0（確定）

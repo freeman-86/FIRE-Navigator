@@ -1,8 +1,8 @@
 """FIRE Navigatorのローカル完結ダッシュボードを提供するFlaskアプリ。
 
-data/plan.json（adapters/local/local_data_adapter.py）を入出力先とし、Google Sheetsには
+data/plan.json（adapters/local/local_data_adapter.py）を入出力先とし、外部サービスには
 一切依存しない。「シミュレーション実行」ボタン相当のPOST /api/runは、CLI版
-（scripts/run_full_simulation.py --mode local）と同じcore.services.pipeline_serviceの
+（scripts/run_full_simulation.py）と同じcore.services.pipeline_serviceの
 run_pipeline_for_plan()を呼ぶため、計算ロジックの重複はない。
 
 使い方:
