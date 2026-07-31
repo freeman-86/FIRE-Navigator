@@ -404,6 +404,9 @@ select {
 
 .table-view {
   margin-top: 8px;
+  /* chart-cardの幅（percentile-chartsのグリッド列幅、260px〜）より表の方が広くなりうるため
+     （5列×金額表示）、はみ出させずカード内で横スクロールさせる。 */
+  overflow-x: auto;
 }
 
 .table-view summary {
@@ -415,11 +418,22 @@ select {
 .table-view table {
   margin-top: 8px;
   margin-bottom: 0;
+  /* percentile-chartsの狭いカード幅（下でminmaxを拡大済み）でも横スクロールなしで
+     収まるよう、通常の表よりコンパクトなフォント・余白にする。 */
+  font-size: 0.72rem;
+}
+
+.table-view table th,
+.table-view table td {
+  padding: 3px 5px;
+  white-space: nowrap;
 }
 
 .percentile-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /* 「表で見る」の金額列は万円単位の簡略表記（app.js yenCompact）にしてあるため、
+     300px程度でも5列（西暦年・年齢・下位10%・中央値・上位10%）が横スクロールなしで収まる。 */
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 12px;
 }
 

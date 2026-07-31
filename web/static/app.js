@@ -629,6 +629,15 @@ function yen(amount) {
   return `${Number(amount).toLocaleString("ja-JP")}円`;
 }
 
+// 万円単位の簡略表記。percentile-chartsの「表で見る」は3列とも金額のため、yen()の
+// フル桁表示だと380px幅のカードでも横スクロールなしには収まらない。万円単位にすると
+// 桁数がほぼ半分になり、日本語の金額感覚（"1,234万円"）としても読みやすい。
+function yenCompact(amount) {
+  if (amount == null) return "-";
+  const man = Math.round(Number(amount) / 10000);
+  return `${man.toLocaleString("ja-JP")}万円`;
+}
+
 function pctText(rateValue) {
   if (rateValue == null) return "-";
   return `${(Number(rateValue) * 100).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}%`;
@@ -669,7 +678,21 @@ function kpiDeltaHtml(status, text) {
   return `<div class="kpi-delta status-${status}"><span aria-hidden="true">${icon}</span><span>${escapeHtml(text)}</span></div>`;
 }
 
-function renderKpiCards(dashboard) {
+function successRateKpiCardHtml(label, rate) {
+  if (rate == null) return "";
+  let delta = "";
+  if (rate >= 0.9) delta = kpiDeltaHtml("good", "90%以上");
+  else if (rate < 0.5) delta = kpiDeltaHtml("critical", "50%未満");
+  return `
+    <div class="kpi-card">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value">${(rate * 100).toFixed(1)}%</div>
+      ${delta}
+    </div>
+  `;
+}
+
+function renderKpiCards(dashboard, successRates) {
   const depletionDelta =
     dashboard.depletion_age == null
       ? kpiDeltaHtml("good", "想定寿命まで枯渇しない見込み")
@@ -678,6 +701,14 @@ function renderKpiCards(dashboard) {
     dashboard.surplus_vs_target >= 0
       ? kpiDeltaHtml("good", "目標資産を達成する見込み")
       : kpiDeltaHtml("critical", "目標資産に届かない見込み");
+
+  const successRateCardsHtml = [
+    successRateKpiCardHtml("モンテカルロ成功確率", successRates.montecarlo),
+    successRateKpiCardHtml("モンテカルロ成功確率（1971年以降参考）", successRates.montecarlo1971),
+    successRateKpiCardHtml("ヒストリカル成功確率", successRates.historical),
+  ]
+    .filter(Boolean)
+    .join("");
 
   document.getElementById("kpi-cards").innerHTML = `
     <div class="kpi-grid">
@@ -700,6 +731,7 @@ function renderKpiCards(dashboard) {
         ${surplusDelta}
       </div>
     </div>
+    ${successRateCardsHtml ? `<div class="kpi-grid">${successRateCardsHtml}</div>` : ""}
   `;
 }
 
@@ -786,12 +818,17 @@ function renderNetworthChart(chart) {
 
 let montecarloChartInstance = null;
 let historicalChartInstance = null;
+let montecarloReference1971ChartInstance = null;
 
 function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) {
   if (existingInstance) {
     existingInstance.destroy();
   }
   const options = commonChartOptions();
+  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位10%→上位10%→中央値の
+  // 順を保つ必要がある）とは独立に、ツールチップ内の表示順だけ上位10%→中央値→下位10%にする。
+  const TOOLTIP_ORDER = { "上位10%": 0, "中央値": 1, "下位10%": 2 };
+  options.plugins.tooltip.itemSort = (a, b) => TOOLTIP_ORDER[a.dataset.label] - TOOLTIP_ORDER[b.dataset.label];
 
   return new Chart(canvasEl, {
     type: "line",
@@ -840,7 +877,7 @@ function percentileChartTableHtml(chartData) {
   const rows = chartData.x
     .map((year, i) => {
       const age = chartData.ages ? chartData.ages[i] : null;
-      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yen(chartData.p10[i])}</td><td>${yen(chartData.p50[i])}</td><td>${yen(chartData.p90[i])}</td></tr>`;
+      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p90[i])}</td></tr>`;
     })
     .join("");
   return `
@@ -855,10 +892,12 @@ function renderMontecarloSection(output) {
   const section = document.getElementById("montecarlo-section");
   const montecarloCard = document.getElementById("montecarlo-chart-card");
   const historicalCard = document.getElementById("historical-chart-card");
+  const reference1971Card = document.getElementById("montecarlo-reference-1971-chart-card");
   const montecarloChart = output.charts.montecarlo_distribution_chart;
   const historicalChart = output.charts.historical_distribution_chart;
+  const reference1971Chart = output.diagnostics.montecarlo_reference_1971_chart;
 
-  const hasAny = Boolean(montecarloChart || historicalChart);
+  const hasAny = Boolean(montecarloChart || historicalChart || reference1971Chart);
   section.hidden = !hasAny;
   if (!hasAny) return;
 
@@ -875,14 +914,6 @@ function renderMontecarloSection(output) {
     const rate = output.summary.montecarlo_success_rate;
     montecarloCard.querySelector("figcaption").textContent =
       rate != null ? `モンテカルロ（成功確率 ${(rate * 100).toFixed(1)}%）` : "モンテカルロ";
-    const reference1971Rate = output.diagnostics.montecarlo_reference_1971_success_rate;
-    const noteEl = montecarloCard.querySelector(".chart-note");
-    if (reference1971Rate != null) {
-      noteEl.textContent = `参考: 1971年（金本位制終了）以降のデータのみで分布推定した場合の成功確率 ${(reference1971Rate * 100).toFixed(1)}%`;
-      noteEl.hidden = false;
-    } else {
-      noteEl.hidden = true;
-    }
     document.getElementById("montecarlo-table").innerHTML = percentileChartTableHtml(montecarloChart);
   }
 
@@ -898,6 +929,20 @@ function renderMontecarloSection(output) {
     historicalCard.querySelector("figcaption").textContent =
       rate != null ? `ヒストリカル（成功確率 ${(rate * 100).toFixed(1)}%）` : "ヒストリカル";
     document.getElementById("historical-table").innerHTML = percentileChartTableHtml(historicalChart);
+  }
+
+  reference1971Card.hidden = !reference1971Chart;
+  if (reference1971Chart) {
+    montecarloReference1971ChartInstance = renderPercentileChart(
+      document.getElementById("montecarlo-reference-1971-chart"),
+      montecarloReference1971ChartInstance,
+      reference1971Chart,
+      colors[2]
+    );
+    const rate = output.diagnostics.montecarlo_reference_1971_success_rate;
+    reference1971Card.querySelector("figcaption").textContent =
+      rate != null ? `モンテカルロ（1971年以降参考、成功確率 ${(rate * 100).toFixed(1)}%）` : "モンテカルロ（1971年以降参考）";
+    document.getElementById("montecarlo-reference-1971-table").innerHTML = percentileChartTableHtml(reference1971Chart);
   }
 }
 
@@ -966,7 +1011,11 @@ function renderResults(output) {
   document.getElementById("results-empty").hidden = true;
   document.getElementById("results-content").hidden = false;
 
-  renderKpiCards(output.dashboard);
+  renderKpiCards(output.dashboard, {
+    montecarlo: output.summary.montecarlo_success_rate,
+    montecarlo1971: output.diagnostics.montecarlo_reference_1971_success_rate,
+    historical: output.summary.historical_success_rate,
+  });
 
   const networthChart = output.charts.networth_chart;
   if (networthChart) {
