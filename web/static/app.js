@@ -729,7 +729,12 @@ function commonChartOptions() {
       x: { ticks: { color: textColor }, grid: { color: gridColor }, border: { color: axisColor } },
       y: {
         ticks: { color: textColor, callback: (v) => yen(v) },
-        grid: { color: gridColor },
+        // 0円のラインだけ他のグリッド線より濃く・太くする（資産が枯渇したかどうかの
+        // 基準線として意味を持つため、他の目盛り線と同列の飾りにしない）。
+        grid: {
+          color: (ctx) => (ctx.tick.value === 0 ? axisColor : gridColor),
+          lineWidth: (ctx) => (ctx.tick.value === 0 ? 1.5 : 1),
+        },
         border: { color: axisColor },
       },
     },
