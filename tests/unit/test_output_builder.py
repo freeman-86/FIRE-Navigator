@@ -6,6 +6,7 @@ from core.domain.asset import Asset
 from core.domain.errors import SemanticValidationError
 from core.domain.holding import Holding
 from core.domain.income import Income
+from core.domain.montecarlo_result import MonteCarloResult, PercentileBand
 from core.domain.pension import ClaimTiming, Pension, PensionEntitlement
 from core.domain.plan import Assumptions, Plan, StartCondition, StartConditionType
 from core.domain.portfolio import Portfolio
@@ -105,6 +106,36 @@ class BuildOutputJsonSuccessTest(unittest.TestCase):
         # simulation_result/montecarlo_result（生の年次・試行ごとのデータ）はJSON化できないため含めない
         self.assertNotIn("simulation_result", self.output)
         self.assertNotIn("montecarlo_result", self.output)
+
+
+class BuildOutputJsonMontecarloReference1971Test(unittest.TestCase):
+    def test_reference_1971_chart_is_populated_when_present(self) -> None:
+        plan, _ = _plan_and_portfolios()
+        reference_result = MonteCarloResult(
+            trials=10,
+            success_count=10,
+            success_rate=1.0,
+            percentile_networth_by_year={
+                2026: PercentileBand(p10=Money.of(1_000_000), p50=Money.of(2_000_000), p90=Money.of(3_000_000)),
+            },
+        )
+        outcome = PipelineOutcome(plan=plan, montecarlo_reference_1971_result=reference_result)
+
+        output = build_output_json(outcome)
+
+        chart = output["diagnostics"]["montecarlo_reference_1971_chart"]
+        self.assertIsNotNone(chart)
+        self.assertEqual(chart["type"], "percentile_band")
+        self.assertEqual(chart["x"], [2026])
+        self.assertEqual(chart["p50"], [2_000_000])
+
+    def test_reference_1971_chart_is_none_when_absent(self) -> None:
+        plan, _ = _plan_and_portfolios()
+        outcome = PipelineOutcome(plan=plan)
+
+        output = build_output_json(outcome)
+
+        self.assertIsNone(output["diagnostics"]["montecarlo_reference_1971_chart"])
 
 
 class BuildOutputJsonFailureTest(unittest.TestCase):

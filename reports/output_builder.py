@@ -115,6 +115,11 @@ def build_output_json(outcome: PipelineOutcome) -> dict:
     historical_chart = (
         build_percentile_band_chart(outcome.plan, outcome.historical_result) if outcome.historical_result else None
     )
+    montecarlo_reference_1971_chart = (
+        build_percentile_band_chart(outcome.plan, outcome.montecarlo_reference_1971_result)
+        if outcome.montecarlo_reference_1971_result
+        else None
+    )
 
     return {
         "plan_id": outcome.plan.plan_id,
@@ -140,6 +145,7 @@ def build_output_json(outcome: PipelineOutcome) -> dict:
                 if outcome.montecarlo_reference_1971_result
                 else None
             ),
+            "montecarlo_reference_1971_chart": montecarlo_reference_1971_chart,
             "timings": outcome.timings,
         },
         "warnings": [{"field_path": w.field_path, "message": w.message} for w in outcome.input_warnings],
