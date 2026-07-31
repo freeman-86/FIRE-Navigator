@@ -383,6 +383,11 @@ select {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-panel);
+  /* カードごとにchart-noteの有無で高さの内訳が変わっても、「表で見る」の位置は
+     常にカード下端に揃える（percentile-chartsはgridでカードの高さが行内で揃うため、
+     複数カードを横に並べたときも位置が一致する）。 */
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-card figcaption {
@@ -403,7 +408,10 @@ select {
 }
 
 .table-view {
-  margin-top: 8px;
+  /* auto marginでchart-card（flex column）の下端に押し下げる。カードごとに上の内容量
+     （chart-noteの有無等）が違っても「表で見る」の位置を揃えるため。 */
+  margin-top: auto;
+  padding-top: 8px;
   /* chart-cardの幅（percentile-chartsのグリッド列幅、260px〜）より表の方が広くなりうるため
      （5列×金額表示）、はみ出させずカード内で横スクロールさせる。 */
   overflow-x: auto;
