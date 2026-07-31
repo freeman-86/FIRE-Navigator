@@ -839,6 +839,36 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
         year_2027 = next(p for p in result.yearly_projections if p.year == 2027)
         self.assertEqual(year_2027.total_expense, Money.of(3_000_000))
 
+
+class PriorYearResidentTaxTest(unittest.TestCase):
+    """住民税の前年所得課税（tax_engine.calculate_tax()のprior_year_*引数）の統合テスト。
+
+    _minimal_planは誕生日(1990-04-01、1日生まれ)より年齢切り替え月が4月、start_month(1月)と
+    異なるため、最初のブロックは3ヶ月の部分年になる（_first_block_length）。この部分年の所得を
+    そのまま「前年所得」として使うと、2番目のブロック（4月始まりの最初の満12ヶ月ブロック）の
+    住民税が不当に低く計算されてしまう不具合があった（年換算せずに使っていたため）。
+    """
+
+    def test_resident_tax_after_partial_first_block_is_not_understated(self) -> None:
+        income = Income(
+            income_id="income_salary",
+            source="salary",
+            amount=Money.of(6_000_000),
+            growth_rate=Rate.zero(),
+            start_condition=EventCondition.plan_start(),
+        )
+        plan = _minimal_plan(incomes=[income], life_expectancy_age=40)
+
+        result = run_projection(plan, {}, load_tax_rules(), load_portfolio_rules(), load_pension_rules())
+
+        resident_taxes = {p.year: p.resident_tax for p in result.yearly_projections}
+        # 収入が一定のため、部分年ブロックの影響を受け終わった3年目以降は住民税が一定値に収束する。
+        steady_state = resident_taxes[2029]
+        self.assertEqual(resident_taxes[2028], steady_state)
+        # 2番目のブロック（2027年、最初の満12ヶ月ブロック）の住民税が、年換算前の部分年所得
+        # （実際の1/4程度）を基準に不当に低く計算されていないことを確認する。
+        self.assertGreater(resident_taxes[2027], steady_state * Rate.from_percent(90))
+
     def test_age_triggered_one_time_expense_fires_in_birthday_month(self) -> None:
         from core.domain.one_time_expense import OneTimeExpense
 

@@ -172,6 +172,33 @@ class TaxEngineTest(unittest.TestCase):
         self.assertEqual(with_pension.social_insurance, Money.zero())
         self.assertEqual(with_pension.social_insurance, without_pension.social_insurance)
 
+    def test_resident_tax_is_based_on_prior_year_income_not_current_year(self) -> None:
+        # 住民税は前年所得課税のため、退職してcurrent yearの収入が0円になっても、
+        # prior_year_employment_incomeに基づいた住民税がそのまま残るはず。
+        tax_config = TaxConfig()
+        retired_this_year = calculate_tax(
+            Money.zero(),
+            Money.zero(),
+            tax_config,
+            has_spouse=False,
+            rules=self.rules,
+            prior_year_employment_income=Money.of(6_000_000),
+            prior_year_pension_income=Money.zero(),
+        )
+
+        self.assertGreater(retired_this_year.resident_tax, Money.zero())
+        # 所得税・社会保険料は当年の所得(0円)に基づくため、prior_yearの影響を受けない。
+        self.assertEqual(retired_this_year.income_tax, Money.zero())
+        self.assertEqual(retired_this_year.social_insurance, Money.zero())
+
+    def test_resident_tax_falls_back_to_current_year_when_prior_year_not_given(self) -> None:
+        # prior_year_*を渡さない呼び出し元（シミュレーション最初の年等）は、従来通り当年の
+        # 所得を住民税の基準にも使う。
+        tax_config = TaxConfig()
+        result = calculate_tax(Money.of(6_000_000), Money.zero(), tax_config, has_spouse=False, rules=self.rules)
+
+        self.assertEqual(result.resident_tax, Money.of(393_000))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -106,8 +106,11 @@ def run_projection(
 
     所得税・住民税・社会保険料は日本の税制がそもそも年次確定であるため、従来通り年1回のみ
     計算し、その結果を12等分して毎月のキャッシュフローに反映する（旧ドラフトのEngineと同様の
-    簡略化）。収入・支出の開始/終了条件は現時点では年単位でのみ判定する（月単位への精緻化は
-    将来課題）。
+    簡略化）。ただし住民税は「前年の所得」に基づき課税される実際の制度を反映しており、直前の
+    ブロックの所得を持ち越してtax_engine.calculate_tax()へ渡す（`prior_year_gross_income_annual`/
+    `prior_year_pension_income_annual`。最初のブロックは当年の所得をそのまま使う近似）。
+    所得税・社会保険料は制度通り当年の所得に基づく。収入・支出の開始/終了条件は月精度で判定する
+    （`_active_months_in_year()`）。
 
     portfolios/tax_rules/portfolio_rules/pension_rulesはApplication層相当の呼び出し元が
     用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
@@ -154,6 +157,12 @@ def run_projection(
     monthly_projections: list[MonthlyProjection] = []
     calendar_year_accumulators: dict[int, _YearAccumulator] = {}
     month_offset_cursor = 0
+    # 住民税は「前年の所得」に基づき課税されるため、直前の年（ブロック）の所得を持ち越して
+    # calculate_tax()へ渡す（tax_engine.calculate_tax()のprior_year_*引数）。最初の年はNoneのままとし、
+    # calculate_tax()側のフォールバック（当年の所得をそのまま使う＝プラン開始前も同水準の所得が
+    # あった前提）に委ねる。
+    prior_year_gross_income_annual: Optional[Money] = None
+    prior_year_pension_income_annual: Optional[Money] = None
     for offset_year in range(num_blocks):
         block_length = first_block_length if offset_year == 0 else MONTHS_PER_YEAR
         block_start_offset = month_offset_cursor
@@ -181,7 +190,20 @@ def run_projection(
         tax_result = calculate_tax(
             gross_income_annual, pension_income_annual, plan.tax_config, has_spouse, tax_rules,
             fixed_plan.tax_deductible_amount, is_65_or_older,
+            prior_year_employment_income=prior_year_gross_income_annual,
+            prior_year_pension_income=prior_year_pension_income_annual,
         )
+        # 次のブロックの住民税計算へ引き継ぐ「前年所得」として使うため、このブロックの所得を
+        # 年換算しておく。最初のブロックだけ1〜11ヶ月の可変長になりうる（_first_block_length）ため、
+        # そのままだと部分月分の少ない金額を「1年分の所得」として扱ってしまい、次のブロックの
+        # 住民税を過小評価する（2番目以降のブロックは常に12ヶ月固定なので換算不要）。
+        if block_length != MONTHS_PER_YEAR:
+            annualize_factor = Decimal(MONTHS_PER_YEAR) / Decimal(block_length)
+            prior_year_gross_income_annual = gross_income_annual * annualize_factor
+            prior_year_pension_income_annual = pension_income_annual * annualize_factor
+        else:
+            prior_year_gross_income_annual = gross_income_annual
+            prior_year_pension_income_annual = pension_income_annual
 
         monthly_gross_income = _divide_by(gross_income_annual, block_length)
         monthly_pension_income = _divide_by(pension_income_annual, block_length)
