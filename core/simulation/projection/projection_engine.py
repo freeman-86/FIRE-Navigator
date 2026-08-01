@@ -109,8 +109,11 @@ def run_projection(
     簡略化）。ただし住民税は「前年の所得」に基づき課税される実際の制度を反映しており、直前の
     ブロックの所得を持ち越してtax_engine.calculate_tax()へ渡す（`prior_year_gross_income_annual`/
     `prior_year_pension_income_annual`。最初のブロックは当年の所得をそのまま使う近似）。
-    所得税・社会保険料は制度通り当年の所得に基づく。収入・支出の開始/終了条件は月精度で判定する
-    （`_active_months_in_year()`）。
+    所得税・社会保険料は制度通り当年の所得に基づく。収入・経常支出・年金収入の「金額」自体は
+    税額と違い月ごとに個別計算する（`_income_amount_for_month()`/`_recurring_expense_amount_for_month()`/
+    `_pension_amount_for_month()`）。年間合計をブロックの月数で均等按分する方式だと、収入・支出が
+    年の途中で開始/終了する月の前後で実際とは違う金額になってしまう（本来0円のはずの月にも
+    按分額が計上される等）ため、月ごとに開始/終了条件・受給資格の有無を判定して合算する。
 
     portfolios/tax_rules/portfolio_rules/pension_rulesはApplication層相当の呼び出し元が
     用意して渡す。Simulation Engineはyaml等のI/Oを直接扱わない（設計書3.2 依存方向の原則）。
@@ -186,7 +189,8 @@ def run_projection(
 
         fixed_plan = plan_fixed_contributions(plan.accounts, lifetime_contributions, portfolio_rules)
         year_end_calendar_year, year_end_calendar_month = month_pairs_this_year[-1]
-        is_65_or_older = age_at(birth_date, year_end_calendar_year, year_end_calendar_month) >= 65
+        block_age = age_at(birth_date, year_end_calendar_year, year_end_calendar_month)
+        is_65_or_older = block_age >= 65
         tax_result = calculate_tax(
             gross_income_annual, pension_income_annual, plan.tax_config, has_spouse, tax_rules,
             fixed_plan.tax_deductible_amount, is_65_or_older,
@@ -205,13 +209,15 @@ def run_projection(
             prior_year_gross_income_annual = gross_income_annual
             prior_year_pension_income_annual = pension_income_annual
 
-        monthly_gross_income = _divide_by(gross_income_annual, block_length)
-        monthly_pension_income = _divide_by(pension_income_annual, block_length)
-        monthly_net_income = _divide_by(tax_result.net_income, block_length)
+        # gross_income/pension_income/total_expenseは、税額とは違い実際に月ごとに金額が変わりうる
+        # （年の途中で収入・支出が開始/終了する等）。年間合計をブロックの月数で均等に割ってしまうと、
+        # 開始/終了月の前後で実際には0円のはずの月にも按分された金額が計上され、逆に満額のはずの
+        # 月は少なく計上されてしまう。税額（income_tax/resident_tax/social_insurance）は日本の
+        # 制度上そもそも年1回確定・月割りが正しい設計のためこのままでよいが、収入・支出の金額
+        # そのものは月ごとに個別計算する（_income_amount_for_month等、ループ内で計算）。
         monthly_income_tax = _divide_by(tax_result.income_tax, block_length)
         monthly_resident_tax = _divide_by(tax_result.resident_tax, block_length)
         monthly_social_insurance = _divide_by(tax_result.social_insurance, block_length)
-        monthly_recurring_expense = _divide_by(total_expense_annual, block_length)
         monthly_fixed_contributions = {
             account_id: _divide_by(amount, block_length) for account_id, amount in fixed_plan.contributions.items()
         }
@@ -227,6 +233,30 @@ def run_projection(
             # 口座に紐づかない資金のため、投資成長率の仮定を持たずゼロ成長として扱う
             # （どの資産クラスとして運用されるか不明であり、通常は健全なプランでは0に近い値になる）。
             growth_rate = growth_rate_provider(month_offset) if growth_rate_provider is not None else Rate.zero()
+
+            monthly_gross_income = _income_amount_for_month(
+                plan.incomes, calendar_year, calendar_month, start_year, start_month, birth_date, offset_year
+            )
+            monthly_pension_income = _pension_amount_for_month(
+                birth_date,
+                plan.pension,
+                pension_rules,
+                plan.assumptions.inflation_rate,
+                pension_estimate_reference_age,
+                block_age,
+                calendar_year,
+                calendar_month,
+            )
+            monthly_recurring_expense = _recurring_expense_amount_for_month(
+                plan.expenses, calendar_year, calendar_month, start_year, start_month, birth_date, offset_year
+            )
+            monthly_net_income = (
+                monthly_gross_income
+                + monthly_pension_income
+                - monthly_income_tax
+                - monthly_resident_tax
+                - monthly_social_insurance
+            )
 
             one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
             education_expense_this_month = _education_expense_monthly_total(
@@ -638,6 +668,57 @@ def _active_expense_total(
     return total
 
 
+def _income_amount_for_month(
+    incomes: list[Income],
+    calendar_year: int,
+    calendar_month: int,
+    start_year: int,
+    start_month: int,
+    birth_date: date,
+    offset: int,
+) -> Money:
+    """その月ちょうどの収入合計を返す（_active_income_totalの月精度版）。
+
+    _active_income_totalは年間合計をその年のうちの有効月数で按分するだけで、按分後の金額を
+    さらにブロックの全月に均等按分してしまうと、収入が年の途中で開始/終了する月の前後で
+    実際とは違う金額になってしまう（本来0円のはずの月にも按分額が計上される等）。ここでは
+    月ごとに有効かどうかを個別に判定して合算するため、開始/終了月をまたいでも実際の資金の
+    動きを正しく反映できる。
+    """
+
+    total = Money.zero()
+    for income in incomes:
+        if not _is_active_in_month(
+            income.start_condition, income.end_condition, calendar_year, calendar_month, start_year, start_month, birth_date
+        ):
+            continue
+        full_year_amount = _grown_amount(income.amount, income.growth_rate, offset)
+        total = total + _divide_by(full_year_amount, MONTHS_PER_YEAR)
+    return total
+
+
+def _recurring_expense_amount_for_month(
+    expenses: list[Expense],
+    calendar_year: int,
+    calendar_month: int,
+    start_year: int,
+    start_month: int,
+    birth_date: date,
+    offset: int,
+) -> Money:
+    """その月ちょうどの経常支出合計を返す（_income_amount_for_monthの支出版）。"""
+
+    total = Money.zero()
+    for expense in expenses:
+        if not _is_active_in_month(
+            expense.start_condition, expense.end_condition, calendar_year, calendar_month, start_year, start_month, birth_date
+        ):
+            continue
+        full_year_amount = _grown_amount(expense.amount, expense.growth_rate, offset)
+        total = total + _divide_by(full_year_amount, MONTHS_PER_YEAR)
+    return total
+
+
 def age_at(birth_date: date, calendar_year: int, calendar_month: int) -> int:
     """その月の1日時点での満年齢を返す（誕生日を考慮した正確な年齢）。
 
@@ -701,6 +782,41 @@ def _pension_income_for_year(
     if eligible_months >= MONTHS_PER_YEAR:
         return full_year_amount
     return full_year_amount * (Decimal(eligible_months) / Decimal(MONTHS_PER_YEAR))
+
+
+def _pension_eligible_this_month(birth_date: date, claim_age: int, calendar_year: int, calendar_month: int) -> bool:
+    """_pension_eligible_monthsの単月版。その月の1日時点で受給資格年齢に達しているかを返す。"""
+
+    reference_date = date(calendar_year, calendar_month, 1)
+    if reference_date < birth_date:
+        return False
+    return AgeAt(birth_date, reference_date).years >= claim_age
+
+
+def _pension_amount_for_month(
+    birth_date: date,
+    pension: Pension,
+    pension_rules: PensionRules,
+    inflation_rate: Rate,
+    estimate_reference_age: int,
+    block_age: int,
+    calendar_year: int,
+    calendar_month: int,
+) -> Money:
+    """その月ちょうどの年金収入を返す（_pension_income_for_yearの月精度版）。
+
+    _pension_income_for_yearは年間の満額をその年のうち資格がある月数で按分するだけで、按分後の
+    金額をさらにブロックの全月に均等按分してしまうと、受給資格を得る前の月にも年金収入が
+    計上されてしまう。ここでは月ごとに資格の有無を判定し、資格がない月は0円、ある月は
+    満額（block_age基準、インフレ調整込み）を12等分した額とする（金額の決定自体はcalculate_
+    pension_income内でblock_age基準・年1回のみ行う既存の設計を維持し、月ごとに変えるのは
+    「対象月かどうか」の判定だけ）。
+    """
+
+    if not _pension_eligible_this_month(birth_date, pension.claim_timing.age, calendar_year, calendar_month):
+        return Money.zero()
+    full_year_amount = calculate_pension_income(block_age, pension, pension_rules, inflation_rate, estimate_reference_age)
+    return _divide_by(full_year_amount, MONTHS_PER_YEAR)
 
 
 def _school_year_age(birth_date: date, calendar_year: int, calendar_month: int) -> Optional[int]:

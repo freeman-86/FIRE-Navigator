@@ -496,6 +496,50 @@ class MonthlyProjectionsTest(unittest.TestCase):
         # 追加拠出のない口座は、月次複利12回でも単純な年率複利と一致する
         self.assertEqual(result.yearly_projections[0].account_balances["acc_taxable"], Money.of(1_050_000))
 
+    def test_monthly_gross_income_reflects_date_end_condition_exactly(self) -> None:
+        # 回帰テスト: 収入の終了条件を年月指定にしても、年間合計はブロック単位で正しく按分される
+        # 一方、月次詳細はブロックの全月に均等按分した値が表示され、実際には収入が止まっている
+        # はずの月にも金額が計上されてしまう不具合があった（_income_amount_for_month導入前）。
+        income = Income(
+            income_id="income_001",
+            source="salary",
+            amount=Money.of(1_200_000),  # 満額なら月10万円
+            growth_rate=Rate.zero(),
+            start_condition=EventCondition.plan_start(),
+            end_condition=EventCondition.at_date(date(2026, 10, 1)),
+        )
+        plan = _minimal_plan(incomes=[income])
+
+        result = _run(plan)
+
+        by_month = {(p.year, p.month): p.gross_income for p in result.monthly_projections}
+        self.assertEqual(by_month[(2026, 9)], Money.of(100_000))
+        self.assertEqual(by_month[(2026, 10)], Money.zero())
+        self.assertEqual(by_month[(2026, 11)], Money.zero())
+        self.assertEqual(by_month[(2026, 12)], Money.zero())
+
+        # 年間合計は変わらず、終了条件までの実際の月数(1〜9月の9ヶ月)分だけ計上される
+        year_2026 = next(p for p in result.yearly_projections if p.year == 2026)
+        self.assertEqual(year_2026.gross_income, Money.of(900_000))
+
+    def test_monthly_recurring_expense_reflects_date_start_condition_exactly(self) -> None:
+        # 支出側の回帰テスト（収入側と同じ_recurring_expense_amount_for_monthの経路）。
+        expense = Expense(
+            expense_id="expense_001",
+            category="家賃",
+            amount=Money.of(1_200_000),  # 満額なら月10万円
+            growth_rate=Rate.zero(),
+            start_condition=EventCondition.at_date(date(2026, 6, 1)),
+        )
+        plan = _minimal_plan(expenses=[expense])
+
+        result = _run(plan)
+
+        by_month = {(p.year, p.month): p.total_expense for p in result.monthly_projections}
+        self.assertEqual(by_month[(2026, 5)], Money.zero())
+        self.assertEqual(by_month[(2026, 6)], Money.of(100_000))
+        self.assertEqual(by_month[(2026, 12)], Money.of(100_000))
+
 
 class CapitalGainsTaxIntegrationTest(unittest.TestCase):
     def test_no_gain_no_growth_withdrawal_is_not_taxed(self) -> None:

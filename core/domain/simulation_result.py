@@ -26,8 +26,10 @@ class YearlyProjection:
 @dataclass
 class MonthlyProjection:
     """年末時点の集計であるYearlyProjectionとは別に、月次の資金の動き（FIRE後の毎月の取り崩し等）を
-    追跡するための明細（Sprint12 月次化）。gross_income/pension_income/net_income/total_expenseは
-    年額を12等分した値（税額は年1回の確定計算をそのまま月割りする簡略化。設計書v1.1採用ロードマップ）。
+    追跡するための明細（Sprint12 月次化）。gross_income/pension_income/total_expenseはその月ちょうどの
+    実額（収入・支出の開始/終了条件、年金受給資格をその月単位で判定した値）。net_incomeもこれらの
+    実額から算出するが、所得税・住民税・社会保険料の3税だけは年1回の確定計算をそのまま月割りする
+    （日本の税制がそもそも年次確定であるため。設計書v1.1採用ロードマップ）。
     capital_gains_taxは課税口座からの取り崩し時に発生した譲渡税（Sprint13 譲渡税・取得原価管理）。
     remaining_shortfallは口座残高を取り崩してもなお賄いきれなかった不足額（withdraw_shortfallの
     戻り値をそのまま転記。口座を強制的に取り崩すことはしないため、資産が尽きた月はここに残る）。
