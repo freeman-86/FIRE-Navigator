@@ -183,7 +183,34 @@ def _build_assumptions(data: dict) -> Assumptions:
     )
 
 
+def _check_no_duplicate_account_ids(data: dict) -> None:
+    """account_idの重複を検出する。
+
+    Portfolio Aggregate（build_portfolios_from_local_file）はaccount_idをキーにした
+    dictとして組み立てるため、複数行が同じaccount_idを持つと後の行が前の行を無言で
+    上書きしてしまい、その口座の残高がシミュレーション全体から丸ごと消える
+    （現在の純資産等の表示が実際より少なくなる、というだけでなく、取り崩し・成長計算
+    からも完全に抜け落ちる）。事故を未然に防ぐため、構造的な入力エラーとして早期に拒否する。
+    """
+
+    first_seen_index: dict[str, int] = {}
+    for index, row in enumerate(data.get("accounts") or []):
+        account_id = row.get("account_id")
+        if _is_blank(account_id):
+            continue  # 未入力は_require側で別途エラーになるためここでは対象外
+        account_id = str(account_id)
+        if account_id in first_seen_index:
+            raise SchemaValidationError(
+                f"口座IDが{first_seen_index[account_id]}行目と重複しています: {account_id!r}"
+                "（口座IDは一意である必要があります。重複したまま実行すると、後の行が前の行を"
+                "上書きしてその口座の残高がシミュレーションから消えます）",
+                f"accounts[{index}].account_id",
+            )
+        first_seen_index[account_id] = index
+
+
 def _build_accounts(data: dict) -> list[Account]:
+    _check_no_duplicate_account_ids(data)
     accounts = []
     for index, row in enumerate(data.get("accounts") or []):
         prefix = f"accounts[{index}]"
@@ -216,6 +243,7 @@ def build_portfolios_from_local_file(
     if asset_class_registry is None:
         asset_class_registry = load_asset_class_registry()
 
+    _check_no_duplicate_account_ids(data)
     portfolios: dict[str, Portfolio] = {}
     for index, row in enumerate(data.get("accounts") or []):
         prefix = f"accounts[{index}]"

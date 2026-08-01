@@ -104,7 +104,7 @@ Webフォームの各セクションは`data/plan.json`の以下のキーにそ�
 | セクション | JSONキー | 内容 | 必須 |
 |---|---|---|---|
 | 基本設定 | `user`・`assumptions`・`pension`・`life_expectancy_age`・`target_ending_networth` | 生年月日・インフレ率・年金条件（見込額・受給開始年齢）・想定寿命・目標資産 | 一部 |
-| 口座 | `accounts` | 口座一覧（NISA/iDeCo等の口座種別・残高・保有資産クラス・期待リターン・取得原価） | ✓ |
+| 口座 | `accounts` | 口座一覧（NISA/iDeCo等の口座種別・残高・保有資産クラス・期待リターン・取得原価）。`account_id`はPortfolio Aggregateのキーに使うため一意である必要があり、重複するとエラーになる（`_check_no_duplicate_account_ids`） | ✓ |
 | 収入 | `incomes` | 収入（開始/終了条件・年間金額・成長率） | ✓ |
 | 支出 | `expenses` | 経常支出・単発支出（車・旅行・住宅購入等）を`kind: "recurring"/"one_time"`で区別 | ✓ |
 | 配分方針 | `allocation_policy` | 年齢別の目標配分比率（資産クラス別、プラン全体で1つ、口座横断） | 任意 |

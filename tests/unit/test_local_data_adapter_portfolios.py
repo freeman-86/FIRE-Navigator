@@ -41,6 +41,22 @@ class BuildAccountsTest(unittest.TestCase):
     def test_no_accounts_key_returns_empty_list(self) -> None:
         self.assertEqual(_build_accounts({}), [])
 
+    def test_duplicate_account_id_raises_schema_validation_error(self) -> None:
+        # account_idはPortfolio Aggregateのdictキーとして使われるため、重複すると後の行が
+        # 前の行を無言で上書きしてその口座の残高がシミュレーションから丸ごと消える
+        # （現在の純資産等が実際より少なく表示される不具合の実例）。事故を未然に防ぐため拒否する。
+        data = {
+            "accounts": [
+                {"account_id": "acc_1", "account_type": "cash"},
+                {"account_id": "acc_2", "account_type": "cash"},
+                {"account_id": "acc_1", "account_type": "taxable"},
+            ]
+        }
+
+        with self.assertRaises(SchemaValidationError) as ctx:
+            _build_accounts(data)
+        self.assertEqual(ctx.exception.field_path, "accounts[2].account_id")
+
 
 class BuildPortfoliosFromLocalFileTest(unittest.TestCase):
     def test_builds_one_holding_per_account(self) -> None:
@@ -134,6 +150,30 @@ class BuildPortfoliosFromLocalFileTest(unittest.TestCase):
         with self.assertRaises(SchemaValidationError) as ctx:
             build_portfolios_from_local_file(data, asset_class_registry=_REGISTRY)
         self.assertEqual(ctx.exception.field_path, "accounts[0].expected_return")
+
+    def test_duplicate_account_id_raises_schema_validation_error(self) -> None:
+        data = {
+            "accounts": [
+                {
+                    "account_id": "acc_1",
+                    "account_type": "taxable",
+                    "asset_class": "equity_sp500",
+                    "expected_return": "0.05",
+                    "current_value": 1_000_000,
+                },
+                {
+                    "account_id": "acc_1",
+                    "account_type": "taxable",
+                    "asset_class": "equity_sp500",
+                    "expected_return": "0.05",
+                    "current_value": 2_000_000,
+                },
+            ]
+        }
+
+        with self.assertRaises(SchemaValidationError) as ctx:
+            build_portfolios_from_local_file(data, asset_class_registry=_REGISTRY)
+        self.assertEqual(ctx.exception.field_path, "accounts[1].account_id")
 
 
 if __name__ == "__main__":
