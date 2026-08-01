@@ -572,8 +572,6 @@ def _resolve_num_blocks(birth_date: date, start_year: int, start_month: int, end
     return max(target_age - age_at_start + 1, 1)
 
 
-
-
 def _is_active_in_month(
     start_condition: Optional[EventCondition],
     end_condition: Optional[EventCondition],
@@ -623,6 +621,11 @@ def _active_income_total(
 ) -> Money:
     """月精度で開始/終了条件を判定し、年間のうち条件を満たす月数分だけ按分した年間収入合計を返す
     （「西暦年」だけでの判定だと、年の途中で開始/終了する収入が最大11ヶ月分ずれるため）。
+
+    この年間合計はブロック単位で年1回だけ確定するcalculate_tax()（所得税・住民税・社会保険料）の
+    入力としてのみ使う。月次詳細（MonthlyProjection）が使う実際の月ごとの金額は、この年間合計を
+    月数で均等按分するのではなく_income_amount_for_month()で月ごとに個別計算する（両者の使い分けは
+    run_projection()のdocstring参照）。
     """
 
     total = Money.zero()
@@ -650,7 +653,8 @@ def _active_expense_total(
 ) -> Money:
     """月精度で開始/終了条件を判定し、年間のうち条件を満たす月数分だけ按分した年間経常支出合計を返す
     （_active_income_totalの支出版。start_condition/end_conditionはともに省略可能で、両方省略した
-    行はこれまで通りプラン全期間で発生する扱いになる）。
+    行はこれまで通りプラン全期間で発生する扱いになる）。この年間合計もcalculate_tax()の入力にのみ
+    使う（_active_income_totalのdocstring参照）。
     """
 
     total = Money.zero()
@@ -808,9 +812,8 @@ def _pension_amount_for_month(
     _pension_income_for_yearは年間の満額をその年のうち資格がある月数で按分するだけで、按分後の
     金額をさらにブロックの全月に均等按分してしまうと、受給資格を得る前の月にも年金収入が
     計上されてしまう。ここでは月ごとに資格の有無を判定し、資格がない月は0円、ある月は
-    満額（block_age基準、インフレ調整込み）を12等分した額とする（金額の決定自体はcalculate_
-    pension_income内でblock_age基準・年1回のみ行う既存の設計を維持し、月ごとに変えるのは
-    「対象月かどうか」の判定だけ）。
+    満額（block_age基準、インフレ調整込み）を12等分した額とする（金額の決定自体はcalculate_pension_income
+    内でblock_age基準・年1回のみ行う既存の設計を維持し、月ごとに変えるのは「対象月かどうか」の判定だけ）。
     """
 
     if not _pension_eligible_this_month(birth_date, pension.claim_timing.age, calendar_year, calendar_month):
