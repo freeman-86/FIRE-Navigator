@@ -692,6 +692,45 @@ function successRateKpiCardHtml(label, rate) {
   `;
 }
 
+// 資産クラスの色は、ランキング（構成比の大小）ではなくレジストリの並び順
+// （config/asset_classes.yaml、/api/asset-classesの返り値の順）で固定する。構成比の順位が
+// 実行のたびに入れ替わっても同じ資産クラスが常に同じ色になるようにするため。
+function assetAllocationColor(assetClass) {
+  const order = Object.keys(assetClasses);
+  const index = order.indexOf(assetClass);
+  const colors = seriesColors();
+  return colors[(index < 0 ? 0 : index) % colors.length];
+}
+
+function assetAllocationHtml(allocation) {
+  if (!allocation || allocation.length === 0) return "";
+
+  const bar = allocation
+    .map((entry) => {
+      const color = assetAllocationColor(entry.asset_class);
+      const widthPercent = (entry.weight * 100).toFixed(2);
+      return `<div class="allocation-bar-segment" style="width:${widthPercent}%;background:${color}"></div>`;
+    })
+    .join("");
+
+  const legend = allocation
+    .map((entry) => {
+      const color = assetAllocationColor(entry.asset_class);
+      const label = assetClasses[entry.asset_class] || entry.asset_class;
+      return `
+        <span class="allocation-legend-item">
+          <span class="allocation-swatch" style="background:${color}"></span>${escapeHtml(label)} ${pctText(entry.weight)}
+        </span>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="allocation-bar">${bar}</div>
+    <div class="allocation-legend">${legend}</div>
+  `;
+}
+
 function renderKpiCards(dashboard, successRates) {
   const depletionDelta =
     dashboard.depletion_age == null
@@ -1007,9 +1046,157 @@ function renderMonthlyDetailTable(monthly) {
   document.getElementById("monthly-detail-summary").textContent = `表で見る（${monthly.rows.length}行）`;
 }
 
+// --- 前回実行との比較（軽量版。data/history.jsonにサーバー側で自動保存された直近の
+// 実行サマリーと、今回の結果を見比べる） -------------------------------------------------
+
+function formatHistoryTimestamp(iso) {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function comparisonDeltaHtml(delta, formatDelta) {
+  if (delta === 0) return `<span class="comparison-delta status-neutral">変化なし</span>`;
+  const status = delta > 0 ? "good" : "critical";
+  const sign = delta > 0 ? "+" : "";
+  return `<span class="comparison-delta status-${status}">${sign}${formatDelta(delta)}</span>`;
+}
+
+// 2行構成にする（1行目: ラベル＋差分バッジ、2行目: 前回→今回の実際の値）。金額は桁数が
+// 大きくなりうるため、1行に詰め込むと折り返し・枠はみ出しの原因になる。
+function comparisonRowHtml(label, valuesText, deltaHtml) {
+  return `
+    <div class="comparison-row">
+      <div class="comparison-row-top">
+        <span class="comparison-label">${label}</span>
+        ${deltaHtml}
+      </div>
+      <div class="comparison-values">${valuesText}</div>
+    </div>
+  `;
+}
+
+// higherIsBetterがfalseの数値指標はこの軽量版には無い（純資産・予算・枯渇年齢・成功確率は
+// すべて大きい方が良い）ため、常に「増えた＝緑」の判定でよい。
+function numericComparisonRowHtml(label, current, previous, formatValue, formatDelta) {
+  if (current == null || previous == null) return "";
+  const delta = current - previous;
+  return comparisonRowHtml(
+    label,
+    `${formatValue(previous)} → ${formatValue(current)}`,
+    comparisonDeltaHtml(delta, formatDelta)
+  );
+}
+
+function depletionAgeComparisonRowHtml(currentAge, previousAge) {
+  const label = "資産枯渇年齢";
+  const text = (age) => (age != null ? `${age}歳` : "枯渇なし");
+  if (currentAge === previousAge) {
+    return comparisonRowHtml(
+      label,
+      text(currentAge),
+      `<span class="comparison-delta status-neutral">変化なし</span>`
+    );
+  }
+  if (previousAge != null && currentAge != null) {
+    return numericComparisonRowHtml(label, currentAge, previousAge, text, (d) => `${d}歳`);
+  }
+  // 枯渇なし⇔枯渇ありの切り替わりは単純な引き算にできないため、良化/悪化を直接判定する。
+  const improved = currentAge == null; // 前回は枯渇年齢があったが、今回は枯渇なしになった
+  return comparisonRowHtml(
+    label,
+    `${text(previousAge)} → ${text(currentAge)}`,
+    `<span class="comparison-delta status-${improved ? "good" : "critical"}">${improved ? "改善" : "悪化"}</span>`
+  );
+}
+
+function renderComparisonPanel(comparison, output) {
+  const panel = document.getElementById("comparison-panel");
+  const previous = comparison && comparison.previous_run;
+  if (!previous) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    return;
+  }
+
+  const dashboard = output.dashboard;
+  const pct = (rate) => pctText(rate);
+  const pctDelta = (d) => `${(d * 100).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}pt`;
+
+  // KPIカードと同じく、財務指標（1段目）とシミュレーション成功確率（2段目）を分けて表示する
+  // （モンテカルロを実行していない場合は2段目が丸ごと空になりhiddenになる）。
+  const coreRows = [
+    numericComparisonRowHtml("現在の純資産", dashboard.current_networth, previous.current_networth, yen, yen),
+    numericComparisonRowHtml(
+      "追加で使える金額/月",
+      dashboard.extra_monthly_budget,
+      previous.extra_monthly_budget,
+      yen,
+      yen
+    ),
+    depletionAgeComparisonRowHtml(dashboard.depletion_age, previous.depletion_age),
+    numericComparisonRowHtml(
+      "目標資産との差",
+      dashboard.surplus_vs_target,
+      previous.surplus_vs_target,
+      yen,
+      yen
+    ),
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const successRateRows = [
+    numericComparisonRowHtml(
+      "モンテカルロ成功確率",
+      output.summary.montecarlo_success_rate,
+      previous.montecarlo_success_rate,
+      pct,
+      pctDelta
+    ),
+    numericComparisonRowHtml(
+      "モンテカルロ成功確率（1971年以降参考）",
+      output.diagnostics.montecarlo_reference_1971_success_rate,
+      previous.montecarlo_reference_1971_success_rate,
+      pct,
+      pctDelta
+    ),
+    numericComparisonRowHtml(
+      "ヒストリカル成功確率",
+      output.summary.historical_success_rate,
+      previous.historical_success_rate,
+      pct,
+      pctDelta
+    ),
+  ]
+    .filter(Boolean)
+    .join("");
+
+  if (!coreRows && !successRateRows) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    return;
+  }
+
+  panel.hidden = false;
+  panel.innerHTML = `
+    <h3>前回実行（${formatHistoryTimestamp(previous.timestamp)}）との比較</h3>
+    <div class="comparison-grid">${coreRows}</div>
+    ${successRateRows ? `<div class="comparison-grid comparison-grid-secondary">${successRateRows}</div>` : ""}
+  `;
+}
+
 function renderResults(output) {
   document.getElementById("results-empty").hidden = true;
   document.getElementById("results-content").hidden = false;
+
+  renderComparisonPanel(output.comparison, output);
 
   renderKpiCards(output.dashboard, {
     montecarlo: output.summary.montecarlo_success_rate,

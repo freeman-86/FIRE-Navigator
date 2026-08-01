@@ -15,7 +15,7 @@ from core.domain.user import User
 from core.domain.value_objects import EventCondition, Money, Rate
 from core.domain.withdrawal_strategy import WithdrawalStrategy
 from core.services.pipeline_service import PipelineOutcome, run_pipeline_for_plan
-from reports.output_builder import OUTPUT_SCHEMA_VERSION, build_output_json
+from reports.output_builder import OUTPUT_SCHEMA_VERSION, build_history_entry, build_output_json
 from tests.portfolio_test_fixtures import no_allocation_contribution_strategy
 
 
@@ -136,6 +136,29 @@ class BuildOutputJsonMontecarloReference1971Test(unittest.TestCase):
         output = build_output_json(outcome)
 
         self.assertIsNone(output["diagnostics"]["montecarlo_reference_1971_chart"])
+
+
+class BuildHistoryEntryTest(unittest.TestCase):
+    def test_returns_lightweight_entry_with_timestamp_and_kpis(self) -> None:
+        plan, portfolios = _plan_and_portfolios()
+        outcome = run_pipeline_for_plan(
+            plan, portfolios, Money.of(5_000_000), skip_montecarlo=True, skip_historical=True
+        )
+
+        entry = build_history_entry(outcome)
+
+        self.assertIsNotNone(entry)
+        self.assertIn("timestamp", entry)
+        self.assertEqual(entry["target_ending_networth"], 5_000_000)
+        self.assertIsInstance(entry["current_networth"], int)
+        self.assertIsNone(entry["montecarlo_success_rate"])
+        self.assertIsNone(entry["historical_success_rate"])
+
+    def test_returns_none_when_outcome_failed(self) -> None:
+        plan, _ = _plan_and_portfolios()
+        outcome = PipelineOutcome(plan=plan, semantic_errors=[SemanticValidationError("テストエラー", "some.field")])
+
+        self.assertIsNone(build_history_entry(outcome))
 
 
 class BuildOutputJsonFailureTest(unittest.TestCase):

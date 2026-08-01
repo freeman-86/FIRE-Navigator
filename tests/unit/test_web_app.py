@@ -29,14 +29,18 @@ _MINIMAL_VALID_DATA = {
 class WebAppTestCase(unittest.TestCase):
     def setUp(self) -> None:
         app.config["TESTING"] = True
-        # テストが本物のdata/plan.jsonへ絶対触れないよう、毎回テンポラリファイルへ差し替える。
+        # テストが本物のdata/plan.json・data/history.jsonへ絶対触れないよう、
+        # 毎回テンポラリファイルへ差し替える。
         self._tmp_dir = tempfile.TemporaryDirectory()
         self._original_plan_file_path = app.config["PLAN_FILE_PATH"]
+        self._original_history_file_path = app.config["HISTORY_FILE_PATH"]
         app.config["PLAN_FILE_PATH"] = Path(self._tmp_dir.name) / "plan.json"
+        app.config["HISTORY_FILE_PATH"] = Path(self._tmp_dir.name) / "history.json"
         self.client = app.test_client()
 
     def tearDown(self) -> None:
         app.config["PLAN_FILE_PATH"] = self._original_plan_file_path
+        app.config["HISTORY_FILE_PATH"] = self._original_history_file_path
         self._tmp_dir.cleanup()
 
 
@@ -109,6 +113,27 @@ class ApiRunRouteTest(WebAppTestCase):
         self.assertEqual(response.status_code, 422)
         self.assertIn("errors", response.get_json())
         self.assertFalse(Path(app.config["PLAN_FILE_PATH"]).exists())
+
+    def test_first_run_has_no_previous_comparison(self) -> None:
+        response = self.client.post("/api/run", json=_MINIMAL_VALID_DATA)
+
+        self.assertIsNone(response.get_json()["comparison"]["previous_run"])
+
+    def test_second_run_compares_against_first_run(self) -> None:
+        first = self.client.post("/api/run", json=_MINIMAL_VALID_DATA)
+        second = self.client.post("/api/run", json=_MINIMAL_VALID_DATA)
+
+        previous_run = second.get_json()["comparison"]["previous_run"]
+        self.assertIsNotNone(previous_run)
+        self.assertEqual(previous_run["current_networth"], first.get_json()["dashboard"]["current_networth"])
+
+    def test_failed_run_is_not_saved_to_history(self) -> None:
+        invalid_data = {**_MINIMAL_VALID_DATA, "accounts": [{"account_id": "acc_1"}]}
+        self.client.post("/api/run", json=invalid_data)
+
+        response = self.client.post("/api/run", json=_MINIMAL_VALID_DATA)
+
+        self.assertIsNone(response.get_json()["comparison"]["previous_run"])
 
 
 class ApiRegistryRoutesTest(WebAppTestCase):

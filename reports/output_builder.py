@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from core.domain.simulation_result import MonthlyProjection
@@ -87,6 +88,38 @@ def _dashboard_to_json(dashboard: dict) -> dict:
             }
             for entry in dashboard["asset_allocation"]
         ],
+    }
+
+
+def build_history_entry(outcome: PipelineOutcome) -> Optional[dict]:
+    """「前回実行との比較」用の軽量な履歴エントリを組み立てる（adapters.local.
+    history_repository.append_history_entry()でdata/history.jsonへ追記する）。
+
+    build_output_json()のフル出力とは別に、比較に使うKPI・成功確率だけの小さいdictにする
+    （純資産推移等の年次データは含めない。プランの入力自体も保存しない）。
+    outcome.succeeded が False（意味的な入力矛盾で計算が中断した）場合は保存対象がないため
+    Noneを返す。
+    """
+
+    if not outcome.succeeded or outcome.dashboard is None:
+        return None
+
+    dashboard = _dashboard_to_json(outcome.dashboard)
+    return {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "current_networth": dashboard["current_networth"],
+        "extra_monthly_budget": dashboard["extra_monthly_budget"],
+        "depletion_age": dashboard["depletion_age"],
+        "target_ending_networth": dashboard["target_ending_networth"],
+        "ending_networth": dashboard["ending_networth"],
+        "surplus_vs_target": dashboard["surplus_vs_target"],
+        "montecarlo_success_rate": outcome.montecarlo_result.success_rate if outcome.montecarlo_result else None,
+        "montecarlo_reference_1971_success_rate": (
+            outcome.montecarlo_reference_1971_result.success_rate
+            if outcome.montecarlo_reference_1971_result
+            else None
+        ),
+        "historical_success_rate": outcome.historical_result.success_rate if outcome.historical_result else None,
     }
 
 

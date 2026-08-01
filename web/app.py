@@ -23,6 +23,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from flask import Flask, jsonify, render_template, request  # noqa: E402
 
+from adapters.local.history_repository import (  # noqa: E402
+    DEFAULT_HISTORY_FILE_PATH,
+    append_history_entry,
+    load_history,
+)
 from adapters.local.local_data_adapter import (  # noqa: E402
     DEFAULT_PLAN_FILE_PATH,
     build_plan_from_local_file,
@@ -34,7 +39,7 @@ from adapters.local.local_data_adapter import (  # noqa: E402
 from core.domain.account import AccountType  # noqa: E402
 from core.domain.errors import SchemaValidationError  # noqa: E402
 from core.services.pipeline_service import DEFAULT_MONTECARLO_TRIALS, run_pipeline_for_plan  # noqa: E402
-from reports.output_builder import build_output_json  # noqa: E402
+from reports.output_builder import build_history_entry, build_output_json  # noqa: E402
 from repositories.asset_class_repository import load_asset_class_registry  # noqa: E402
 
 DEFAULT_PORT = 5001
@@ -72,6 +77,7 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 # 必ずこの値を明示的に渡し、各アダプタ関数のデフォルト引数には頼らない。デフォルト引数は
 # 関数定義時に評価されるため、テストがモジュール属性を差し替えても効かないため）。
 app.config["PLAN_FILE_PATH"] = DEFAULT_PLAN_FILE_PATH
+app.config["HISTORY_FILE_PATH"] = DEFAULT_HISTORY_FILE_PATH
 
 
 def _validation_error_response(error: SchemaValidationError):
@@ -141,7 +147,19 @@ def api_run():
             422,
         )
 
-    return jsonify(build_output_json(outcome))
+    output = build_output_json(outcome)
+
+    # 「前回実行との比較」用: 今回のエントリを保存する前に、既存の履歴の末尾（＝前回実行時点の
+    # エントリ）を読み取って比較対象としてレスポンスに含める。
+    history_path = Path(app.config["HISTORY_FILE_PATH"])
+    previous_entries = load_history(history_path)
+    output["comparison"] = {"previous_run": previous_entries[-1] if previous_entries else None}
+
+    new_entry = build_history_entry(outcome)
+    if new_entry is not None:
+        append_history_entry(new_entry, history_path)
+
+    return jsonify(output)
 
 
 @app.route("/api/asset-classes")

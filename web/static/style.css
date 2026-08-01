@@ -355,6 +355,88 @@ select {
   color: var(--danger);
 }
 
+/* 前回実行との比較（軽量版）。data/history.jsonにサーバー側で自動保存された直近の
+   実行サマリーと今回の結果を見比べる。良化=緑/悪化=赤はkpi-deltaと同じ--ok/--dangerを使う。 */
+#comparison-panel {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+#comparison-panel h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.comparison-grid {
+  display: grid;
+  /* minmax(0, ...)にしておかないと、金額のような長い文字列がグリッド列の最小幅を
+     押し広げてしまい、枠からのはみ出し・列の潰れの原因になる（.row/.form-gridと同じ理由）。 */
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 10px 20px;
+}
+
+/* 財務指標（1段目）とシミュレーション成功確率（2段目）を分けて表示する、KPIカードと同じ構成 */
+.comparison-grid-secondary {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.comparison-row {
+  min-width: 0;
+  font-size: 0.78rem;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 1行目: ラベル＋差分バッジ。2行目（.comparison-values）に実際の値（前回→今回）を分けて
+   置くことで、金額が長くても1行に3要素を詰め込んで重なる/はみ出すことがないようにする。 */
+.comparison-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.comparison-label {
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.comparison-values {
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  overflow-wrap: break-word;
+  font-variant-numeric: proportional-nums;
+}
+
+.comparison-delta {
+  flex: 0 0 auto;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: proportional-nums;
+}
+
+.comparison-delta.status-good {
+  color: var(--ok);
+}
+
+.comparison-delta.status-critical {
+  color: var(--danger);
+}
+
+.comparison-delta.status-neutral {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
