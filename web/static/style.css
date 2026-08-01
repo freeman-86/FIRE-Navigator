@@ -118,10 +118,34 @@ header h1 {
   padding: 16px 24px;
 }
 
+/* セクションごとに色分け（--series-*の既存カテゴリカルパレットを流用。--series-6/8は
+   ステータス色--ok/--dangerと近く紛らわしいため避ける）。テキストの色は変えず
+   （dataviz skillの「テキストは系列色を身にまとわない」原則）、左のボーダーだけで
+   識別できるようにする。 */
+#section-settings {
+  --section-accent: var(--series-1);
+}
+#section-accounts {
+  --section-accent: var(--series-2);
+}
+#section-incomes {
+  --section-accent: var(--series-3);
+}
+#section-expenses {
+  --section-accent: var(--series-4);
+}
+#section-allocation-policy {
+  --section-accent: var(--series-5);
+}
+#section-children {
+  --section-accent: var(--series-7);
+}
+
 section {
   margin-bottom: 24px;
-  padding-bottom: 16px;
+  padding: 2px 0 16px 12px;
   border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--section-accent, var(--border));
 }
 
 section h2 {
@@ -190,6 +214,7 @@ select {
   margin-bottom: 8px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--section-accent, var(--border));
   border-radius: 6px;
 }
 
