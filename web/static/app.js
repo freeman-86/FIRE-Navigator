@@ -751,9 +751,10 @@ function renderKpiCards(dashboard, successRates) {
 
   document.getElementById("kpi-cards").innerHTML = `
     <div class="kpi-grid">
-      <div class="kpi-card">
+      <div class="kpi-card kpi-card-wide">
         <div class="kpi-label">現在の純資産</div>
         <div class="kpi-value">${yen(dashboard.current_networth)}</div>
+        ${assetAllocationHtml(dashboard.asset_allocation)}
       </div>
       <div class="kpi-card">
         <div class="kpi-label">追加で使える金額/月</div>

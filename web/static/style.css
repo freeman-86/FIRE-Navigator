@@ -451,6 +451,56 @@ select {
   background: var(--bg-panel);
 }
 
+/* 現在の純資産カードだけ資産配分の内訳（バー＋凡例）を持つため、他のカードより横幅に
+   余裕を持たせる（1列しか無い狭い画面ではspanは効かず通常のカードと同じ幅になる）。 */
+.kpi-card-wide {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.allocation-bar {
+  display: flex;
+  height: 10px;
+  margin-top: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.allocation-bar-segment {
+  height: 100%;
+  /* 2px幅のsurface区切り線（dataviz skill: 隣接するセグメント同士を視覚的に分離する） */
+  border-right: 2px solid var(--bg-panel);
+}
+
+.allocation-bar-segment:last-child {
+  border-right: none;
+}
+
+.allocation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.allocation-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.allocation-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
 .kpi-label {
   font-size: 0.75rem;
   color: var(--text-secondary);
