@@ -108,7 +108,7 @@ Webフォームの各セクションは`data/plan.json`の以下のキーにそ�
 | 収入 | `incomes` | 収入（開始/終了条件・年間金額・成長率） | ✓ |
 | 支出 | `expenses` | 経常支出・単発支出（車・旅行・住宅購入等）を`kind: "recurring"/"one_time"`で区別 | ✓ |
 | 配分方針 | `allocation_policy` | 年齢別の目標配分比率（資産クラス別、プラン全体で1つ、口座横断） | 任意 |
-| 子供/教育費 | `children`・`education_expenses` | 子供の一覧（生年月日）と年齢帯別の教育費（小学校・塾・中学・高校・大学等、月額） | 任意 |
+| 子供/教育費 | `children`・`education_expenses` | 子供の一覧（生年月日）と開始/終了条件付きの教育費（小学校・塾・中学・高校・大学等、月額。開始/終了は年齢または年月で指定） | 任意 |
 
 基本設定は旧ドラフトのMasterシート（主要条件をまとめて素早く変更できる単一ビュー）の方向性を
 踏襲し、年金見込額・年金受給開始年齢・目標資産（想定寿命時点）も含めて1つのフォームセクションに
@@ -243,8 +243,12 @@ docs/                 設計書・ロードマップ
   計上する（`_one_time_expenses_by_month_offset()`）。
 - 教育費（`education_expenses`）の月額は「プラン開始時点（今日）の価値」として入力する前提で、発生する年
   までプラン共通の`inflation_rate`で複利計算してから計上する（`_education_expense_monthly_total()`、
-  単発支出と同じ考え方）。教育費バンドの年齢帯（開始年齢〜終了年齢を含む）は、子供の誕生月ではなく
-  学年（4月1日時点の年齢）を基準に切り替わる（`_school_year_age()`）。
+  単発支出と同じ考え方）。開始/終了条件は収入・支出と同じ`start_condition`/`end_condition`
+  （`plan_start`/`age`/`date`のいずれか、ともに必須）で指定する。`age`タイプは子供の誕生月ではなく
+  学年（4月1日時点の年齢）を基準に切り替わり（`_school_year_age()`）、終了年齢の学年も含む
+  （inclusive、旧`end_age`仕様を維持）。`date`タイプは収入・支出の終了条件と同じ規約で、終了月
+  自体は含まない（exclusive）。開始・終了で`age`と`date`を混在させることもできる
+  （`_education_band_active_in_month()`）。
 - 年齢は`AgeAt`により誕生日を考慮して毎月再計算する（`_age_at()`）。配分方針の年齢帯判定・
   `YearlyProjection`/`MonthlyProjection.age_self`に反映される。公的年金は受給資格年齢に達する年を
   誕生日基準の月数で按分計上する（`_pension_income_for_year()`）ため、例えば4月生まれで65歳受給の

@@ -309,13 +309,19 @@ def _build_children_and_education_expenses(data: dict) -> tuple[list[Child], lis
         child_id = str(_require(row, "child_id", f"{prefix}.child_id"))
         if child_id not in child_ids:
             raise SchemaValidationError(f"childrenに存在しないchild_idです: {child_id!r}", f"{prefix}.child_id")
+        start_condition = _build_event_condition(row.get("start_condition"), f"{prefix}.start_condition")
+        if start_condition is None:
+            raise SchemaValidationError("start_conditionが必須です", f"{prefix}.start_condition")
+        end_condition = _build_event_condition(row.get("end_condition"), f"{prefix}.end_condition")
+        if end_condition is None:
+            raise SchemaValidationError("end_conditionが必須です", f"{prefix}.end_condition")
         bands.append(
             EducationExpenseBand(
                 band_id=str(_require(row, "band_id", f"{prefix}.band_id")),
                 child_id=child_id,
                 category=str(_require(row, "category", f"{prefix}.category")),
-                start_age=_parse_int(_require(row, "start_age", f"{prefix}.start_age"), f"{prefix}.start_age"),
-                end_age=_parse_int(_require(row, "end_age", f"{prefix}.end_age"), f"{prefix}.end_age"),
+                start_condition=start_condition,
+                end_condition=end_condition,
                 monthly_amount=_parse_money_or_zero(row.get("monthly_amount"), f"{prefix}.monthly_amount"),
             )
         )

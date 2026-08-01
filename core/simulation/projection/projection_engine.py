@@ -17,7 +17,7 @@ from core.domain.portfolio import Portfolio
 from core.domain.portfolio_rules import PortfolioRules
 from core.domain.simulation_result import MonthlyProjection, SimulationResult, YearlyProjection
 from core.domain.tax_config import TaxRules
-from core.domain.value_objects import AgeAt, EventCondition, Money, Rate
+from core.domain.value_objects import AgeAt, EventCondition, EventConditionType, Money, Rate
 from core.simulation.pension.pension_engine import calculate_pension_income
 from core.simulation.portfolio.portfolio_engine import allocate_discretionary_surplus, plan_fixed_contributions
 from core.simulation.projection.event_conditions import resolve_condition_month
@@ -836,6 +836,45 @@ def _school_year_age(birth_date: date, calendar_year: int, calendar_month: int) 
     return AgeAt(birth_date, reference_date).years
 
 
+def _education_condition_reached(
+    condition: EventCondition, school_year_age: int, calendar_year: int, calendar_month: int
+) -> bool:
+    """教育費バンドのstart_condition/end_conditionが、その月時点で「到達」しているかを返す。
+    ageタイプは学年（4月1日時点の年齢）基準、dateタイプは年月を直接比較する。plan_startは
+    常に到達済み（プラン開始時から適用）として扱う。
+    """
+
+    if condition.condition_type == EventConditionType.PLAN_START:
+        return True
+    if condition.condition_type == EventConditionType.AGE:
+        return school_year_age >= condition.age
+    if condition.condition_type == EventConditionType.DATE:
+        return (calendar_year, calendar_month) >= (condition.date.year, condition.date.month)
+    return False
+
+
+def _education_band_active_in_month(
+    band: EducationExpenseBand, school_year_age: Optional[int], calendar_year: int, calendar_month: int
+) -> bool:
+    """その月にband（教育費バンド）が発生対象かどうかを返す。
+
+    終了条件は種類によって境界の扱いが異なる: ageタイプは旧start_age/end_age仕様
+    （「start_age <= 学年年齢 <= end_age」）を維持するためinclusive（終了年齢の学年もまだ発生する）、
+    dateタイプは収入・支出の終了条件と同じ規約でexclusive（終了月自体は発生しない）。
+    """
+
+    if school_year_age is None:
+        return False
+    if not _education_condition_reached(band.start_condition, school_year_age, calendar_year, calendar_month):
+        return False
+    if band.end_condition.condition_type == EventConditionType.AGE:
+        if school_year_age > band.end_condition.age:
+            return False
+    elif _education_condition_reached(band.end_condition, school_year_age, calendar_year, calendar_month):
+        return False
+    return True
+
+
 def _education_expense_monthly_total(
     children: list[Child],
     bands: list[EducationExpenseBand],
@@ -856,8 +895,8 @@ def _education_expense_monthly_total(
     }
     total = Money.zero()
     for band in bands:
-        age = age_by_child_id.get(band.child_id)
-        if age is not None and band.applies_to_age(age):
+        school_year_age = age_by_child_id.get(band.child_id)
+        if _education_band_active_in_month(band, school_year_age, calendar_year, calendar_month):
             total = total + _grown_amount(band.monthly_amount, inflation_rate, calendar_year - start_year)
     return total
 

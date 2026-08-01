@@ -775,8 +775,8 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
             band_id="band_elementary",
             child_id="child_001",
             category="小学校",
-            start_age=6,
-            end_age=11,
+            start_condition=EventCondition.at_age(6),
+            end_condition=EventCondition.at_age(11),
             monthly_amount=Money.of(30_000),
         )
         plan = _minimal_plan(children=[child], education_expenses=[band])
@@ -803,8 +803,8 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
             band_id="band_elementary",
             child_id="child_001",
             category="小学校",
-            start_age=6,
-            end_age=6,
+            start_condition=EventCondition.at_age(6),
+            end_condition=EventCondition.at_age(6),
             monthly_amount=Money.of(20_000),
         )
         plan = _minimal_plan(
@@ -828,8 +828,8 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
             band_id="band_elementary",
             child_id="child_001",
             category="小学校",
-            start_age=6,
-            end_age=6,
+            start_condition=EventCondition.at_age(6),
+            end_condition=EventCondition.at_age(6),
             monthly_amount=Money.of(30_000),
         )
         plan = _minimal_plan(children=[child], education_expenses=[band])
@@ -851,6 +851,59 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
         # 2027年4月以降(2027年度の4/1時点で7歳、対象外)
         april_2027 = next(p for p in result.monthly_projections if p.year == 2027 and p.month == 4)
         self.assertEqual(april_2027.total_expense, Money.zero())
+
+    def test_education_expense_with_date_conditions_is_exclusive_at_end(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import EducationExpenseBand
+
+        # 年月指定（date条件）は収入・支出の終了条件と同じ規約で、終了月自体は含まない
+        # （age条件のinclusiveな挙動とは異なる）。
+        child = Child(child_id="child_001", birth_date=date(2015, 4, 1))
+        band = EducationExpenseBand(
+            band_id="band_juku",
+            child_id="child_001",
+            category="塾",
+            start_condition=EventCondition.at_date(date(2026, 6, 1)),
+            end_condition=EventCondition.at_date(date(2026, 9, 1)),
+            monthly_amount=Money.of(15_000),
+        )
+        plan = _minimal_plan(children=[child], education_expenses=[band])
+
+        result = _run(plan)
+
+        by_month = {(p.year, p.month): p.total_expense for p in result.monthly_projections}
+        self.assertEqual(by_month[(2026, 5)], Money.zero())
+        self.assertEqual(by_month[(2026, 6)], Money.of(15_000))
+        self.assertEqual(by_month[(2026, 8)], Money.of(15_000))
+        self.assertEqual(by_month[(2026, 9)], Money.zero())
+
+    def test_education_expense_start_condition_can_mix_age_and_date_end(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import EducationExpenseBand
+
+        # 開始は学年基準(age)、終了は年月指定(date)のように混在させても正しく判定される。
+        child = Child(child_id="child_001", birth_date=date(2020, 4, 1))
+        band = EducationExpenseBand(
+            band_id="band_mixed",
+            child_id="child_001",
+            category="小学校",
+            start_condition=EventCondition.at_age(6),
+            end_condition=EventCondition.at_date(date(2028, 1, 1)),
+            monthly_amount=Money.of(10_000),
+        )
+        plan = _minimal_plan(children=[child], education_expenses=[band])
+
+        result = _run(plan)
+
+        by_month = {(p.year, p.month): p.total_expense for p in result.monthly_projections}
+        # 2026年3月(2025年度、4/1時点で5歳、開始条件未到達): 対象外
+        self.assertEqual(by_month[(2026, 3)], Money.zero())
+        # 2026年4月(開始条件到達): 対象
+        self.assertEqual(by_month[(2026, 4)], Money.of(10_000))
+        # 2027年12月(終了条件2028-01-01の前月、まだ対象)
+        self.assertEqual(by_month[(2027, 12)], Money.of(10_000))
+        # 2028年1月(終了条件に到達、対象外)
+        self.assertEqual(by_month[(2028, 1)], Money.zero())
 
 
 class OneTimeExpenseIntegrationTest(unittest.TestCase):

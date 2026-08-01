@@ -483,17 +483,27 @@ function renderEducationExpenses() {
         <label>教育費ID<input data-field="band_id" value="${escapeHtml(band.band_id)}"></label>
         <label>子供<select data-field="child_id">${optionsHtml(childIds, band.child_id)}</select></label>
         <label>カテゴリ<input data-field="category" value="${escapeHtml(band.category)}"></label>
-        <label>開始年齢<input type="number" data-field="start_age" value="${escapeHtml(band.start_age)}"></label>
-        <label>終了年齢<input type="number" data-field="end_age" value="${escapeHtml(band.end_age)}"></label>
         ${moneyFieldHtml("月額", "monthly_amount", band.monthly_amount)}
+        <label class="wide">開始条件（必須。年齢=学年基準で4/1時点、年月=直接指定）${conditionWidgetHtml(`education_expenses[${index}].start_condition`, band.start_condition, false)}</label>
+        <label class="wide">終了条件（必須。年齢は終了年齢の学年も含む、年月はその月から発生しない）${conditionWidgetHtml(`education_expenses[${index}].end_condition`, band.end_condition, false)}</label>
       </div>
     `
     )
     .join("");
 
+  bindEducationExpenseRows(container);
+}
+
+function bindEducationExpenseRows(container) {
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
     bindDataFields(rowEl, state.education_expenses[index]);
+    bindConditionWidget(rowEl, `education_expenses[${index}].start_condition`, (value) => {
+      state.education_expenses[index].start_condition = value;
+    });
+    bindConditionWidget(rowEl, `education_expenses[${index}].end_condition`, (value) => {
+      state.education_expenses[index].end_condition = value;
+    });
   });
   container.querySelectorAll("[data-remove-band]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -573,8 +583,10 @@ function setupAddButtons() {
       band_id: "",
       child_id: state.children[0] ? state.children[0].child_id : "",
       category: "",
-      start_age: null,
-      end_age: null,
+      // 開始/終了とも必須項目のため、Incomeのstart_conditionと同様nullのままにはしない
+      // （選択済みに見えるのにstateはnullのまま、という表示とのズレを避けるため）。
+      start_condition: { type: "age", age: null },
+      end_condition: { type: "age", age: null },
       monthly_amount: null,
     });
     renderEducationExpenses();
