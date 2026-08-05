@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from core.domain.asset import AssetClass
 from core.domain.child import Child
-from core.domain.education_expense import EducationExpenseBand
+from core.domain.education_expense import EducationExpenseBand, OneTimeEducationExpense
 from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.one_time_expense import OneTimeExpense
@@ -140,6 +140,9 @@ def run_projection(
     one_time_expenses_by_month_offset = _one_time_expenses_by_month_offset(
         plan.one_time_expenses, start_year, start_month, birth_date, plan.assumptions.inflation_rate
     )
+    one_time_education_expenses_by_month_offset = _one_time_education_expenses_by_month_offset(
+        plan.one_time_education_expenses, plan.children, start_year, start_month, plan.assumptions.inflation_rate
+    )
 
     account_balances = {
         account.account_id: _initial_balance(portfolios.get(account.account_id)) for account in plan.accounts
@@ -259,6 +262,9 @@ def run_projection(
             )
 
             one_time_expense_this_month = one_time_expenses_by_month_offset.get(month_offset, Money.zero())
+            one_time_education_expense_this_month = one_time_education_expenses_by_month_offset.get(
+                month_offset, Money.zero()
+            )
             education_expense_this_month = _education_expense_monthly_total(
                 plan.children,
                 plan.education_expenses,
@@ -267,7 +273,12 @@ def run_projection(
                 start_year,
                 plan.assumptions.inflation_rate,
             )
-            monthly_expense = monthly_recurring_expense + one_time_expense_this_month + education_expense_this_month
+            monthly_expense = (
+                monthly_recurring_expense
+                + one_time_expense_this_month
+                + one_time_education_expense_this_month
+                + education_expense_this_month
+            )
 
             net_cashflow_month = monthly_net_income - monthly_expense
             discretionary_surplus_month = net_cashflow_month - _total(monthly_fixed_contributions)
@@ -915,6 +926,37 @@ def _one_time_expenses_by_month_offset(
     result: dict[int, Money] = {}
     for expense in one_time_expenses:
         resolved = resolve_condition_month(expense.trigger, start_year, start_month, birth_date)
+        if resolved is None:
+            continue
+        target_year, target_month = resolved
+        target_offset = (target_year - start_year) * MONTHS_PER_YEAR + (target_month - start_month)
+        grown_amount = _grown_amount(expense.amount, inflation_rate, target_year - start_year)
+        result[target_offset] = result.get(target_offset, Money.zero()) + grown_amount
+    return result
+
+
+def _one_time_education_expenses_by_month_offset(
+    one_time_education_expenses: list[OneTimeEducationExpense],
+    children: list[Child],
+    start_year: int,
+    start_month: int,
+    inflation_rate: Rate,
+) -> dict[int, Money]:
+    """入学金・受験費用等、特定の子供に紐づく単発の教育費（_one_time_expenses_by_month_offsetの
+    教育費版）を、発生する月次オフセットごとに集計する。
+
+    triggerが"age"タイプの場合、一般の単発支出とは異なりプラン本人ではなく該当する子供の誕生日を
+    基準に解決する（EducationExpenseBandのage条件が子供基準であるのと同じ考え方）。存在しない
+    child_idを参照する行は無視する（アダプタ層で構造的に拒否される想定だが、念のため）。
+    """
+
+    birth_date_by_child_id = {child.child_id: child.birth_date for child in children}
+    result: dict[int, Money] = {}
+    for expense in one_time_education_expenses:
+        child_birth_date = birth_date_by_child_id.get(expense.child_id)
+        if child_birth_date is None:
+            continue
+        resolved = resolve_condition_month(expense.trigger, start_year, start_month, child_birth_date)
         if resolved is None:
             continue
         target_year, target_month = resolved

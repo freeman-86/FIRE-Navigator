@@ -108,7 +108,7 @@ Webフォームの各セクションは`data/plan.json`の以下のキーにそ�
 | 収入 | `incomes` | 収入（開始/終了条件・年間金額・成長率） | ✓ |
 | 支出 | `expenses` | 経常支出・単発支出（車・旅行・住宅購入等）を`kind: "recurring"/"one_time"`で区別 | ✓ |
 | 配分方針 | `allocation_policy` | 年齢別の目標配分比率（資産クラス別、プラン全体で1つ、口座横断） | 任意 |
-| 子供/教育費 | `children`・`education_expenses` | 子供の一覧（生年月日）と開始/終了条件付きの教育費（小学校・塾・中学・高校・大学等、月額。開始/終了は年齢または年月で指定） | 任意 |
+| 子供/教育費 | `children`・`education_expenses` | 子供の一覧（生年月日）と教育費。`kind: "recurring"/"one_time"`で継続（小学校・塾・中学・高校・大学等、月額）と単発（入学金・受験費用等）を区別（支出の`expenses`と同じ設計） | 任意 |
 
 基本設定は旧ドラフトのMasterシート（主要条件をまとめて素早く変更できる単一ビュー）の方向性を
 踏襲し、年金見込額・年金受給開始年齢・目標資産（想定寿命時点）も含めて1つのフォームセクションに
@@ -133,6 +133,14 @@ Webフォームの各セクションは`data/plan.json`の以下のキーにそ�
 互いのフィールドを混在させることは許されず（局所的な警告ではなく即エラーで拒否する）、
 教育費（`education_expenses`）は同じ子供IDの行すべてに同じ生年月日を`children`側で
 一度だけ記入する。
+
+教育費（`education_expenses`）も支出と同じ`kind`（`"recurring"`=継続／`"one_time"`=単発）で
+行の意味が変わる。`recurring`の行は期間中毎月発生する教育費（小学校・塾・中学・高校・大学等、
+月額・開始/終了条件、いずれも必須）、`one_time`の行は入学金・受験費用等の単発の教育費
+（単発金額・発生条件、いずれも必須）として扱う。`one_time`のage条件は、一般の単発支出とは異なり
+プラン本人ではなく該当する子供の誕生日を基準に解決する点に注意（`recurring`のage条件が学年
+（4月1日）基準であるのに対し、`one_time`のage条件は誕生日基準。学年に正確に合わせたい場合は
+date条件で直接年月を指定する）。
 
 `account_type`・`asset_class`等の値は内部識別子として英語のまま扱う。NISA/iDeCoは制度の正式名称
 のため英語表記を維持する。
@@ -241,14 +249,19 @@ docs/                 設計書・ロードマップ
   `resolve_condition_month()`により発生月を正確に判定する（Sprint14）。単発金額は「プラン開始時点
   （今日）の価値」として入力する前提で、発生年までプラン共通の`inflation_rate`で複利計算してから
   計上する（`_one_time_expenses_by_month_offset()`）。
-- 教育費（`education_expenses`）の月額は「プラン開始時点（今日）の価値」として入力する前提で、発生する年
-  までプラン共通の`inflation_rate`で複利計算してから計上する（`_education_expense_monthly_total()`、
-  単発支出と同じ考え方）。開始/終了条件は収入・支出と同じ`start_condition`/`end_condition`
-  （`plan_start`/`age`/`date`のいずれか、ともに必須）で指定する。`age`タイプは子供の誕生月ではなく
-  学年（4月1日時点の年齢）を基準に切り替わり（`_school_year_age()`）、終了年齢の学年も含む
-  （inclusive、旧`end_age`仕様を維持）。`date`タイプは収入・支出の終了条件と同じ規約で、終了月
-  自体は含まない（exclusive）。開始・終了で`age`と`date`を混在させることもできる
-  （`_education_band_active_in_month()`）。
+- 教育費（`education_expenses`、`kind: "recurring"`の行）の月額は「プラン開始時点（今日）の価値」
+  として入力する前提で、発生する年までプラン共通の`inflation_rate`で複利計算してから計上する
+  （`_education_expense_monthly_total()`、単発支出と同じ考え方）。開始/終了条件は収入・支出と
+  同じ`start_condition`/`end_condition`（`plan_start`/`age`/`date`のいずれか、ともに必須）で
+  指定する。`age`タイプは子供の誕生月ではなく学年（4月1日時点の年齢）を基準に切り替わり
+  （`_school_year_age()`）、終了年齢の学年も含む（inclusive、旧`end_age`仕様を維持）。`date`
+  タイプは収入・支出の終了条件と同じ規約で、終了月自体は含まない（exclusive）。開始・終了で
+  `age`と`date`を混在させることもできる（`_education_band_active_in_month()`）。
+  `kind: "one_time"`の行（入学金・受験費用等）は`resolve_condition_month()`により発生月を
+  正確に判定する。単発金額も同様にプラン共通の`inflation_rate`で複利計算してから計上するが、
+  `age`タイプのtriggerは一般の単発支出とは異なりプラン本人ではなく該当する子供
+  （`child_id`が参照する`children`の`birth_date`）の誕生日を基準に解決する点に注意
+  （`_one_time_education_expenses_by_month_offset()`）。
 - 年齢は`AgeAt`により誕生日を考慮して毎月再計算する（`_age_at()`）。配分方針の年齢帯判定・
   `YearlyProjection`/`MonthlyProjection.age_self`に反映される。公的年金は受給資格年齢に達する年を
   誕生日基準の月数で按分計上する（`_pension_income_for_year()`）ため、例えば4月生まれで65歳受給の

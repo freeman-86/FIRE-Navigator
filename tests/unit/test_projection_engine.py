@@ -905,6 +905,56 @@ class EducationExpenseIntegrationTest(unittest.TestCase):
         # 2028年1月(終了条件に到達、対象外)
         self.assertEqual(by_month[(2028, 1)], Money.zero())
 
+    def test_one_time_education_expense_is_charged_only_in_the_triggering_month(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import OneTimeEducationExpense
+
+        # ageタイプのtriggerは、一般の単発支出と違いプラン本人ではなく該当する子供
+        # （誕生日1990-04-01ではなく、child（2020-04-01生まれ）の誕生日基準）で解決される。
+        child = Child(child_id="child_001", birth_date=date(2020, 4, 1))
+        entrance_fee = OneTimeEducationExpense(
+            band_id="band_entrance_fee",
+            child_id="child_001",
+            category="入学金",
+            amount=Money.of(300_000),
+            trigger=EventCondition.at_age(6),
+        )
+        plan = _minimal_plan(children=[child], one_time_education_expenses=[entrance_fee])
+
+        result = _run(plan)
+
+        # 子供が6歳になるのは2026年4月（誕生日基準、学年基準ではない点に注意）
+        april_2026 = next(p for p in result.monthly_projections if p.year == 2026 and p.month == 4)
+        self.assertEqual(april_2026.total_expense, Money.of(300_000))
+        march_2026 = next(p for p in result.monthly_projections if p.year == 2026 and p.month == 3)
+        self.assertEqual(march_2026.total_expense, Money.zero())
+        may_2026 = next(p for p in result.monthly_projections if p.year == 2026 and p.month == 5)
+        self.assertEqual(may_2026.total_expense, Money.zero())
+
+    def test_one_time_education_expense_with_date_trigger_compounds_with_inflation(self) -> None:
+        from core.domain.child import Child
+        from core.domain.education_expense import OneTimeEducationExpense
+
+        child = Child(child_id="child_001", birth_date=date(2015, 4, 1))
+        exam_fee = OneTimeEducationExpense(
+            band_id="band_exam_fee",
+            child_id="child_001",
+            category="受験費用",
+            amount=Money.of(100_000),
+            trigger=EventCondition.at_date(date(2028, 1, 1)),
+        )
+        plan = _minimal_plan(
+            assumptions=Assumptions(inflation_rate=Rate.from_percent(2)),
+            children=[child],
+            one_time_education_expenses=[exam_fee],
+        )
+
+        result = _run(plan)
+
+        # 100,000 * 1.02^2 = 104,040（プラン開始2026年から2年後の2028年に発生）
+        january_2028 = next(p for p in result.monthly_projections if p.year == 2028 and p.month == 1)
+        self.assertEqual(january_2028.total_expense, Money.of(104_040))
+
 
 class OneTimeExpenseIntegrationTest(unittest.TestCase):
     def test_one_time_expense_is_charged_only_in_the_triggering_month(self) -> None:

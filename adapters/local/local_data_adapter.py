@@ -29,7 +29,7 @@ from core.domain.allocation import AllocationPolicy, AllocationTarget
 from core.domain.asset import Asset, AssetClass
 from core.domain.child import Child
 from core.domain.contribution_strategy import ContributionStrategy
-from core.domain.education_expense import EducationExpenseBand
+from core.domain.education_expense import EducationExpenseBand, OneTimeEducationExpense
 from core.domain.errors import SchemaValidationError
 from core.domain.expense import Expense
 from core.domain.holding import Holding
@@ -54,6 +54,15 @@ _EXPENSE_KINDS = (EXPENSE_KIND_RECURRING, EXPENSE_KIND_ONE_TIME)
 
 _RECURRING_ALLOWED_KEYS = {"expense_id", "category", "kind", "amount", "growth_rate", "start_condition", "end_condition"}
 _ONE_TIME_ALLOWED_KEYS = {"expense_id", "category", "kind", "amount", "trigger"}
+
+EDUCATION_EXPENSE_KIND_RECURRING = "recurring"
+EDUCATION_EXPENSE_KIND_ONE_TIME = "one_time"
+_EDUCATION_EXPENSE_KINDS = (EDUCATION_EXPENSE_KIND_RECURRING, EDUCATION_EXPENSE_KIND_ONE_TIME)
+
+_EDUCATION_RECURRING_ALLOWED_KEYS = {
+    "band_id", "child_id", "category", "kind", "monthly_amount", "start_condition", "end_condition",
+}
+_EDUCATION_ONE_TIME_ALLOWED_KEYS = {"band_id", "child_id", "category", "kind", "amount", "trigger"}
 
 _CONDITION_TYPES = ("plan_start", "age", "date")
 
@@ -310,12 +319,18 @@ def _build_allocation_policy(
     return AllocationPolicy(targets=targets)
 
 
-def _build_children_and_education_expenses(data: dict) -> tuple[list[Child], list[EducationExpenseBand]]:
-    """子供の一覧と年齢帯別の教育費をchildren/education_expensesセクションから組み立てる。
+def _build_children_and_education_expenses(
+    data: dict,
+) -> tuple[list[Child], list[EducationExpenseBand], list[OneTimeEducationExpense]]:
+    """子供の一覧と教育費をchildren/education_expensesセクションから組み立てる。
 
     Sheets版と異なりchildrenは独立したトップレベル配列で持つため、education_expenses側の行が
     参照するchild_idがchildrenに存在するかだけを検証する（Sheets版のような「同じchild_idの行で
     birth_dateが食い違う」チェックは、そもそも1箇所にしかbirth_dateがないため不要）。
+
+    education_expensesの各行はkind（"recurring"|"one_time"）で振り分ける（支出（expenses）の
+    経常/単発と同じ設計）。recurringは期間中毎月発生するEducationExpenseBand、one_timeは
+    入学金・受験費用等、特定の年月に一度だけ発生するOneTimeEducationExpenseになる。
     """
 
     children = []
@@ -332,28 +347,48 @@ def _build_children_and_education_expenses(data: dict) -> tuple[list[Child], lis
     child_ids = {child.child_id for child in children}
 
     bands = []
+    one_time_bands = []
     for index, row in enumerate(data.get("education_expenses") or []):
         prefix = f"education_expenses[{index}]"
+        band_id = str(_require(row, "band_id", f"{prefix}.band_id"))
         child_id = str(_require(row, "child_id", f"{prefix}.child_id"))
         if child_id not in child_ids:
             raise SchemaValidationError(f"childrenに存在しないchild_idです: {child_id!r}", f"{prefix}.child_id")
-        start_condition = _build_event_condition(row.get("start_condition"), f"{prefix}.start_condition")
-        if start_condition is None:
-            raise SchemaValidationError("start_conditionが必須です", f"{prefix}.start_condition")
-        end_condition = _build_event_condition(row.get("end_condition"), f"{prefix}.end_condition")
-        if end_condition is None:
-            raise SchemaValidationError("end_conditionが必須です", f"{prefix}.end_condition")
-        bands.append(
-            EducationExpenseBand(
-                band_id=str(_require(row, "band_id", f"{prefix}.band_id")),
-                child_id=child_id,
-                category=str(_require(row, "category", f"{prefix}.category")),
-                start_condition=start_condition,
-                end_condition=end_condition,
-                monthly_amount=_parse_money_or_zero(row.get("monthly_amount"), f"{prefix}.monthly_amount"),
+        category = str(_require(row, "category", f"{prefix}.category"))
+        kind = _require(row, "kind", f"{prefix}.kind")
+        if kind not in _EDUCATION_EXPENSE_KINDS:
+            raise SchemaValidationError(
+                f"未知のkindです: {kind!r}（有効な値: {', '.join(_EDUCATION_EXPENSE_KINDS)}）", f"{prefix}.kind"
             )
-        )
-    return children, bands
+
+        if kind == EDUCATION_EXPENSE_KIND_ONE_TIME:
+            _reject_unexpected_keys(row, prefix, _EDUCATION_ONE_TIME_ALLOWED_KEYS)
+            amount = _parse_money_or_zero(row.get("amount"), f"{prefix}.amount")
+            trigger = _build_event_condition(row.get("trigger"), f"{prefix}.trigger")
+            if trigger is None:
+                raise SchemaValidationError("triggerが必須です（kind=one_timeの行）", f"{prefix}.trigger")
+            one_time_bands.append(
+                OneTimeEducationExpense(band_id=band_id, child_id=child_id, category=category, amount=amount, trigger=trigger)
+            )
+        else:
+            _reject_unexpected_keys(row, prefix, _EDUCATION_RECURRING_ALLOWED_KEYS)
+            start_condition = _build_event_condition(row.get("start_condition"), f"{prefix}.start_condition")
+            if start_condition is None:
+                raise SchemaValidationError("start_conditionが必須です（kind=recurringの行）", f"{prefix}.start_condition")
+            end_condition = _build_event_condition(row.get("end_condition"), f"{prefix}.end_condition")
+            if end_condition is None:
+                raise SchemaValidationError("end_conditionが必須です（kind=recurringの行）", f"{prefix}.end_condition")
+            bands.append(
+                EducationExpenseBand(
+                    band_id=band_id,
+                    child_id=child_id,
+                    category=category,
+                    start_condition=start_condition,
+                    end_condition=end_condition,
+                    monthly_amount=_parse_money_or_zero(row.get("monthly_amount"), f"{prefix}.monthly_amount"),
+                )
+            )
+    return children, bands, one_time_bands
 
 
 def _build_incomes(data: dict, default_growth_rate: Rate) -> list[Income]:
@@ -514,7 +549,7 @@ def build_plan_from_local_file(data: dict) -> Plan:
     user = _build_user(data)
     assumptions = _build_assumptions(data)
     expenses, one_time_expenses = _build_expenses(data, assumptions.inflation_rate)
-    children, education_expenses = _build_children_and_education_expenses(data)
+    children, education_expenses, one_time_education_expenses = _build_children_and_education_expenses(data)
 
     return Plan(
         plan_id=str(_require(data, "plan_id", "plan_id")),
@@ -532,6 +567,7 @@ def build_plan_from_local_file(data: dict) -> Plan:
         allocation_policy=_build_allocation_policy(data),
         children=children,
         education_expenses=education_expenses,
+        one_time_education_expenses=one_time_education_expenses,
         one_time_expenses=one_time_expenses,
         life_expectancy_age=_build_life_expectancy_age(data),
     )

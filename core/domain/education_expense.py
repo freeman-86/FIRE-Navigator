@@ -27,3 +27,25 @@ class EducationExpenseBand:
     start_condition: EventCondition
     end_condition: EventCondition
     monthly_amount: Money
+
+
+@dataclass
+class OneTimeEducationExpense:
+    """特定の子供に紐づく単発の教育費（入学金・受験費用等）。triggerで指定した年月に
+    amount全額が一括で計上される（一般の単発支出（OneTimeExpense）の教育費版）。
+
+    triggerが"age"タイプの場合、一般の単発支出・マイルストーンとは異なりプラン本人ではなく
+    該当する子供（child_id、Childに登録された生年月日）の年齢を基準に解決する
+    （EducationExpenseBandのage条件が子供基準であるのと同じ考え方。ただしEducationExpenseBandの
+    ageは学年（4月1日）基準なのに対し、こちらは一般の単発支出と同じ誕生日基準の年齢。
+    学年に正確に合わせたい場合はdateタイプで直接年月を指定する）。
+    amountは「プラン開始時点（今日）の価値」として入力する前提で、発生年までプラン共通の
+    インフレ率で複利計算してから計上される
+    （core/simulation/projection/projection_engine.py の_one_time_education_expenses_by_month_offset）。
+    """
+
+    band_id: str
+    child_id: str
+    category: str
+    amount: Money
+    trigger: EventCondition

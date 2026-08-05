@@ -10,7 +10,7 @@ from core.domain.allocation import AllocationPolicy
 from core.domain.child import Child
 from core.domain.contribution_strategy import ContributionStrategy
 from core.domain.debt import Debt
-from core.domain.education_expense import EducationExpenseBand
+from core.domain.education_expense import EducationExpenseBand, OneTimeEducationExpense
 from core.domain.expense import Expense
 from core.domain.income import Income
 from core.domain.loan import Loan
@@ -72,5 +72,6 @@ class Plan:
     allocation_policy: Optional[AllocationPolicy] = None
     children: list[Child] = field(default_factory=list)
     education_expenses: list[EducationExpenseBand] = field(default_factory=list)
+    one_time_education_expenses: list[OneTimeEducationExpense] = field(default_factory=list)
     one_time_expenses: list[OneTimeExpense] = field(default_factory=list)
     life_expectancy_age: int = DEFAULT_LIFE_EXPECTANCY_AGE

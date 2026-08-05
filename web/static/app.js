@@ -476,19 +476,31 @@ function renderEducationExpenses() {
   const container = document.getElementById("education-expenses-list");
   const childIds = state.children.map((c) => c.child_id);
   container.innerHTML = state.education_expenses
-    .map(
-      (band, index) => `
+    .map((band, index) => {
+      const isOneTime = band.kind === "one_time";
+      const kindSpecificHtml = isOneTime
+        ? `<label class="wide">発生条件（必須。年齢=誕生日基準の子供の年齢、年月=直接指定）${conditionWidgetHtml(`education_expenses[${index}].trigger`, band.trigger, false)}</label>`
+        : `
+          <label class="wide">開始条件（必須。年齢=学年基準で4/1時点、年月=直接指定）${conditionWidgetHtml(`education_expenses[${index}].start_condition`, band.start_condition, false)}</label>
+          <label class="wide">終了条件（必須。年齢は終了年齢の学年も含む、年月はその月から発生しない）${conditionWidgetHtml(`education_expenses[${index}].end_condition`, band.end_condition, false)}</label>
+        `;
+      return `
       <div class="row" data-index="${index}">
         <button type="button" class="remove-row-btn" data-remove-band="${index}">×</button>
         <label>教育費ID<input data-field="band_id" value="${escapeHtml(band.band_id)}"></label>
         <label>子供<select data-field="child_id">${optionsHtml(childIds, band.child_id)}</select></label>
         <label>カテゴリ<input data-field="category" value="${escapeHtml(band.category)}"></label>
-        ${moneyFieldHtml("月額", "monthly_amount", band.monthly_amount)}
-        <label class="wide">開始条件（必須。年齢=学年基準で4/1時点、年月=直接指定）${conditionWidgetHtml(`education_expenses[${index}].start_condition`, band.start_condition, false)}</label>
-        <label class="wide">終了条件（必須。年齢は終了年齢の学年も含む、年月はその月から発生しない）${conditionWidgetHtml(`education_expenses[${index}].end_condition`, band.end_condition, false)}</label>
+        <label>種別
+          <select data-field="kind">
+            <option value="recurring"${!isOneTime ? " selected" : ""}>継続（毎月）</option>
+            <option value="one_time"${isOneTime ? " selected" : ""}>単発（入学金等）</option>
+          </select>
+        </label>
+        ${moneyFieldHtml(isOneTime ? "金額（単発）" : "月額", isOneTime ? "amount" : "monthly_amount", isOneTime ? band.amount : band.monthly_amount)}
+        ${kindSpecificHtml}
       </div>
-    `
-    )
+    `;
+    })
     .join("");
 
   bindEducationExpenseRows(container);
@@ -498,11 +510,43 @@ function bindEducationExpenseRows(container) {
   container.querySelectorAll(".row").forEach((rowEl) => {
     const index = Number(rowEl.dataset.index);
     bindDataFields(rowEl, state.education_expenses[index]);
+    const kindSelect = rowEl.querySelector('[data-field="kind"]');
+    kindSelect.addEventListener("change", () => {
+      // 種別を切り替えたら、その種別で使わないフィールドは送らないよう作り直す
+      // （local_data_adapterはkindに合わない項目をSchemaValidationErrorで拒否するため）。
+      // 開始/終了条件・発生条件はどちらもeducation_expensesでは必須項目のため、nullのままにせず
+      // 条件付きウィジェットが最初から意味のある型を表示するようにする（他の必須条件と同じ理由）。
+      const band = state.education_expenses[index];
+      if (kindSelect.value === "one_time") {
+        state.education_expenses[index] = {
+          band_id: band.band_id,
+          child_id: band.child_id,
+          category: band.category,
+          kind: "one_time",
+          amount: band.monthly_amount,
+          trigger: { type: "age", age: null },
+        };
+      } else {
+        state.education_expenses[index] = {
+          band_id: band.band_id,
+          child_id: band.child_id,
+          category: band.category,
+          kind: "recurring",
+          monthly_amount: band.amount,
+          start_condition: { type: "age", age: null },
+          end_condition: { type: "age", age: null },
+        };
+      }
+      renderEducationExpenses();
+    });
     bindConditionWidget(rowEl, `education_expenses[${index}].start_condition`, (value) => {
       state.education_expenses[index].start_condition = value;
     });
     bindConditionWidget(rowEl, `education_expenses[${index}].end_condition`, (value) => {
       state.education_expenses[index].end_condition = value;
+    });
+    bindConditionWidget(rowEl, `education_expenses[${index}].trigger`, (value) => {
+      state.education_expenses[index].trigger = value;
     });
   });
   container.querySelectorAll("[data-remove-band]").forEach((btn) => {
@@ -519,9 +563,9 @@ function bindEducationExpenseRows(container) {
 function renderAll() {
   renderSettings();
   renderAccounts();
+  renderAllocationPolicy();
   renderIncomes();
   renderExpenses();
-  renderAllocationPolicy();
   renderChildren();
   renderEducationExpenses();
 }
@@ -583,6 +627,7 @@ function setupAddButtons() {
       band_id: "",
       child_id: state.children[0] ? state.children[0].child_id : "",
       category: "",
+      kind: "recurring",
       // 開始/終了とも必須項目のため、Incomeのstart_conditionと同様nullのままにはしない
       // （選択済みに見えるのにstateはnullのまま、という表示とのズレを避けるため）。
       start_condition: { type: "age", age: null },
