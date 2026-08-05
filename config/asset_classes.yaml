@@ -18,6 +18,13 @@
 # この順位の高い（リスクが高い）資産クラスから先に取り崩し対象にする
 # （core/simulation/withdrawal/withdrawal_engine.py 自体はtarget_weightsの辞書順に
 # 従うだけで、順序の意味づけは持たない。順序を決めているのはadapter層）。
+#
+# historical_proxy: 信頼できる長期の過去リターン系列がまだ無い資産クラス向けに、
+# モンテカルロ/ヒストリカルの分布推定・相関計算・加重合成でのみ代用する資産クラスを指定する
+# （repositories/market_data_repository.py がHistoricalDataset読込時に代用元の系列をそのまま
+# コピーして追加する）。asset_class自体（取り崩し優先順位・月次詳細の内訳・資産配分表示等）は
+# 一切変えず、モンテカルロ/ヒストリカルの計算のときだけ「無視されて実質0%リターン扱いになる」
+# 状態を避けるための設定。指定しない場合は従来通り0%リターン扱いのまま。
 
 schema_version: 1
 
@@ -34,3 +41,7 @@ asset_classes:
   btc:
     display_name: "BTC"
     risk_rank: 4
+    # BTCの信頼できる長期年次リターン系列（config/market_data/）は未収録のため、
+    # モンテカルロ/ヒストリカルではequity_sp500の系列を代用する（株式並みのボラティリティ・
+    # リターンとして近似する。実際のBTCの値動きとは異なる点に注意。詳細はREADME参照）。
+    historical_proxy: equity_sp500
