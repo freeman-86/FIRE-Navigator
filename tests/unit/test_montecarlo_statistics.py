@@ -37,17 +37,20 @@ class ComputeStatisticsTest(unittest.TestCase):
         self.assertAlmostEqual(result.success_rate, 2 / 3)
 
     def test_percentile_band_uses_sorted_networth(self) -> None:
-        trials = [_trial(2026, v) for v in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]]
+        trials = [_trial(2026, v * 10) for v in range(1, 21)]
 
         result = compute_statistics(trials)
         band = result.percentile_networth_by_year[2026]
 
-        # 10件中: p10->index1(20), p25->index2(30), p50->index5(60), p75->index7(80), p90->index9(100)
-        self.assertEqual(band.p10, Money.of(20))
-        self.assertEqual(band.p25, Money.of(30))
-        self.assertEqual(band.p50, Money.of(60))
-        self.assertEqual(band.p75, Money.of(80))
-        self.assertEqual(band.p90, Money.of(100))
+        # 20件中: p5->index1(20), p10->index2(30), p15->index3(40), p50->index10(110),
+        # p85->index17(180), p90->index18(190), p95->index19(200)
+        self.assertEqual(band.p5, Money.of(20))
+        self.assertEqual(band.p10, Money.of(30))
+        self.assertEqual(band.p15, Money.of(40))
+        self.assertEqual(band.p50, Money.of(110))
+        self.assertEqual(band.p85, Money.of(180))
+        self.assertEqual(band.p90, Money.of(190))
+        self.assertEqual(band.p95, Money.of(200))
 
     def test_empty_trials_returns_zero_success_rate(self) -> None:
         result = compute_statistics([])

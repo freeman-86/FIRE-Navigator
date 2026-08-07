@@ -584,9 +584,6 @@ select {
      （chart-noteの有無等）が違っても「表で見る」の位置を揃えるため。 */
   margin-top: auto;
   padding-top: 8px;
-  /* chart-cardの幅（percentile-chartsのグリッド列幅、260px〜）より表の方が広くなりうるため
-     （5列×金額表示）、はみ出させずカード内で横スクロールさせる。 */
-  overflow-x: auto;
 }
 
 .table-view summary {
@@ -595,11 +592,32 @@ select {
   color: var(--accent);
 }
 
+/* 横スクロールバーを表の上下2箇所に表示する（下だけだと、縦に長い表・ページ下の方にある
+   表では毎回スクロールバーまでたどり着く必要があり操作しづらいため）。table-scroll-topは
+   中身のない薄いバー（app.jsがtable-scroll-bodyの実幅に合わせて内側divの幅を設定し、
+   scrollLeftを双方向に同期する）で、実際の表はtable-scroll-body側にある。 */
+.table-scroll-top {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 14px;
+  margin-top: 8px;
+}
+
+.table-scroll-top > div {
+  height: 1px;
+}
+
+.table-scroll-body {
+  /* chart-cardの幅（percentile-chartsのグリッド列幅、260px〜）より表の方が広くなりうるため
+     （9列×金額表示）、はみ出させずカード内で横スクロールさせる。 */
+  overflow-x: auto;
+}
+
 .table-view table {
   margin-top: 8px;
   margin-bottom: 0;
-  /* percentile-chartsの狭いカード幅（下でminmaxを拡大済み）でも横スクロールなしで
-     収まるよう、通常の表よりコンパクトなフォント・余白にする。 */
+  /* percentile-chartsの狭いカード幅でも読みやすいよう、通常の表よりコンパクトな
+     フォント・余白にする（列数が多いため横スクロールは前提）。 */
   font-size: 0.72rem;
 }
 
@@ -611,8 +629,6 @@ select {
 
 .percentile-charts {
   display: grid;
-  /* 「表で見る」の金額列は万円単位の簡略表記（app.js yenCompact）にしてあるため、
-     300px程度でも5列（西暦年・年齢・下位10%・中央値・上位10%）が横スクロールなしで収まる。 */
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 12px;
 }

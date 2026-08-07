@@ -42,18 +42,22 @@ class BuildPercentileBandChartTest(unittest.TestCase):
             success_rate=0.87,
             percentile_networth_by_year={
                 2026: PercentileBand(
+                    p5=Money.of(800_000),
                     p10=Money.of(1_000_000),
-                    p25=Money.of(1_500_000),
+                    p15=Money.of(1_200_000),
                     p50=Money.of(2_000_000),
-                    p75=Money.of(2_500_000),
+                    p85=Money.of(2_800_000),
                     p90=Money.of(3_000_000),
+                    p95=Money.of(3_200_000),
                 ),
                 2027: PercentileBand(
+                    p5=Money.of(880_000),
                     p10=Money.of(1_100_000),
-                    p25=Money.of(1_650_000),
+                    p15=Money.of(1_320_000),
                     p50=Money.of(2_200_000),
-                    p75=Money.of(2_750_000),
+                    p85=Money.of(3_080_000),
                     p90=Money.of(3_300_000),
+                    p95=Money.of(3_520_000),
                 ),
             },
         )
@@ -63,11 +67,13 @@ class BuildPercentileBandChartTest(unittest.TestCase):
         self.assertEqual(chart["type"], "percentile_band")
         self.assertEqual(chart["x"], [2026, 2027])
         self.assertEqual(chart["ages"], [36, 37])
+        self.assertEqual(chart["p5"], [800_000, 880_000])
         self.assertEqual(chart["p10"], [1_000_000, 1_100_000])
-        self.assertEqual(chart["p25"], [1_500_000, 1_650_000])
+        self.assertEqual(chart["p15"], [1_200_000, 1_320_000])
         self.assertEqual(chart["p50"], [2_000_000, 2_200_000])
-        self.assertEqual(chart["p75"], [2_500_000, 2_750_000])
+        self.assertEqual(chart["p85"], [2_800_000, 3_080_000])
         self.assertEqual(chart["p90"], [3_000_000, 3_300_000])
+        self.assertEqual(chart["p95"], [3_200_000, 3_520_000])
 
     def test_ages_match_deterministic_engine_age_at_for_december_birthday(self) -> None:
         # 12月生まれ（かつ1日生まれではない）は、決定論的Projection Engineのage_at()が
@@ -82,7 +88,13 @@ class BuildPercentileBandChartTest(unittest.TestCase):
             success_rate=1.0,
             percentile_networth_by_year={
                 2026: PercentileBand(
-                    p10=Money.zero(), p25=Money.zero(), p50=Money.zero(), p75=Money.zero(), p90=Money.zero()
+                    p5=Money.zero(),
+                    p10=Money.zero(),
+                    p15=Money.zero(),
+                    p50=Money.zero(),
+                    p85=Money.zero(),
+                    p90=Money.zero(),
+                    p95=Money.zero(),
                 ),
             },
         )

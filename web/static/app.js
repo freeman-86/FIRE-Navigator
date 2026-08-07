@@ -915,7 +915,7 @@ function renderNetworthChart(chart) {
   `;
 }
 
-// --- モンテカルロ／ヒストリカル（p10-p90帯＋中央値） ----------------------------------------------
+// --- モンテカルロ／ヒストリカル（p5-p95帯＋中央値、3段の帯） ----------------------------------------
 
 let montecarloChartInstance = null;
 let historicalChartInstance = null;
@@ -926,11 +926,29 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
     existingInstance.destroy();
   }
   const options = commonChartOptions();
-  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位10%→下位25%→上位25%→
-  // 上位10%→中央値の順を保つ必要がある）とは独立に、ツールチップ内の表示順だけ
-  // 上位10%→上位25%→中央値→下位25%→下位10%にする。
-  const TOOLTIP_ORDER = { "上位10%": 0, "上位25%": 1, "中央値": 2, "下位25%": 3, "下位10%": 4 };
+  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位5%→下位10%→下位15%→
+  // 上位15%→上位10%→上位5%→中央値の順を保つ必要がある）とは独立に、ツールチップ内の表示順だけ
+  // 上位側→中央値→下位側にする。
+  const TOOLTIP_ORDER = {
+    "上位5%": 0,
+    "上位10%": 1,
+    "上位15%": 2,
+    中央値: 3,
+    "下位15%": 4,
+    "下位10%": 5,
+    "下位5%": 6,
+  };
   options.plugins.tooltip.itemSort = (a, b) => TOOLTIP_ORDER[a.dataset.label] - TOOLTIP_ORDER[b.dataset.label];
+
+  // 中央値からの距離が近いほど不透明度・線の太さを上げ、3段の帯（外側p5-p10/p90-p95、
+  // 中間p10-p15/p85-p90、内側p15-p85）が視覚的にも中心ほど濃くなるようにする。
+  const lineStyle = (opacity, width, dash) => ({
+    borderColor: hexToRgba(colorHex, opacity),
+    borderWidth: width,
+    borderDash: dash,
+    pointRadius: 0,
+    tension: 0,
+  });
 
   return new Chart(canvasEl, {
     type: "line",
@@ -938,51 +956,50 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
       labels: chartData.x,
       datasets: [
         {
-          // 下位10%: 細めの破線・最も低い不透明度（弱気シナリオが視覚的にも控えめになるよう）
+          label: "下位5%",
+          data: chartData.p5,
+          ...lineStyle(0.3, 1, [2, 3]),
+          fill: false,
+        },
+        {
+          // 下位5%〜下位10%（外側の帯）
           label: "下位10%",
           data: chartData.p10,
-          borderColor: hexToRgba(colorHex, 0.4),
-          borderWidth: 1.25,
-          borderDash: [2, 3],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-        },
-        {
-          // 下位25%: 下位10%〜下位25%を薄く塗り、外側の帯（p10-p90）の下半分を示す
-          label: "下位25%",
-          data: chartData.p25,
-          borderColor: hexToRgba(colorHex, 0.6),
-          borderWidth: 1.5,
-          borderDash: [5, 3],
-          backgroundColor: hexToRgba(colorHex, 0.1),
-          pointRadius: 0,
+          ...lineStyle(0.5, 1.25, [4, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.08),
           fill: "-1",
-          tension: 0,
         },
         {
-          // 上位25%: 下位25%〜上位25%（p25-p75）を濃く塗り、内側の帯として四分位範囲を強調する
-          label: "上位25%",
-          data: chartData.p75,
-          borderColor: hexToRgba(colorHex, 0.8),
-          borderWidth: 1.5,
-          borderDash: [9, 3],
-          backgroundColor: hexToRgba(colorHex, 0.25),
-          pointRadius: 0,
+          // 下位10%〜下位15%（中間の帯）
+          label: "下位15%",
+          data: chartData.p15,
+          ...lineStyle(0.7, 1.5, [7, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.16),
           fill: "-1",
-          tension: 0,
         },
         {
-          // 上位10%: 上位25%〜上位10%を薄く塗り、外側の帯（p10-p90）の上半分を示す
+          // 下位15%〜上位15%（内側の帯。中心7割が収まる範囲として最も濃く塗る）
+          label: "上位15%",
+          data: chartData.p85,
+          ...lineStyle(0.7, 1.5, [7, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.28),
+          fill: "-1",
+        },
+        {
+          // 上位15%〜上位10%（中間の帯）
           label: "上位10%",
           data: chartData.p90,
-          borderColor: hexToRgba(colorHex, 0.9),
-          borderWidth: 1.75,
-          borderDash: [12, 3],
-          backgroundColor: hexToRgba(colorHex, 0.1),
-          pointRadius: 0,
+          ...lineStyle(0.5, 1.25, [4, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.16),
           fill: "-1",
-          tension: 0,
+        },
+        {
+          // 上位10%〜上位5%（外側の帯）
+          label: "上位5%",
+          data: chartData.p95,
+          ...lineStyle(0.3, 1, [2, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.08),
+          fill: "-1",
         },
         {
           label: "中央値",
@@ -1003,12 +1020,12 @@ function percentileChartTableHtml(chartData) {
   const rows = chartData.x
     .map((year, i) => {
       const age = chartData.ages ? chartData.ages[i] : null;
-      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p25[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p75[i])}</td><td>${yenCompact(chartData.p90[i])}</td></tr>`;
+      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p5[i])}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p15[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p85[i])}</td><td>${yenCompact(chartData.p90[i])}</td><td>${yenCompact(chartData.p95[i])}</td></tr>`;
     })
     .join("");
   return `
     <table>
-      <thead><tr><th>西暦年</th><th>年齢</th><th>下位10%</th><th>下位25%</th><th>中央値</th><th>上位25%</th><th>上位10%</th></tr></thead>
+      <thead><tr><th>西暦年</th><th>年齢</th><th>下位5%</th><th>下位10%</th><th>下位15%</th><th>中央値</th><th>上位15%</th><th>上位10%</th><th>上位5%</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
@@ -1301,6 +1318,52 @@ function renderResults(output) {
   renderMonthlyDetailTable(output.tables.monthly_detail);
 }
 
+// --- 表の横スクロールバー（上下2箇所に表示し、位置を同期させる） -------------------------------
+
+function setupDualScrollbars() {
+  document.querySelectorAll(".table-view").forEach((detailsEl) => {
+    const topBar = detailsEl.querySelector(".table-scroll-top");
+    const body = detailsEl.querySelector(".table-scroll-body");
+    if (!topBar || !body) return;
+    const spacer = topBar.firstElementChild;
+    // 実際にスクロールする表（render*()がinnerHTMLを書き換える対象）は
+    // table-scroll-bodyの直下の1つのdivに固定されている。この要素自身のサイズは
+    // 再描画のたびに表の列数・幅に合わせて変わるため、その変化を監視してspacerの
+    // 幅（= 横スクロール可能な範囲）を追従させる。
+    const content = body.firstElementChild;
+
+    let syncing = false;
+    topBar.addEventListener("scroll", () => {
+      if (syncing) return;
+      syncing = true;
+      body.scrollLeft = topBar.scrollLeft;
+      syncing = false;
+    });
+    body.addEventListener("scroll", () => {
+      if (syncing) return;
+      syncing = true;
+      topBar.scrollLeft = body.scrollLeft;
+      syncing = false;
+    });
+
+    const syncSpacerWidth = () => {
+      spacer.style.width = `${body.scrollWidth}px`;
+      // 横スクロールが不要な表（列数が少ない等）では上バー分の余白だけが無駄になるので隠す。
+      topBar.hidden = body.scrollWidth <= body.clientWidth + 1;
+    };
+    // 表の内容（列数・幅）が変わるとcontentのサイズが、ウィンドウ幅やグリッド列幅が変わると
+    // bodyのサイズ（表示可能幅）が変わるため、両方を監視する。
+    const resizeObserver = new ResizeObserver(syncSpacerWidth);
+    if (content) {
+      resizeObserver.observe(content);
+    }
+    resizeObserver.observe(body);
+    // detailsが閉じている間はレイアウトされずscrollWidthが0になるため、開いた瞬間にも再計算する。
+    detailsEl.addEventListener("toggle", syncSpacerWidth);
+    syncSpacerWidth();
+  });
+}
+
 // --- 初期化 ---------------------------------------------------------------------------------
 
 async function init() {
@@ -1327,6 +1390,7 @@ async function init() {
 
   renderAll();
   setupAddButtons();
+  setupDualScrollbars();
   document.getElementById("run-btn").addEventListener("click", runSimulation);
   document.getElementById("download-json-btn").addEventListener("click", downloadPlanJson);
 }

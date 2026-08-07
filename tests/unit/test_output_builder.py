@@ -117,11 +117,13 @@ class BuildOutputJsonMontecarloReference1971Test(unittest.TestCase):
             success_rate=1.0,
             percentile_networth_by_year={
                 2026: PercentileBand(
+                    p5=Money.of(800_000),
                     p10=Money.of(1_000_000),
-                    p25=Money.of(1_500_000),
+                    p15=Money.of(1_200_000),
                     p50=Money.of(2_000_000),
-                    p75=Money.of(2_500_000),
+                    p85=Money.of(2_800_000),
                     p90=Money.of(3_000_000),
+                    p95=Money.of(3_200_000),
                 ),
             },
         )
