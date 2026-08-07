@@ -14,42 +14,54 @@
   <div class="layout">
     <aside id="form-panel">
       <section id="section-settings">
-        <h2>基本設定</h2>
-        <div class="form-grid" id="settings-fields"></div>
+        <details open>
+          <summary>基本設定</summary>
+          <div class="form-grid" id="settings-fields"></div>
+        </details>
       </section>
 
       <section id="section-accounts">
-        <h2>口座</h2>
-        <div id="accounts-list"></div>
-        <button type="button" class="add-row-btn" id="add-account-btn">＋ 口座を追加</button>
+        <details open>
+          <summary>口座</summary>
+          <div id="accounts-list"></div>
+          <button type="button" class="add-row-btn" id="add-account-btn">＋ 口座を追加</button>
+        </details>
       </section>
 
       <section id="section-allocation-policy">
-        <h2>配分方針（任意）</h2>
-        <div id="allocation-policy-list"></div>
-        <button type="button" class="add-row-btn" id="add-allocation-target-btn">＋ 年齢帯を追加</button>
+        <details open>
+          <summary>配分方針（任意）</summary>
+          <div id="allocation-policy-list"></div>
+          <button type="button" class="add-row-btn" id="add-allocation-target-btn">＋ 年齢帯を追加</button>
+        </details>
       </section>
 
       <section id="section-incomes">
-        <h2>収入</h2>
-        <div id="incomes-list"></div>
-        <button type="button" class="add-row-btn" id="add-income-btn">＋ 収入を追加</button>
+        <details open>
+          <summary>収入</summary>
+          <div id="incomes-list"></div>
+          <button type="button" class="add-row-btn" id="add-income-btn">＋ 収入を追加</button>
+        </details>
       </section>
 
       <section id="section-expenses">
-        <h2>支出</h2>
-        <div id="expenses-list"></div>
-        <button type="button" class="add-row-btn" id="add-expense-btn">＋ 支出を追加</button>
+        <details open>
+          <summary>支出</summary>
+          <div id="expenses-list"></div>
+          <button type="button" class="add-row-btn" id="add-expense-btn">＋ 支出を追加</button>
+        </details>
       </section>
 
       <section id="section-children">
-        <h2>子供・教育費（任意）</h2>
-        <h3>子供</h3>
-        <div id="children-list"></div>
-        <button type="button" class="add-row-btn" id="add-child-btn">＋ 子供を追加</button>
-        <h3>教育費</h3>
-        <div id="education-expenses-list"></div>
-        <button type="button" class="add-row-btn" id="add-education-expense-btn">＋ 教育費を追加</button>
+        <details open>
+          <summary>子供・教育費（任意）</summary>
+          <h3>子供</h3>
+          <div id="children-list"></div>
+          <button type="button" class="add-row-btn" id="add-child-btn">＋ 子供を追加</button>
+          <h3>教育費</h3>
+          <div id="education-expenses-list"></div>
+          <button type="button" class="add-row-btn" id="add-education-expense-btn">＋ 教育費を追加</button>
+        </details>
       </section>
 
       <div id="run-area">

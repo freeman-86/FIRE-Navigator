@@ -148,10 +148,25 @@ section {
   border-left: 3px solid var(--section-accent, var(--border));
 }
 
-section h2 {
+/* 各セクションは<details>で囲み、見出し（summary）をクリックすると開閉できるようにする
+   （入力項目が多いときに使わないセクションを畳んで見やすくするため）。renderXxx()は中の
+   div（例: #accounts-list）のinnerHTMLだけを書き換えるため、再描画のたびにこのopen/closed
+   状態がリセットされることはない。 */
+section summary {
   font-size: 1.05rem;
+  font-weight: 600;
   margin: 0 0 10px;
   color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+section summary:hover {
+  color: var(--accent);
+}
+
+section details:not([open]) summary {
+  margin-bottom: 0;
 }
 
 section h3 {
