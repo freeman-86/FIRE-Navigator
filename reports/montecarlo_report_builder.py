@@ -10,7 +10,7 @@ PERCENTILE_BAND_CHART_TYPE = "percentile_band"
 
 
 def build_percentile_band_chart(plan: Plan, result: MonteCarloResult) -> dict:
-    """MonteCarloResultの年次パーセンタイル分布(p10/p50/p90)を、v1.1 Output JSONの
+    """MonteCarloResultの年次パーセンタイル分布(p10/p25/p50/p75/p90)を、v1.1 Output JSONの
     montecarlo_distribution_chart形式に準拠したグラフ用データとして生成する。
 
     agesは表示用の近似値。決定論的Projection Engineのage_self（core/simulation/projection/
@@ -30,6 +30,8 @@ def build_percentile_band_chart(plan: Plan, result: MonteCarloResult) -> dict:
         "x": years,
         "ages": ages,
         "p10": [int(result.percentile_networth_by_year[year].p10.amount) for year in years],
+        "p25": [int(result.percentile_networth_by_year[year].p25.amount) for year in years],
         "p50": [int(result.percentile_networth_by_year[year].p50.amount) for year in years],
+        "p75": [int(result.percentile_networth_by_year[year].p75.amount) for year in years],
         "p90": [int(result.percentile_networth_by_year[year].p90.amount) for year in years],
     }

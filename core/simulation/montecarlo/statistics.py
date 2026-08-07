@@ -7,7 +7,7 @@ from core.simulation.montecarlo.success_judge import is_successful
 
 
 def compute_statistics(trial_results: list[SimulationResult]) -> MonteCarloResult:
-    """全試行の結果を集計し、成功確率・年次パーセンタイル分布(p10/p50/p90)を算出する。"""
+    """全試行の結果を集計し、成功確率・年次パーセンタイル分布(p10/p25/p50/p75/p90)を算出する。"""
 
     trials = len(trial_results)
     success_count = sum(1 for trial in trial_results if is_successful(trial))
@@ -24,7 +24,9 @@ def compute_statistics(trial_results: list[SimulationResult]) -> MonteCarloResul
         )
         percentile_networth_by_year[year] = PercentileBand(
             p10=_percentile(networths, 10),
+            p25=_percentile(networths, 25),
             p50=_percentile(networths, 50),
+            p75=_percentile(networths, 75),
             p90=_percentile(networths, 90),
         )
 

@@ -41,8 +41,20 @@ class BuildPercentileBandChartTest(unittest.TestCase):
             success_count=87,
             success_rate=0.87,
             percentile_networth_by_year={
-                2026: PercentileBand(p10=Money.of(1_000_000), p50=Money.of(2_000_000), p90=Money.of(3_000_000)),
-                2027: PercentileBand(p10=Money.of(1_100_000), p50=Money.of(2_200_000), p90=Money.of(3_300_000)),
+                2026: PercentileBand(
+                    p10=Money.of(1_000_000),
+                    p25=Money.of(1_500_000),
+                    p50=Money.of(2_000_000),
+                    p75=Money.of(2_500_000),
+                    p90=Money.of(3_000_000),
+                ),
+                2027: PercentileBand(
+                    p10=Money.of(1_100_000),
+                    p25=Money.of(1_650_000),
+                    p50=Money.of(2_200_000),
+                    p75=Money.of(2_750_000),
+                    p90=Money.of(3_300_000),
+                ),
             },
         )
 
@@ -52,7 +64,9 @@ class BuildPercentileBandChartTest(unittest.TestCase):
         self.assertEqual(chart["x"], [2026, 2027])
         self.assertEqual(chart["ages"], [36, 37])
         self.assertEqual(chart["p10"], [1_000_000, 1_100_000])
+        self.assertEqual(chart["p25"], [1_500_000, 1_650_000])
         self.assertEqual(chart["p50"], [2_000_000, 2_200_000])
+        self.assertEqual(chart["p75"], [2_500_000, 2_750_000])
         self.assertEqual(chart["p90"], [3_000_000, 3_300_000])
 
     def test_ages_match_deterministic_engine_age_at_for_december_birthday(self) -> None:
@@ -67,7 +81,9 @@ class BuildPercentileBandChartTest(unittest.TestCase):
             success_count=10,
             success_rate=1.0,
             percentile_networth_by_year={
-                2026: PercentileBand(p10=Money.zero(), p50=Money.zero(), p90=Money.zero()),
+                2026: PercentileBand(
+                    p10=Money.zero(), p25=Money.zero(), p50=Money.zero(), p75=Money.zero(), p90=Money.zero()
+                ),
             },
         )
 

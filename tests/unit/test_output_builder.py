@@ -116,7 +116,13 @@ class BuildOutputJsonMontecarloReference1971Test(unittest.TestCase):
             success_count=10,
             success_rate=1.0,
             percentile_networth_by_year={
-                2026: PercentileBand(p10=Money.of(1_000_000), p50=Money.of(2_000_000), p90=Money.of(3_000_000)),
+                2026: PercentileBand(
+                    p10=Money.of(1_000_000),
+                    p25=Money.of(1_500_000),
+                    p50=Money.of(2_000_000),
+                    p75=Money.of(2_500_000),
+                    p90=Money.of(3_000_000),
+                ),
             },
         )
         outcome = PipelineOutcome(plan=plan, montecarlo_reference_1971_result=reference_result)

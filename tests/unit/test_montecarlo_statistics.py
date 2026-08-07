@@ -42,9 +42,11 @@ class ComputeStatisticsTest(unittest.TestCase):
         result = compute_statistics(trials)
         band = result.percentile_networth_by_year[2026]
 
-        # 10件中: p10->index1(20), p50->index5(60), p90->index9(100)
+        # 10件中: p10->index1(20), p25->index2(30), p50->index5(60), p75->index7(80), p90->index9(100)
         self.assertEqual(band.p10, Money.of(20))
+        self.assertEqual(band.p25, Money.of(30))
         self.assertEqual(band.p50, Money.of(60))
+        self.assertEqual(band.p75, Money.of(80))
         self.assertEqual(band.p90, Money.of(100))
 
     def test_empty_trials_returns_zero_success_rate(self) -> None:

@@ -926,9 +926,10 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
     existingInstance.destroy();
   }
   const options = commonChartOptions();
-  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位10%→上位10%→中央値の
-  // 順を保つ必要がある）とは独立に、ツールチップ内の表示順だけ上位10%→中央値→下位10%にする。
-  const TOOLTIP_ORDER = { "上位10%": 0, "中央値": 1, "下位10%": 2 };
+  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位10%→下位25%→上位25%→
+  // 上位10%→中央値の順を保つ必要がある）とは独立に、ツールチップ内の表示順だけ
+  // 上位10%→上位25%→中央値→下位25%→下位10%にする。
+  const TOOLTIP_ORDER = { "上位10%": 0, "上位25%": 1, "中央値": 2, "下位25%": 3, "下位10%": 4 };
   options.plugins.tooltip.itemSort = (a, b) => TOOLTIP_ORDER[a.dataset.label] - TOOLTIP_ORDER[b.dataset.label];
 
   return new Chart(canvasEl, {
@@ -937,10 +938,10 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
       labels: chartData.x,
       datasets: [
         {
-          // 下位10%: 細めの破線・低い不透明度（弱気シナリオが視覚的にも控えめになるよう）
+          // 下位10%: 細めの破線・最も低い不透明度（弱気シナリオが視覚的にも控えめになるよう）
           label: "下位10%",
           data: chartData.p10,
-          borderColor: hexToRgba(colorHex, 0.5),
+          borderColor: hexToRgba(colorHex, 0.4),
           borderWidth: 1.25,
           borderDash: [2, 3],
           pointRadius: 0,
@@ -948,13 +949,37 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
           tension: 0,
         },
         {
-          // 上位10%: 太めの破線・高い不透明度で、下位10%とは間隔・濃さの両方で見分けがつくようにする
+          // 下位25%: 下位10%〜下位25%を薄く塗り、外側の帯（p10-p90）の下半分を示す
+          label: "下位25%",
+          data: chartData.p25,
+          borderColor: hexToRgba(colorHex, 0.6),
+          borderWidth: 1.5,
+          borderDash: [5, 3],
+          backgroundColor: hexToRgba(colorHex, 0.1),
+          pointRadius: 0,
+          fill: "-1",
+          tension: 0,
+        },
+        {
+          // 上位25%: 下位25%〜上位25%（p25-p75）を濃く塗り、内側の帯として四分位範囲を強調する
+          label: "上位25%",
+          data: chartData.p75,
+          borderColor: hexToRgba(colorHex, 0.8),
+          borderWidth: 1.5,
+          borderDash: [9, 3],
+          backgroundColor: hexToRgba(colorHex, 0.25),
+          pointRadius: 0,
+          fill: "-1",
+          tension: 0,
+        },
+        {
+          // 上位10%: 上位25%〜上位10%を薄く塗り、外側の帯（p10-p90）の上半分を示す
           label: "上位10%",
           data: chartData.p90,
           borderColor: hexToRgba(colorHex, 0.9),
           borderWidth: 1.75,
-          borderDash: [9, 3],
-          backgroundColor: hexToRgba(colorHex, 0.15),
+          borderDash: [12, 3],
+          backgroundColor: hexToRgba(colorHex, 0.1),
           pointRadius: 0,
           fill: "-1",
           tension: 0,
@@ -978,12 +1003,12 @@ function percentileChartTableHtml(chartData) {
   const rows = chartData.x
     .map((year, i) => {
       const age = chartData.ages ? chartData.ages[i] : null;
-      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p90[i])}</td></tr>`;
+      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p25[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p75[i])}</td><td>${yenCompact(chartData.p90[i])}</td></tr>`;
     })
     .join("");
   return `
     <table>
-      <thead><tr><th>西暦年</th><th>年齢</th><th>下位10%</th><th>中央値</th><th>上位10%</th></tr></thead>
+      <thead><tr><th>西暦年</th><th>年齢</th><th>下位10%</th><th>下位25%</th><th>中央値</th><th>上位25%</th><th>上位10%</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;

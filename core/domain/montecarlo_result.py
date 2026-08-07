@@ -8,7 +8,9 @@ from core.domain.value_objects import Money
 @dataclass
 class PercentileBand:
     p10: Money
+    p25: Money
     p50: Money
+    p75: Money
     p90: Money
 
 
