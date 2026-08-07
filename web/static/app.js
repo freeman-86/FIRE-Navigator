@@ -309,7 +309,10 @@ function renderExpenses() {
     .map((expense, index) => {
       const isOneTime = expense.kind === "one_time";
       const kindSpecificHtml = isOneTime
-        ? `<label class="wide">発生条件（必須）${conditionWidgetHtml(`expenses[${index}].trigger`, expense.trigger, false)}</label>`
+        ? `
+          ${percentFieldHtml("成長率（空欄=インフレ率）", "growth_rate", expense.growth_rate)}
+          <label class="wide">発生条件（必須）${conditionWidgetHtml(`expenses[${index}].trigger`, expense.trigger, false)}</label>
+        `
         : `
           ${percentFieldHtml("成長率（空欄=インフレ率）", "growth_rate", expense.growth_rate)}
           <label class="wide">開始条件（任意）${conditionWidgetHtml(`expenses[${index}].start_condition`, expense.start_condition, true)}</label>
@@ -351,6 +354,7 @@ function bindExpenseRows(container) {
           category: id.category,
           kind: "one_time",
           amount: id.amount,
+          growth_rate: null,
           trigger: null,
         };
       } else {

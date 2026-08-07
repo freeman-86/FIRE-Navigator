@@ -160,9 +160,7 @@ class BuildExpensesTest(unittest.TestCase):
             _build_expenses(data, _DEFAULT_GROWTH_RATE)
         self.assertEqual(ctx.exception.field_path, "expenses[0].trigger")
 
-    def test_one_time_expense_with_growth_rate_field_is_rejected(self) -> None:
-        # kind=one_timeの行にはgrowth_rate等、経常支出専用の項目は許可しない
-        # （Sheets版のように黙って無視するのではなく、フォームが作らないはずの形として早期に拒否する）
+    def test_one_time_expense_reads_growth_rate_field(self) -> None:
         data = {
             "expenses": [
                 {
@@ -176,9 +174,26 @@ class BuildExpensesTest(unittest.TestCase):
             ]
         }
 
-        with self.assertRaises(SchemaValidationError) as ctx:
-            _build_expenses(data, _DEFAULT_GROWTH_RATE)
-        self.assertIn("growth_rate", ctx.exception.message)
+        _, one_time_expenses = _build_expenses(data, _DEFAULT_GROWTH_RATE)
+
+        self.assertEqual(one_time_expenses[0].growth_rate, Rate.of("0.02"))
+
+    def test_one_time_expense_blank_growth_rate_defaults_to_inflation_rate(self) -> None:
+        data = {
+            "expenses": [
+                {
+                    "expense_id": "expense_car",
+                    "category": "車",
+                    "kind": "one_time",
+                    "amount": 3000000,
+                    "trigger": {"type": "age", "age": 45},
+                }
+            ]
+        }
+
+        _, one_time_expenses = _build_expenses(data, _DEFAULT_GROWTH_RATE)
+
+        self.assertEqual(one_time_expenses[0].growth_rate, _DEFAULT_GROWTH_RATE)
 
     def test_recurring_expense_with_trigger_field_is_rejected(self) -> None:
         data = {

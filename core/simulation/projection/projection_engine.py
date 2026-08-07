@@ -138,7 +138,7 @@ def run_projection(
     has_spouse = plan.user.spouse is not None
     per_account_monthly_rate = _monthly_rate_by_account_id(portfolios)
     one_time_expenses_by_month_offset = _one_time_expenses_by_month_offset(
-        plan.one_time_expenses, start_year, start_month, birth_date, plan.assumptions.inflation_rate
+        plan.one_time_expenses, start_year, start_month, birth_date
     )
     one_time_education_expenses_by_month_offset = _one_time_education_expenses_by_month_offset(
         plan.one_time_education_expenses, plan.children, start_year, start_month, plan.assumptions.inflation_rate
@@ -913,14 +913,16 @@ def _education_expense_monthly_total(
 
 
 def _one_time_expenses_by_month_offset(
-    one_time_expenses: list[OneTimeExpense], start_year: int, start_month: int, birth_date: date, inflation_rate: Rate
+    one_time_expenses: list[OneTimeExpense], start_year: int, start_month: int, birth_date: date
 ) -> dict[int, Money]:
     """車・旅行・住宅購入等の単発支出（ギャップ分析3.3）を、発生する月次オフセットごとに
     集計する。同じ月に複数の単発支出が重なる場合は合算する。
 
     amountは「プラン開始時点(今日)の価値」として入力される前提のため、経常支出・年金見込額
-    （pension_engine.py）と同様、発生年までインフレ率で複利計算してから計上する
-    （発生時期が遠いほど、その頃の名目金額はインフレ分だけ大きくなるため）。
+    （pension_engine.py）と同様、発生年まで複利計算してから計上する（発生時期が遠いほど、
+    その頃の名目金額は成長率分だけ大きくなるため）。成長率は行ごとのexpense.growth_rateを使う
+    （未入力の行はadapters/local/local_data_adapter._parse_growth_rateにより既にプラン共通の
+    インフレ率へ解決済みのため、ここでは常にexpense.growth_rateを使うだけでよい）。
     """
 
     result: dict[int, Money] = {}
@@ -930,7 +932,7 @@ def _one_time_expenses_by_month_offset(
             continue
         target_year, target_month = resolved
         target_offset = (target_year - start_year) * MONTHS_PER_YEAR + (target_month - start_month)
-        grown_amount = _grown_amount(expense.amount, inflation_rate, target_year - start_year)
+        grown_amount = _grown_amount(expense.amount, expense.growth_rate, target_year - start_year)
         result[target_offset] = result.get(target_offset, Money.zero()) + grown_amount
     return result
 

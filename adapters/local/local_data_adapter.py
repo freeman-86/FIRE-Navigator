@@ -53,7 +53,7 @@ EXPENSE_KIND_ONE_TIME = "one_time"
 _EXPENSE_KINDS = (EXPENSE_KIND_RECURRING, EXPENSE_KIND_ONE_TIME)
 
 _RECURRING_ALLOWED_KEYS = {"expense_id", "category", "kind", "amount", "growth_rate", "start_condition", "end_condition"}
-_ONE_TIME_ALLOWED_KEYS = {"expense_id", "category", "kind", "amount", "trigger"}
+_ONE_TIME_ALLOWED_KEYS = {"expense_id", "category", "kind", "amount", "growth_rate", "trigger"}
 
 EDUCATION_EXPENSE_KIND_RECURRING = "recurring"
 EDUCATION_EXPENSE_KIND_ONE_TIME = "one_time"
@@ -420,8 +420,10 @@ def _build_incomes(data: dict, default_growth_rate: Rate) -> list[Income]:
 def _build_expenses(data: dict, default_growth_rate: Rate) -> tuple[list[Expense], list[OneTimeExpense]]:
     """経常支出と単発支出をexpensesセクションから組み立てる。
 
-    各行のkind（"recurring"|"one_time"）で振り分ける。経常支出の成長率が未入力の行は、
-    プラン設定のインフレ率(default_growth_rate)を既定値として使う。
+    各行のkind（"recurring"|"one_time"）で振り分ける。growth_rateが未入力の行は、経常/単発
+    いずれもプラン設定のインフレ率(default_growth_rate)を既定値として使う（単発支出の金額を
+    「プラン開始時点の価値」から発生年まで複利計算する際の成長率にも、一律インフレ率ではなく
+    行ごとに指定できる。例: 住宅価格は一般物価より速く上がる想定にする、等）。
     """
 
     expenses = []
@@ -439,11 +441,14 @@ def _build_expenses(data: dict, default_growth_rate: Rate) -> tuple[list[Expense
         if kind == EXPENSE_KIND_ONE_TIME:
             _reject_unexpected_keys(row, prefix, _ONE_TIME_ALLOWED_KEYS)
             amount = _parse_money_or_zero(row.get("amount"), f"{prefix}.amount")
+            growth_rate = _parse_growth_rate(row.get("growth_rate"), f"{prefix}.growth_rate", default_growth_rate)
             trigger = _build_event_condition(row.get("trigger"), f"{prefix}.trigger")
             if trigger is None:
                 raise SchemaValidationError("triggerが必須です（kind=one_timeの行）", f"{prefix}.trigger")
             one_time_expenses.append(
-                OneTimeExpense(expense_id=expense_id, category=category, amount=amount, trigger=trigger)
+                OneTimeExpense(
+                    expense_id=expense_id, category=category, amount=amount, growth_rate=growth_rate, trigger=trigger
+                )
             )
         else:
             _reject_unexpected_keys(row, prefix, _RECURRING_ALLOWED_KEYS)

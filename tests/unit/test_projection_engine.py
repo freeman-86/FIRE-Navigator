@@ -965,6 +965,7 @@ class OneTimeExpenseIntegrationTest(unittest.TestCase):
             expense_id="expense_car",
             category="車",
             amount=Money.of(3_000_000),
+            growth_rate=Rate.zero(),
             trigger=EventCondition.at_date(date(2027, 6, 1)),
         )
         plan = _minimal_plan(one_time_expenses=[car_purchase])
@@ -1026,7 +1027,11 @@ class PriorYearResidentTaxTest(unittest.TestCase):
             claim_timing=ClaimTiming(age=65),
         )
         trip = OneTimeExpense(
-            expense_id="expense_trip", category="旅行", amount=Money.of(500_000), trigger=EventCondition.at_age(37)
+            expense_id="expense_trip",
+            category="旅行",
+            amount=Money.of(500_000),
+            growth_rate=Rate.zero(),
+            trigger=EventCondition.at_age(37),
         )
         plan = Plan(
             plan_id="plan_test",
@@ -1062,6 +1067,7 @@ class PriorYearResidentTaxTest(unittest.TestCase):
                     expense_id="expense_car",
                     category="車",
                     amount=Money.of(3_000_000),
+                    growth_rate=Rate.zero(),
                     trigger=EventCondition.at_date(date(2027, 6, 1)),
                 )
             ],
@@ -1087,6 +1093,7 @@ class PriorYearResidentTaxTest(unittest.TestCase):
             expense_id="expense_car",
             category="車",
             amount=Money.of(3_000_000),
+            growth_rate=Rate.from_percent(2),
             trigger=EventCondition.at_date(date(2028, 1, 1)),
         )
         plan = _minimal_plan(
