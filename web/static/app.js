@@ -1024,7 +1024,7 @@ function percentileChartTableHtml(chartData) {
     })
     .join("");
   return `
-    <table>
+    <table class="sticky-first-cols">
       <thead><tr><th>西暦年</th><th>年齢</th><th>下位5%</th><th>下位10%</th><th>下位15%</th><th>中央値</th><th>上位15%</th><th>上位10%</th><th>上位5%</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>

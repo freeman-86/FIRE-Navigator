@@ -627,6 +627,28 @@ select {
   white-space: nowrap;
 }
 
+/* モンテカルロ/ヒストリカルの表（percentileChartTableHtml、9列）は横スクロールが前提のため、
+   西暦年・年齢の2列だけ横スクロールしても見えるよう左端に固定する。位置決め用の
+   width/leftはこの2列の内容（西暦年4桁・年齢3文字程度）が収まる想定の固定値。 */
+.table-view table.sticky-first-cols th:first-child,
+.table-view table.sticky-first-cols td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 44px;
+  background: var(--bg-panel);
+}
+
+.table-view table.sticky-first-cols th:nth-child(2),
+.table-view table.sticky-first-cols td:nth-child(2) {
+  position: sticky;
+  left: 44px;
+  z-index: 1;
+  width: 44px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+}
+
 .percentile-charts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
