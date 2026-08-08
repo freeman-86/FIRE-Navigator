@@ -44,18 +44,22 @@ class BuildPercentileBandChartTest(unittest.TestCase):
                 2026: PercentileBand(
                     p5=Money.of(800_000),
                     p10=Money.of(1_000_000),
-                    p15=Money.of(1_200_000),
+                    p20=Money.of(1_400_000),
+                    p30=Money.of(1_700_000),
                     p50=Money.of(2_000_000),
-                    p85=Money.of(2_800_000),
+                    p70=Money.of(2_300_000),
+                    p80=Money.of(2_600_000),
                     p90=Money.of(3_000_000),
                     p95=Money.of(3_200_000),
                 ),
                 2027: PercentileBand(
                     p5=Money.of(880_000),
                     p10=Money.of(1_100_000),
-                    p15=Money.of(1_320_000),
+                    p20=Money.of(1_540_000),
+                    p30=Money.of(1_870_000),
                     p50=Money.of(2_200_000),
-                    p85=Money.of(3_080_000),
+                    p70=Money.of(2_530_000),
+                    p80=Money.of(2_860_000),
                     p90=Money.of(3_300_000),
                     p95=Money.of(3_520_000),
                 ),
@@ -69,9 +73,11 @@ class BuildPercentileBandChartTest(unittest.TestCase):
         self.assertEqual(chart["ages"], [36, 37])
         self.assertEqual(chart["p5"], [800_000, 880_000])
         self.assertEqual(chart["p10"], [1_000_000, 1_100_000])
-        self.assertEqual(chart["p15"], [1_200_000, 1_320_000])
+        self.assertEqual(chart["p20"], [1_400_000, 1_540_000])
+        self.assertEqual(chart["p30"], [1_700_000, 1_870_000])
         self.assertEqual(chart["p50"], [2_000_000, 2_200_000])
-        self.assertEqual(chart["p85"], [2_800_000, 3_080_000])
+        self.assertEqual(chart["p70"], [2_300_000, 2_530_000])
+        self.assertEqual(chart["p80"], [2_600_000, 2_860_000])
         self.assertEqual(chart["p90"], [3_000_000, 3_300_000])
         self.assertEqual(chart["p95"], [3_200_000, 3_520_000])
 
@@ -90,9 +96,11 @@ class BuildPercentileBandChartTest(unittest.TestCase):
                 2026: PercentileBand(
                     p5=Money.zero(),
                     p10=Money.zero(),
-                    p15=Money.zero(),
+                    p20=Money.zero(),
+                    p30=Money.zero(),
                     p50=Money.zero(),
-                    p85=Money.zero(),
+                    p70=Money.zero(),
+                    p80=Money.zero(),
                     p90=Money.zero(),
                     p95=Money.zero(),
                 ),

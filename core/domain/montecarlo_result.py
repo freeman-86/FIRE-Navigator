@@ -9,9 +9,11 @@ from core.domain.value_objects import Money
 class PercentileBand:
     p5: Money
     p10: Money
-    p15: Money
+    p20: Money
+    p30: Money
     p50: Money
-    p85: Money
+    p70: Money
+    p80: Money
     p90: Money
     p95: Money
 

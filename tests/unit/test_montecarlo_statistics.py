@@ -42,13 +42,15 @@ class ComputeStatisticsTest(unittest.TestCase):
         result = compute_statistics(trials)
         band = result.percentile_networth_by_year[2026]
 
-        # 20件中: p5->index1(20), p10->index2(30), p15->index3(40), p50->index10(110),
-        # p85->index17(180), p90->index18(190), p95->index19(200)
+        # 20件中: p5->index1(20), p10->index2(30), p20->index4(50), p30->index6(70),
+        # p50->index10(110), p70->index14(150), p80->index16(170), p90->index18(190), p95->index19(200)
         self.assertEqual(band.p5, Money.of(20))
         self.assertEqual(band.p10, Money.of(30))
-        self.assertEqual(band.p15, Money.of(40))
+        self.assertEqual(band.p20, Money.of(50))
+        self.assertEqual(band.p30, Money.of(70))
         self.assertEqual(band.p50, Money.of(110))
-        self.assertEqual(band.p85, Money.of(180))
+        self.assertEqual(band.p70, Money.of(150))
+        self.assertEqual(band.p80, Money.of(170))
         self.assertEqual(band.p90, Money.of(190))
         self.assertEqual(band.p95, Money.of(200))
 

@@ -915,7 +915,7 @@ function renderNetworthChart(chart) {
   `;
 }
 
-// --- モンテカルロ／ヒストリカル（p5-p95帯＋中央値、3段の帯） ----------------------------------------
+// --- モンテカルロ／ヒストリカル（p5-p95帯＋中央値、4段の帯） ----------------------------------------
 
 let montecarloChartInstance = null;
 let historicalChartInstance = null;
@@ -926,22 +926,25 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
     existingInstance.destroy();
   }
   const options = commonChartOptions();
-  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位5%→下位10%→下位15%→
-  // 上位15%→上位10%→上位5%→中央値の順を保つ必要がある）とは独立に、ツールチップ内の表示順だけ
-  // 上位側→中央値→下位側にする。
+  // データセットの並び（fill:"-1"が直前のデータセットを参照するため、下位5%→下位10%→下位20%→
+  // 下位30%→上位30%→上位20%→上位10%→上位5%→中央値の順を保つ必要がある）とは独立に、
+  // ツールチップ内の表示順だけ上位側→中央値→下位側にする。
   const TOOLTIP_ORDER = {
     "上位5%": 0,
     "上位10%": 1,
-    "上位15%": 2,
-    中央値: 3,
-    "下位15%": 4,
-    "下位10%": 5,
-    "下位5%": 6,
+    "上位20%": 2,
+    "上位30%": 3,
+    中央値: 4,
+    "下位30%": 5,
+    "下位20%": 6,
+    "下位10%": 7,
+    "下位5%": 8,
   };
   options.plugins.tooltip.itemSort = (a, b) => TOOLTIP_ORDER[a.dataset.label] - TOOLTIP_ORDER[b.dataset.label];
 
-  // 中央値からの距離が近いほど不透明度・線の太さを上げ、3段の帯（外側p5-p10/p90-p95、
-  // 中間p10-p15/p85-p90、内側p15-p85）が視覚的にも中心ほど濃くなるようにする。
+  // 中央値からの距離が近いほど不透明度・線の太さを上げ、4段の帯（外側p5-p10/p90-p95、
+  // 中外側p10-p20/p80-p90、中内側p20-p30/p70-p80、内側p30-p70）が視覚的にも
+  // 中心ほど濃くなるようにする。
   const lineStyle = (opacity, width, dash) => ({
     borderColor: hexToRgba(colorHex, opacity),
     borderWidth: width,
@@ -958,47 +961,63 @@ function renderPercentileChart(canvasEl, existingInstance, chartData, colorHex) 
         {
           label: "下位5%",
           data: chartData.p5,
-          ...lineStyle(0.3, 1, [2, 3]),
+          ...lineStyle(0.25, 1, [2, 3]),
           fill: false,
         },
         {
-          // 下位5%〜下位10%（外側の帯）
+          // 下位5%〜下位10%（最も外側の帯）
           label: "下位10%",
           data: chartData.p10,
-          ...lineStyle(0.5, 1.25, [4, 3]),
-          backgroundColor: hexToRgba(colorHex, 0.08),
+          ...lineStyle(0.4, 1.15, [4, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.06),
           fill: "-1",
         },
         {
-          // 下位10%〜下位15%（中間の帯）
-          label: "下位15%",
-          data: chartData.p15,
-          ...lineStyle(0.7, 1.5, [7, 3]),
-          backgroundColor: hexToRgba(colorHex, 0.16),
+          // 下位10%〜下位20%
+          label: "下位20%",
+          data: chartData.p20,
+          ...lineStyle(0.55, 1.3, [6, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.12),
           fill: "-1",
         },
         {
-          // 下位15%〜上位15%（内側の帯。中心7割が収まる範囲として最も濃く塗る）
-          label: "上位15%",
-          data: chartData.p85,
-          ...lineStyle(0.7, 1.5, [7, 3]),
-          backgroundColor: hexToRgba(colorHex, 0.28),
+          // 下位20%〜下位30%
+          label: "下位30%",
+          data: chartData.p30,
+          ...lineStyle(0.7, 1.5, [8, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.2),
           fill: "-1",
         },
         {
-          // 上位15%〜上位10%（中間の帯）
+          // 下位30%〜上位30%（内側の帯。中心40%が収まる範囲として最も濃く塗る）
+          label: "上位30%",
+          data: chartData.p70,
+          ...lineStyle(0.7, 1.5, [8, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.3),
+          fill: "-1",
+        },
+        {
+          // 上位30%〜上位20%
+          label: "上位20%",
+          data: chartData.p80,
+          ...lineStyle(0.55, 1.3, [6, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.2),
+          fill: "-1",
+        },
+        {
+          // 上位20%〜上位10%
           label: "上位10%",
           data: chartData.p90,
-          ...lineStyle(0.5, 1.25, [4, 3]),
-          backgroundColor: hexToRgba(colorHex, 0.16),
+          ...lineStyle(0.4, 1.15, [4, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.12),
           fill: "-1",
         },
         {
-          // 上位10%〜上位5%（外側の帯）
+          // 上位10%〜上位5%（最も外側の帯）
           label: "上位5%",
           data: chartData.p95,
-          ...lineStyle(0.3, 1, [2, 3]),
-          backgroundColor: hexToRgba(colorHex, 0.08),
+          ...lineStyle(0.25, 1, [2, 3]),
+          backgroundColor: hexToRgba(colorHex, 0.06),
           fill: "-1",
         },
         {
@@ -1020,12 +1039,12 @@ function percentileChartTableHtml(chartData) {
   const rows = chartData.x
     .map((year, i) => {
       const age = chartData.ages ? chartData.ages[i] : null;
-      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p5[i])}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p15[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p85[i])}</td><td>${yenCompact(chartData.p90[i])}</td><td>${yenCompact(chartData.p95[i])}</td></tr>`;
+      return `<tr><td>${year}</td><td>${age != null ? age + "歳" : ""}</td><td>${yenCompact(chartData.p5[i])}</td><td>${yenCompact(chartData.p10[i])}</td><td>${yenCompact(chartData.p20[i])}</td><td>${yenCompact(chartData.p30[i])}</td><td>${yenCompact(chartData.p50[i])}</td><td>${yenCompact(chartData.p70[i])}</td><td>${yenCompact(chartData.p80[i])}</td><td>${yenCompact(chartData.p90[i])}</td><td>${yenCompact(chartData.p95[i])}</td></tr>`;
     })
     .join("");
   return `
     <table class="sticky-first-cols">
-      <thead><tr><th>西暦年</th><th>年齢</th><th>下位5%</th><th>下位10%</th><th>下位15%</th><th>中央値</th><th>上位15%</th><th>上位10%</th><th>上位5%</th></tr></thead>
+      <thead><tr><th>西暦年</th><th>年齢</th><th>下位5%</th><th>下位10%</th><th>下位20%</th><th>下位30%</th><th>中央値</th><th>上位30%</th><th>上位20%</th><th>上位10%</th><th>上位5%</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
